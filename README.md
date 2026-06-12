@@ -126,4 +126,4 @@ Kotisatama-spesifiset muutokset Servo-koodiin julkaistaan MPL 2.0:n mukaisesti. 
 
 ---
 
-*Kotisatama on osa [Ilio](https://ilio.fi)-toiminimeä (Y-tunnus 2010).*
+

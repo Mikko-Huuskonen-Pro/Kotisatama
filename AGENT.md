@@ -8,7 +8,7 @@ Tämä tiedosto ohjaa koodiagentin toimintaa Kotisatama-repossa. Lue ennen kuin 
 
 **Älä koskaan muokkaa Servo-upstream-tiedostoja suoraan.**
 
-Kaikki Kotisatama-spesifinen koodi elää `components/kotisatama/`-hakemistossa, `ports/servoshell/`-hookissa tai erillisissä hakemistoissa (`tauri/`, `crawler/`). Jos jokin muutos tuntuu vaativan upstream-tiedoston muokkaamista, pysähdy ja kysy ensin.
+Kaikki Kotisatama-spesifinen koodi elää `components/kotisatama/`-hakemistossa, `ports/servoshell/`-hookissa tai erillisissä hakemistoissa (`tauri/`, `crawler/`). Jos jokin muutos tuntuu vaativan upstream-tiedoston muokkaamista, pysähdy ja kysy ensin. Koska Servo on 100% englanniksi, käytetään kotisatamassa kommenteissa (//) ja elementeissä suomea. Näin nopealla silmäyksellä erottaa mistä koodi on tullut. 
 
 ---
 

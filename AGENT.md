@@ -8,21 +8,23 @@ Tämä tiedosto ohjaa koodiagentin toimintaa Kotisatama-repossa. Lue ennen kuin 
 
 **Älä koskaan muokkaa Servo-upstream-tiedostoja suoraan.**
 
-Kaikki Kotisatama-spesifinen koodi elää `components/kotisatama/`-hakemistossa tai erillisissä Tauri-hakemistoissa. Jos jokin muutos tuntuu vaativan upstream-tiedoston muokkaamista, pysähdy ja kysy ensin.
+Kaikki Kotisatama-spesifinen koodi elää `components/kotisatama/`-hakemistossa, `ports/servoshell/`-hookissa tai erillisissä hakemistoissa (`tauri/`, `crawler/`). Jos jokin muutos tuntuu vaativan upstream-tiedoston muokkaamista, pysähdy ja kysy ensin.
 
 ---
 
-## Hakemistorakenne 
+## Hakemistorakenne
 
 ```
 kotisatama/
 ├── components/
 │   ├── kotisatama/          ← KAIKKI omat Rust-muutokset tänne
 │   │   ├── whitelist/       ← Whitelist-logiikka
-│   │   ├── search/          ← Meilisearch-integraatio
+│   │   ├── search/          ← Meilisearch-client (HTTP → paikallinen prosessi)
 │   │   └── lib.rs
-│   └── [servo-upstream]/    ← ÄLÄ KOSKE
-├── tauri/                   ← Tauri-app, täysin erillinen
+│   └── [servo-upstream]/    ← ÄLÄ KOSKE (paitsi minimaalinen KOTISATAMA-PATCH)
+├── ports/
+│   └── servoshell/          ← embedder-hook: request_navigation, hakukenttä
+├── tauri/                   ← Hallintapaneeli (ei selainmoottori)
 │   ├── src/                 ← TypeScript/JS UI
 │   └── src-tauri/           ← Tauri Rust-backend
 ├── crawler/                 ← Node.js, täysin erillinen
@@ -46,9 +48,30 @@ components/kotisatama/search/
 components/script/kotisatama_whitelist.rs  ← upstream-hakemisto
 ```
 
-### Integrointi Servoon feature flagilla
+### Whitelist: embedder-hook (ensisijainen polku)
 
-Jos Servo-koodi täytyy kutsua omaa crates, käytä feature flagia. Näin upstream-merge ei riko mitään vaikka feature olisi pois päältä:
+Servo tarjoaa navigointihook embedder-kerroksessa (`NavigationRequest::allow()` / `deny()`). **Älä toteuta whitelistia `components/net/` tai `components/script/` -tasolla** — käytä `ports/servoshell/`.
+
+Logiikka pysyy `kotisatama-whitelist`-cratessa. Servoshell kutsuu sitä `WebViewDelegate::request_navigation`-metodissa:
+
+```rust
+// ports/servoshell/running_app_state.rs — esimerkki (KOTISATAMA-PATCH)
+impl WebViewDelegate for RunningAppState {
+    fn request_navigation(&self, _webview: WebView, request: NavigationRequest) {
+        if kotisatama_whitelist::is_allowed(&request.url) {
+            request.allow();
+        } else {
+            request.deny();
+        }
+    }
+}
+```
+
+Tämä on parempi kuin muutos `components/net/`-tasolla, koska upstream-muutokset `ports/servoshell/`-hakemistossa ovat harvemmat kuin `components/net/` tai `components/script/`.
+
+### Integrointi Servoon feature flagilla (vain jos embedder ei riittää)
+
+Jos hook täytyy tehdä upstream-komponentissa, käytä feature flagia. Näin upstream-merge ei riko mitään vaikka feature olisi pois päältä:
 
 ```toml
 # Cargo.toml
@@ -57,13 +80,10 @@ kotisatama = ["kotisatama-whitelist", "kotisatama-search"]
 ```
 
 ```rust
-// Servo-upstream-tiedostossa — minimaalinen hook, ei logiikkaa
+// Upstream-tiedostossa — minimaalinen hook, ei logiikkaa
 #[cfg(feature = "kotisatama")]
-use kotisatama_whitelist::is_allowed;
-
-#[cfg(feature = "kotisatama")]
-if !is_allowed(&url) {
-    return NavigationResult::Blocked;
+if !kotisatama_whitelist::is_allowed(&url) {
+  // palauta upstreamin oma deny/blokki-malli — ei NavigationResult::Blocked
 }
 ```
 
@@ -78,7 +98,7 @@ Upstream-konflikteja syntyy kun muokataan tiedostoa jota Servo-tiimi myös muokk
 - `components/net/`
 - `Cargo.lock` (synkronoituu automaattisesti mergessä)
 
-Jos muutos on pakko tehdä näihin, tee se mahdollisimman pieneksi ja merkitse kommentilla:
+Suosi `ports/servoshell/` embedder-hookia whitelistille. Jos muutos on pakko tehdä upstream-komponenttiin, tee se mahdollisimman pieneksi ja merkitse kommentilla:
 
 ```rust
 // KOTISATAMA-PATCH: syy tälle muutokselle
@@ -88,9 +108,20 @@ Jos muutos on pakko tehdä näihin, tee se mahdollisimman pieneksi ja merkitse k
 
 ---
 
-## Tauri — miten pidetään erillään
+## Android — servoshell EGL, ei Tauri
 
-Tauri-app on täysin erillinen hakemisto. Se ei periydy Servosta — se käyttää Servoa komponenttina.
+Android-build käyttää Servon omaa polkua:
+
+- `ports/servoshell/egl/android/` — JNI + `ANativeWindow`
+- `support/android/apk/` — APK-paketointi
+
+**Tauri ei kantaa Servo-moottoria Androidilla.** Tauri 2.0 käyttää Androidilla System WebViewia (Chromium). Älä yritä wrappaa Servoa Taurin sisään selaimen kantajana.
+
+---
+
+## Tauri — hallintapaneeli, ei selain
+
+Tauri-app on täysin erillinen hakemisto. Se **ei onnistuneena wrappaa Servo-moottoria** — se on vanhemman hallintapaneeli whitelistin ja asetuksien hallintaan (web/desktop).
 
 ### Rakenne
 
@@ -105,18 +136,17 @@ tauri/
 └── package.json
 ```
 
-### Servo Tauri-backendissä
+### Kotisatama-cratet Tauri-backendissä
 
-Servo integroidaan Tauri-backendiin cratenä, ei forkkina:
+Hallintapaneeli käyttää vain omia `kotisatama/`-crateä — ei Servon sisäisiä crateä:
 
 ```toml
 # tauri/src-tauri/Cargo.toml
 [dependencies]
 kotisatama-whitelist = { path = "../../components/kotisatama/whitelist" }
-kotisatama-search = { path = "../../components/kotisatama/search" }
 ```
 
-Tauri-backend ei importoi Servon sisäisiä crateä suoraan — vain omia `kotisatama/`-crateä.
+Tauri-backend ei importoi Servon sisäisiä crateä suoraan.
 
 ### Upstream-päivitys ei koske Tauriin
 
@@ -127,7 +157,20 @@ git fetch upstream
 git merge upstream/main
 ```
 
-`tauri/`-hakemisto ei ole osa Servo-repoa — se ei koskaan saa merge-konflikteja upstream:ista. Tämä on tarkoituksellinen design-päätös.
+`tauri/`-hakemisto ei onnistuneena saa merge-konflikteja upstream:ista — se on vain tässä forkissa. Tämä on tarkoituksellinen design-päätös.
+
+---
+
+## Haku — Meilisearch subprocess
+
+Meilisearch on palvelinprosessi (LMDB). Mobiilissa ja desktopilla:
+
+1. Crawler (CI) indeksoi whitelist-sivustot → Meilisearch-dump
+2. Dump CDN:ään
+3. Laitteella: bundlattu Meilisearch-binääri käynnistyy subprocessina, importaa dumpin
+4. `kotisatama-search` kysyy paikallista instanssia HTTP:llä (`http://127.0.0.1:7700`)
+
+**Älä yritä upottaa Meilisearchia kirjastotasolla** — se ei onnistuneena upoteta mobiiliappiin. `components/kotisatama/search/` on HTTP-client ja prosessinhallinta, ei Meilisearch-core.
 
 ---
 
@@ -143,8 +186,9 @@ git log HEAD..upstream/main --oneline
 # 3. Mergetään
 git merge upstream/main
 
-# 4. Jos konflikteja — ne ovat lähes aina KOTISATAMA-PATCH-kohdissa
+# 4. Jos konflikteja — ne ovat KOTISATAMA-PATCH-kohdissa upstream-tiedostoissa
 git diff --name-only --diff-filter=U
+# Tyypillisesti: ports/servoshell/, ei components/kotisatama/
 
 # 5. Resolvataan konflikti: ota upstream-muutos, lisää oma patch perään
 # ÄLÄ hylkää upstream-muutosta kokonaan
@@ -161,8 +205,10 @@ cargo build  # Pitää myös toimia ilman featurea
 - [ ] `cargo build` toimii ilman `--features kotisatama` (upstream ei rikkoudu)
 - [ ] `cargo build --features kotisatama` toimii
 - [ ] Muutoksia ei ole `components/[upstream]/`-tiedostoissa ilman `KOTISATAMA-PATCH`-kommenttia
-- [ ] `tauri/`-hakemisto buildaa itsenäisesti: `cd tauri && cargo build`
-- [ ] Uudet tiedostot ovat `components/kotisatama/`-alla tai `tauri/`-alla
+- [ ] Whitelist-logiikka on `components/kotisatama/whitelist/`, hook `ports/servoshell/`
+- [ ] `./mach build --release` toimii (desktop)
+- [ ] `tauri/`-hakemisto buildaa itsenäisesti: `cd tauri && npm run tauri build` (jos muutettu)
+- [ ] Uudet tiedostot ovat `components/kotisatama/`-alla, `ports/servoshell/`-hookissa tai `tauri/`/`crawler/`-hakemistoissa
 
 ---
 
@@ -171,11 +217,22 @@ cargo build  # Pitää myös toimia ilman featurea
 | Konteksti | Kieli |
 |---|---|
 | Whitelist-logiikka | Rust (`components/kotisatama/whitelist`) |
-| Hakuindeksi-integraatio | Rust (`components/kotisatama/search`) |
-| Tauri-backend | Rust (`tauri/src-tauri`) |
-| Tauri-UI | TypeScript |
+| Haku-integraatio | Rust (`components/kotisatama/search`) — HTTP-client |
+| Embedder-hook | Rust (`ports/servoshell/`) |
+| Tauri-hallintapaneeli | Rust + TypeScript (`tauri/`) |
 | Crawler | Node.js + Playwright |
 | Whitelist JSON | JSON, skeema `config/whitelist.schema.json` |
+
+---
+
+## Toteutusjärjestys (suositus)
+
+1. `components/kotisatama/whitelist` + `request_navigation`-hook servoshellissa
+2. Hakukenttä servoshell-UI:ssa (desktop)
+3. Crawler + CDN-pipeline
+4. Meilisearch subprocess + `kotisatama-search`
+5. Android: servoshell EGL (`./mach build --target aarch64-linux-android`)
+6. Tauri-hallintapaneeli (valinnainen, erillinen)
 
 ---
 

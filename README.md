@@ -10,11 +10,15 @@ Kotisatama on Servo-pohjainen selain whitelist-pohjaisella hakumallilla. Selain 
 
 ```
 [Kotisatama — Servo-fork]
-    ├── Whitelist-moduuli (android-components)
-    └── Meilisearch-integraatio (lokaali indeksi)
+    ├── components/kotisatama/whitelist   ← whitelist-logiikka
+    ├── components/kotisatama/search      ← haku-API (Meilisearch-client)
+    └── ports/servoshell                  ← embedder-hook (navigointi, UI)
 
-[Tauri 2.0]
-    └── Wrappaa Servo-UI:n Android-applikaatioksi
+[Android — servoshell EGL]
+    └── support/android/apk + JNI-host    ← ei Tauri; Servon oma Android-polku
+
+[Tauri 2.0 — erillinen hallintapaneeli]
+    └── Vanhempi hallinnoi whitelistia (web/desktop), ei selainmoottori
 
 [CDN — staattinen]
     ├── /free/whitelist.json
@@ -24,7 +28,9 @@ Kotisatama on Servo-pohjainen selain whitelist-pohjaisella hakumallilla. Selain 
     └── Playwright → Meilisearch-dump → CDN
 ```
 
-Ei omaa palvelinta. Ei VPN-infraa. Haku tapahtuu laitteelle esiladatusta Meilisearch-indeksistä.
+Ei omaa palvelinta. Ei VPN-infraa. Haku tapahtuu laitteelle esiladatusta indeksistä.
+
+**Meilisearch laitteella:** indeksi on Meilisearch-dump (CDN), mutta haku vaatii Meilisearch-prosessin laitteessa (bundlattu binääri, subprocess). Meilisearch ei onnistuneena upoteta kirjastotasolla mobiiliappiin — prosessi käynnistetään ja kyselyt tehdään HTTP:llä paikalliseen instanssiin.
 
 ---
 
@@ -46,9 +52,9 @@ Seuraa ensin Servon omaa [setup-ohjetta](https://book.servo.org/hacking/setting-
 
 - Rust (stable, versio Servon `rust-toolchain.toml` mukaan)
 - Python 3.10+
-- Android SDK (jos rakennat mobiilia)
-- Tauri 2.0 CLI
-- Node.js 20+ (crawler ja Tauri-build)
+- Android SDK + NDK (mobiili-APK)
+- Node.js 20+ (crawler)
+- Tauri 2.0 CLI (vain hallintapaneeli, valinnainen)
 
 ### Kloonataan
 
@@ -68,12 +74,24 @@ git fetch upstream
 ./mach run
 ```
 
-### Rakennetaan Android (Tauri)
+### Rakennetaan Android (servoshell EGL)
+
+Android käyttää Servon omaa `servoshell`-embedderia (`ports/servoshell/egl/android/`), ei Tauria. Tauri käyttää Androidilla System WebViewia (Chromium) — se ei kantaa Servo-moottoria.
+
+```bash
+# Esimerkki: arm64-APK (vaatii ANDROID_NDK_ROOT)
+./mach build --target aarch64-linux-android --profile checked-release
+# APK: target/aarch64-linux-android/checked-release/servoapp.apk
+```
+
+### Hallintapaneeli (Tauri, valinnainen)
+
+Erillinen app vanhemman whitelist-hallintaan — ei osa selainmoottoria:
 
 ```bash
 cd tauri
 npm install
-npm run tauri android build
+npm run tauri build
 ```
 
 ### Whitelist paikallisesti
@@ -90,7 +108,7 @@ export KOTISATAMA_WHITELIST_PATH=config/whitelist.json
 
 ## Hakuindeksi
 
-Meilisearch pyörii laitteella. Indeksi ladataan CDN:stä asennuksen yhteydessä ja päivittyy OTA-päivitysten mukana.
+Indeksi ladataan CDN:stä asennuksen yhteydessä ja päivittyy OTA-päivitysten mukana. Laitteella Meilisearch-prosessi importaa dumpin käynnistyksessä ja palvelee hakuja paikallisesti (offline, kun indeksi on ladattu).
 
 ### Crawlerin ajaminen paikallisesti
 
@@ -114,7 +132,7 @@ git checkout main
 git merge upstream/main
 ```
 
-Kotisatama-muutokset on tarkoituksella eriytetty omiin moduuleihinsa konfliktien minimoimiseksi. Jos tulee konflikti, se on lähes aina `components/kotisatama/`-hakemistossa.
+Kotisatama-spesifiset hakemistot (`components/kotisatama/`, `tauri/`, `crawler/`) ei tule upstream-merge-konflikteja — ne ovat vain tässä forkissa. Konfliktit syntyvät **KOTISATAMA-PATCH**-kohdissa upstream-tiedostoissa, tyypillisesti `ports/servoshell/` tai minimaalisissa feature-flag-hookeissa.
 
 ---
 

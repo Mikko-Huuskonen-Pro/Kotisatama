@@ -1,5 +1,5 @@
 # Kotisatama — konseptitiivistelmä
-*Versio 2.0 — kesäkuu 2026*
+*Versio 2.1 — kesäkuu 2026*
 
 ---
 
@@ -54,7 +54,7 @@ Käyttäjä ei hae internetistä. Haku tapahtuu **laitteelle esiladatusta indeks
 ```
 Käyttäjä kirjoittaa "eläke"
         ↓
-Meilisearch-indeksi laitteella (ei verkkoyhteyttä tarvita)
+Paikallinen Meilisearch-prosessi (bundlattu binääri, indeksi ladattu CDN:stä)
         ↓
 Tulokset: kela.fi/eläke, eläkeliitto.fi/...
         ↓
@@ -62,6 +62,8 @@ Käyttäjä klikkaa — selain avaa sivun normaalisti
         ↓
 Jos ei löydy: "Ei löydy kotisatamasta — haluatko mennä avomerelle?"
 ```
+
+Haku ei vaatii verkkoyhteyttä, kun indeksi on ladattu. Meilisearch pyörii laitteella subprocessina (HTTP `127.0.0.1`) — ei kirjastotasolla upotettu.
 
 Indeksin koko: arviolta 50–200 MB per versio. Päivittyy OTA-päivityksen mukana viikoittain.
 
@@ -74,24 +76,34 @@ Fallback-haut ovat dataa: mitä whitelist kaipaa lisää.
 ### Selain
 - Pohja: **Servo** (MPL 2.0 -lisenssi, vapaa forkkaus)
 - Moottori: Servo — Rust-pohjainen, ei Googlen Chromium eikä Gecko
-- Whitelist-logiikka lisätään suoraan Servo-komponentteihin
-- Muutokset Servo-koodiin julkaistaan MPL:n mukaan — oma bisneslogiikka pysyy suljettuna
+- Whitelist-logiikka: `components/kotisatama/whitelist/` (oma crate)
+- Whitelist-hook: `ports/servoshell/` embedder-kerros (`request_navigation` → allow/deny)
+- Muutokset Servo-upstream-koodiin vain minimaalisia KOTISATAMA-PATCH-kohdilla; oma bisneslogiikka pysyy suljettuna
 
 ### UI-kerros
-- **Tauri 2.0** wrappaa Servo-UI:n Android-applikaatioksi
-- Web- ja mobiiliversio jakavat saman komponenttikirjaston
+- **Desktop:** servoshell (egui-UI, hakukenttä)
+- **Android:** servoshell EGL (`ports/servoshell/egl/android/` + `support/android/apk/`) — Servon oma JNI-polku
+- **Tauri 2.0:** erillinen hallintapaneeli vanhemman whitelist-hallintaan (web/desktop) — **ei selainmoottori**
+- Tauri käyttää Androidilla System WebViewia (Chromium) — se ei kantaa Servo-moottoria
 
 ### Hakuindeksi
-- **Meilisearch** (open source, Rust, virhesietoinen)
-- Indeksi bundlataan laitteelle — ei palvelinriippuvuutta hakuun
+- **Meilisearch** (open source, Rust, virhesietoinen) — palvelinprosessi laitteella
+- Indeksi CDN:stä Meilisearch-dumpina; prosessi importaa dumpin käynnistyksessä
+- `components/kotisatama/search/` — HTTP-client paikalliseen instanssiin, ei Meilisearch-core upotettu
 - Crawler: **Playwright**-pohjainen (suorittaa JS:n → indeksoi SPA-sivustot oikein)
 - Crawler pyörii CI-prosessina (esim. GitHub Actions), pushaa päivitetyn indeksin CDN:ään
 
 ### Infrastruktuuri — serverless
 ```
-[Kotisatama-selain — Servo-fork + Tauri]
+[Kotisatama-selain — Servo-fork + servoshell]
+    ├── components/kotisatama/whitelist   ← logiikka
+    ├── components/kotisatama/search    ← HTTP-client
+    ├── ports/servoshell                ← navigointi + UI
     ├── Whitelist JSON (bundlattu appiin, OTA-päivitys CDN:stä)
-    └── Meilisearch-indeksi (ladattu laitteelle, päivittyy OTA)
+    └── Meilisearch subprocess (bundlattu binääri + ladattu indeksi)
+
+[Tauri 2.0 — erillinen hallintapaneeli]
+    └── Vanhempi hallinnoi whitelistia (ei osa selainmoottoria)
 
 [CDN — staattinen]
     ├── Whitelist JSON (versioitu)
@@ -149,13 +161,24 @@ Ilmainen → kokemus karttuu → "en jaksa hallita itse" → 5€/kk Pro
 
 ## Avoimet päätökset
 
-- [ ] Servo-forkin rakenne — mihin whitelist-moduuli lisätään
-- [ ] Hallintapaneelin toteutus ostajalle (web vai Tauri-app)
+- [x] Servo-forkin rakenne — `components/kotisatama/` + `ports/servoshell/` embedder-hook
+- [x] Android-polku — servoshell EGL (ei Tauri selaimen kantajana)
+- [x] Haku laitteella — Meilisearch subprocess + CDN-dump (ei kirjastotasolla upotettu)
+- [ ] Hallintapaneeli — Tauri 2.0 hallintapaneeli (suositus), web-vaihtoehto mahdollinen
 - [ ] Crawler-strategia: indeksointisyvyys, päivitystiheys
 - [ ] Mainospaikan tekninen toteutus hakutuloksissa
 - [ ] CDN-valinta (Cloudflare R2, Bunny, vai muu)
 - [ ] Pro-julkaisun ajankohta — milloin ilmaisen dataa on riittävästi
 - [ ] PRH: aputoiminimi tai uusi toiminimi Kotisatamalle
+
+## Toteutusjärjestys (tekninen)
+
+1. `components/kotisatama/whitelist` + `request_navigation`-hook servoshellissa
+2. Hakukenttä servoshell-UI:ssa (desktop)
+3. Crawler + CDN-pipeline
+4. Meilisearch subprocess + `kotisatama-search`
+5. Android: servoshell EGL (`./mach build --target aarch64-linux-android`)
+6. Tauri-hallintapaneeli (valinnainen, erillinen)
 
 ---
 
@@ -172,4 +195,4 @@ Ilmainen → kokemus karttuu → "en jaksa hallita itse" → 5€/kk Pro
 
 ---
 
-*Projekti on osa Ilio-toiminimeä (Y-tunnus 2010). Tekninen pohja: Servo (MPL 2.0) + Meilisearch (MIT) + Tauri 2.0 (MIT). Infrastruktuuri: serverless, CDN-pohjainen.*
+*Projekti on osa Ilio-toiminimeä (Y-tunnus 2010). Tekninen pohja: Servo + servoshell (MPL 2.0) + Meilisearch subprocess (MIT) + Tauri 2.0 hallintapaneeli (MIT). Infrastruktuuri: serverless, CDN-pohjainen.*

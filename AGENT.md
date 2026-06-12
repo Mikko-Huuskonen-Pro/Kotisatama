@@ -12,7 +12,7 @@ Kaikki Kotisatama-spesifinen koodi elää `components/kotisatama/`-hakemistossa 
 
 ---
 
-## Hakemistorakenne
+## Hakemistorakenne 
 
 ```
 kotisatama/

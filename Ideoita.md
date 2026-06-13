@@ -1,4 +1,4 @@
-###Ideoita ja ajatuksia tulevaisuudesta. Ehkä toteutukseen, ei lähdetä rakentamaan näiden mukaan, vielä. # Whitelist-pipeline — suunnitelma
+### Ideoita ja ajatuksia tulevaisuudesta. Ehkä toteutukseen, ei lähdetä rakentamaan näiden mukaan, vielä. # Whitelist-pipeline — suunnitelma
 *Kotisatama— kesäkuu 2026*
 
 ---

@@ -64,7 +64,7 @@
     },
     {
         "run_args": {
-            "url": "https://www.servo.org",
+            "url": "https://example.com",
             "tries": 5,
             "mitmproxy": true,
             "commands": ["--psn=--ignore-certificate-errors"]

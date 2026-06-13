@@ -4,4 +4,3 @@ changelog:
   exclude:
     authors:
       - dependabot[bot]
-      - servo-wpt-sync

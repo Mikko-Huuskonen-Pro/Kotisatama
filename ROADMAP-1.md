@@ -81,12 +81,12 @@ Automaattinen päivitys tulee vasta vaiheessa 3.
 
 **Tavoite:** Indeksi ja whitelist pysyvät ajan tasalla automaattisesti (korvaa manuaalinen testi-indeksi).
 
-- [ ] Crawler (`crawler/`): Node.js + Playwright, indeksoi whitelist-sivustot
-- [ ] Crawler ajaa myös JS-renderöidyt SPA-sivustot oikein
-- [ ] CI-pipeline: crawler ajaa viikoittain → Meilisearch-dump → CDN
-- [ ] CDN-valinta: Cloudflare R2 tai Bunny (päätös avoin)
-- [ ] `/free/whitelist.json` CDN:ssä — julkinen, ei API-avainta
-- [ ] OTA-päivitys: app lataa uuden indeksin ja whitelist-JSONin taustalla
+- [x] Crawler (`crawler/`): Node.js + Playwright, indeksoi whitelist-sivustot
+- [x] Crawler ajaa myös JS-renderöidyt SPA-sivustot oikein
+- [x] CI-pipeline: crawler ajaa viikoittain → Meilisearch-dump → CDN-artifakti
+- [ ] CDN-valinta: Cloudflare R2 tai Bunny (päätös avoin — artifact valmis julkaisuun)
+- [x] `/free/whitelist.json` CDN-paketissa — julkinen rakenne
+- [x] OTA-päivitys: `KOTISATAMA_CDN_BASE` lataa whitelist + indeksidumpin käynnistyksessä
 
 **Valmis kun:** Whitelist- ja indeksipäivitys näkyy laitteella ilman manuaalista toimenpidettä.
 

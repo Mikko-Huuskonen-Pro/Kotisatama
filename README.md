@@ -120,12 +120,27 @@ Indeksi ladataan CDN:stä asennuksen yhteydessä ja päivittyy OTA-päivitysten 
 ### Crawlerin ajaminen paikallisesti
 
 ```bash
+# Terminaali 1: Meilisearch
+meilisearch --http-addr 127.0.0.1:7700 --env development --dump-dir ./dumps
+
+# Terminaali 2: Crawler
 cd crawler
 npm install
-node crawl.js --whitelist ../config/whitelist.json --output ./index-dump
+npm run crawl -- --whitelist ../config/whitelist.json --output ../output/cdn --dump-dir ../dumps
 ```
 
 Crawler käyttää Playwrightia — indeksoi myös JS-renderöidyt SPA-sivustot.
+
+### OTA-päivitys CDN:stä
+
+Aseta CDN-URL käynnistyksessä:
+
+```bash
+export KOTISATAMA_CDN_BASE=https://cdn.example.com
+./mach run
+```
+
+Selain lataa `/free/whitelist.json` ja `/free/index.dump` käynnistyksessä.
 
 ---
 

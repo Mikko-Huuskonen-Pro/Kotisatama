@@ -4,13 +4,13 @@
 
 //! Kotisatama integration for servoshell (whitelist navigation + local search).
 
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use kotisatama_search::SearchClient;
 pub use kotisatama_search::{SearchHit, SearchOutcome};
 use kotisatama_whitelist::{blocked_page_url, is_allowed, startpage_search_url, Whitelist};
-use log::warn;
+use log::{info, warn};
 use servo::WebView;
 use url::Url;
 
@@ -26,12 +26,31 @@ pub struct KotisatamaSearchPanel {
 
 /// Load whitelist and start local search (Meilisearch subprocess if needed).
 pub fn init() {
+    if let Ok(cdn_base) = std::env::var("KOTISATAMA_CDN_BASE") {
+        match kotisatama_search::sync_from_cdn(&cdn_base) {
+            Ok(report) if report.whitelist_updated || report.index_dump_updated => {
+                info!(
+                    "Kotisatama CDN sync: whitelist={}, index={}",
+                    report.whitelist_updated, report.index_dump_updated
+                );
+            },
+            Ok(_) => {},
+            Err(error) => warn!("Kotisatama CDN sync failed: {error}"),
+        }
+    }
+
     WHITELIST.get_or_init(|| {
-        let path = std::env::var("KOTISATAMA_WHITELIST_PATH")
-            .unwrap_or_else(|_| "config/whitelist.json".to_string());
-        Whitelist::load_from_path(Path::new(&path)).unwrap_or_else(|error| {
+        let path = kotisatama_search::cached_whitelist_path()
+            .or_else(|| {
+                std::env::var("KOTISATAMA_WHITELIST_PATH")
+                    .ok()
+                    .map(PathBuf::from)
+            })
+            .unwrap_or_else(|| PathBuf::from("config/whitelist.json"));
+        Whitelist::load_from_path(&path).unwrap_or_else(|error| {
             warn!(
-                "Kotisatama: could not load whitelist from {path}: {error}. Using empty whitelist.",
+                "Kotisatama: could not load whitelist from {}: {error}. Using empty whitelist.",
+                path.display()
             );
             Whitelist::empty()
         })

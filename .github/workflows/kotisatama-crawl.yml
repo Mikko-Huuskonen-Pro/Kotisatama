@@ -1,0 +1,62 @@
+name: Kotisatama Crawler
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly Monday 03:00 UTC
+    - cron: "0 3 * * 1"
+
+env:
+  MEILISEARCH_URL: http://127.0.0.1:7700
+
+jobs:
+  crawl:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Meilisearch
+        run: |
+          curl -L https://install.meilisearch.com | sh
+          sudo mv meilisearch /usr/local/bin/
+
+      - name: Install crawler dependencies
+        working-directory: crawler
+        run: npm install
+
+      - name: Start Meilisearch
+        run: |
+          mkdir -p dumps index-data
+          meilisearch \
+            --http-addr 127.0.0.1:7700 \
+            --env development \
+            --db-path index-data/meilisearch \
+            --dump-dir dumps &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:7700/health && break
+            sleep 1
+          done
+
+      - name: Run crawler
+        working-directory: crawler
+        run: |
+          npm run crawl -- \
+            --whitelist ../config/whitelist.json \
+            --output ../output/cdn \
+            --dump-dir ../dumps \
+            --max-depth 2 \
+            --max-pages 30
+
+      - name: Upload CDN bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotisatama-cdn-bundle
+          path: output/cdn/free/
+          if-no-files-found: error
+
+      # Optional: set repo secrets KOTISATAMA_CDN_* and enable manual publish job later.
+      # See crawler/README.md for CDN bundle layout.

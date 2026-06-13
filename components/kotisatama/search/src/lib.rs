@@ -4,6 +4,8 @@
 
 //! Local search against a Meilisearch instance (subprocess on `127.0.0.1:7700`).
 
+mod cdn;
+
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -12,6 +14,8 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+
+pub use cdn::{cached_whitelist_path, sync_from_cdn, CdnSyncReport};
 
 const DEFAULT_BASE_URL: &str = "http://127.0.0.1:7700";
 const INDEX_UID: &str = "documents";
@@ -58,17 +62,33 @@ impl SearchClient {
         let binary = find_meilisearch_binary()?;
         let db_path = std::env::var("KOTISATAMA_MEILISEARCH_DB")
             .unwrap_or_else(|_| "index-data/meilisearch".to_string());
-        std::fs::create_dir_all(&db_path).map_err(SearchError::Io)?;
+        fs::create_dir_all(&db_path).map_err(SearchError::Io)?;
+
+        let dump_path = std::env::var("KOTISATAMA_INDEX_DUMP")
+            .unwrap_or_else(|_| "index-data/index.dump".to_string());
+        let import_dump = should_import_dump(&dump_path, &db_path);
+
+        if import_dump && PathBuf::from(&db_path).exists() {
+            fs::remove_dir_all(&db_path).map_err(SearchError::Io)?;
+            fs::create_dir_all(&db_path).map_err(SearchError::Io)?;
+        }
+
+        let mut args = vec![
+            "--http-addr".to_string(),
+            "127.0.0.1:7700".to_string(),
+            "--db-path".to_string(),
+            db_path.clone(),
+            "--env".to_string(),
+            "development".to_string(),
+        ];
+        if import_dump {
+            args.push("--import-dump".to_string());
+            args.push(dump_path);
+            args.push("--ignore-missing-dump".to_string());
+        }
 
         let process = Command::new(&binary)
-            .args([
-                "--http-addr",
-                "127.0.0.1:7700",
-                "--db-path",
-                &db_path,
-                "--env",
-                "development",
-            ])
+            .args(&args)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -265,6 +285,23 @@ fn which_meilisearch_on_path() -> Result<PathBuf, SearchError> {
         }
     }
     Err(SearchError::BinaryNotFound)
+}
+
+fn should_import_dump(dump_path: &str, db_path: &str) -> bool {
+    let dump = PathBuf::from(dump_path);
+    if !dump.is_file() {
+        return false;
+    }
+    let db = PathBuf::from(db_path);
+    if !db.exists() {
+        return true;
+    }
+    let dump_modified = fs::metadata(&dump).and_then(|m| m.modified()).ok();
+    let db_modified = fs::metadata(&db).and_then(|m| m.modified()).ok();
+    match (dump_modified, db_modified) {
+        (Some(d), Some(b)) => d > b,
+        _ => true,
+    }
 }
 
 #[cfg(test)]

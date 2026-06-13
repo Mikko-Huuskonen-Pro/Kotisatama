@@ -6,6 +6,10 @@
 /.wpt
 /.vs
 /target
+/crawler/node_modules
+/output
+/index-data
+/dumps
 /tests/wpt/reftests-report/report.html
 /python/_virtualenv*
 /python/_venv*

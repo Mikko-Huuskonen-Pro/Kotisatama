@@ -1,0 +1,15 @@
+{
+  "name": "kotisatama-crawler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Crawl whitelist domains and publish Meilisearch index dump",
+  "scripts": {
+    "crawl": "node crawl.js",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "meilisearch": "^0.49.0",
+    "playwright": "^1.51.0"
+  }
+}

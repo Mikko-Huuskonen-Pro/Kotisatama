@@ -22,7 +22,7 @@ pub struct CdnSyncReport {
 /// Download `/free/whitelist.json` and `/free/index.dump` from CDN base URL.
 pub fn sync_from_cdn(base_url: &str) -> Result<CdnSyncReport, SearchError> {
     let base = base_url.trim_end_matches('/');
-    let cache_dir = PathBuf::from("index-data/cache");
+    let cache_dir = data_dir().join("cache");
     fs::create_dir_all(&cache_dir).map_err(SearchError::Io)?;
 
     let mut report = CdnSyncReport::default();
@@ -40,7 +40,7 @@ pub fn sync_from_cdn(base_url: &str) -> Result<CdnSyncReport, SearchError> {
     }
 
     let dump_url = format!("{base}/free/index.dump");
-    let dump_dest = PathBuf::from("index-data/index.dump");
+    let dump_dest = data_dir().join("index.dump");
     if let Some(parent) = dump_dest.parent() {
         fs::create_dir_all(parent).map_err(SearchError::Io)?;
     }
@@ -59,8 +59,14 @@ pub fn sync_from_cdn(base_url: &str) -> Result<CdnSyncReport, SearchError> {
 
 /// Cached whitelist path after successful CDN sync.
 pub fn cached_whitelist_path() -> Option<PathBuf> {
-    let path = PathBuf::from("index-data/cache/whitelist.json");
+    let path = data_dir().join("cache").join("whitelist.json");
     path.is_file().then_some(path)
+}
+
+fn data_dir() -> PathBuf {
+    std::env::var("KOTISATAMA_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("index-data"))
 }
 
 fn fetch_to_file(url: &str, dest: &Path) -> Result<(), SearchError> {

@@ -2,8 +2,13 @@ name: Kotisatama Crawler
 
 on:
   workflow_dispatch:
+    inputs:
+      crawl_reason:
+        description: "Why this crawl run (e.g. weekly, high fallback volume)"
+        required: false
+        default: "scheduled"
   schedule:
-    # Weekly Monday 03:00 UTC
+    # Weekly Monday 03:00 UTC — adjust after beta fallback volume (see BETA.md)
     - cron: "0 3 * * 1"
 
 env:
@@ -44,6 +49,7 @@ jobs:
       - name: Run crawler
         working-directory: crawler
         run: |
+          echo "Crawl reason: ${{ github.event.inputs.crawl_reason || 'schedule' }}"
           npm run crawl -- \
             --whitelist ../config/whitelist.json \
             --output ../output/cdn \

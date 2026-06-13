@@ -92,7 +92,8 @@ fn is_internal_navigation_url(url: &Url) -> bool {
     }
 }
 
-fn is_avomeri_gateway(url: &Url) -> bool {
+/// Whether `url` is the avomeri (Startpage) gateway — report UI is hidden here.
+pub fn is_avomeri_gateway(url: &Url) -> bool {
     url.host_str()
         .map(|host| {
             let host = host.to_ascii_lowercase();
@@ -129,6 +130,7 @@ pub fn blocked_page_url(blocked_url: &Url) -> Url {
   <h1>Tätä sivua ei löydy kotisatamassa.</h1>
   <p class="url">{display}</p>
   <p><a href="{startpage_href}">Jatka avomerelle</a></p>
+  <p style="margin-top: 1.5rem; color: #666; font-size: 0.9rem;">Voit ilmoittaa ongelmasta tai ehdottaa sivustoa selaimen <strong>Ilmoita</strong>-napilla.</p>
 </body>
 </html>"#,
     );

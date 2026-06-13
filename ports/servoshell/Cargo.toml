@@ -60,7 +60,7 @@ vello = ["servo/vello"]
 webgl_backtrace = ["servo/webgl_backtrace"]
 webgpu = ["servo/webgpu"]
 webxr = ["servo/webxr"]
-kotisatama = ["dep:kotisatama-whitelist", "dep:kotisatama-search"]
+kotisatama = ["dep:kotisatama-whitelist", "dep:kotisatama-search", "dep:kotisatama-report"]
 
 [dependencies]
 accesskit = { workspace = true }
@@ -74,6 +74,7 @@ image = { workspace = true }
 keyboard-types = { workspace = true }
 kotisatama-whitelist = { workspace = true, optional = true }
 kotisatama-search = { workspace = true, optional = true }
+kotisatama-report = { workspace = true, optional = true }
 libc = { workspace = true }
 log = { workspace = true }
 mime_guess = { workspace = true }

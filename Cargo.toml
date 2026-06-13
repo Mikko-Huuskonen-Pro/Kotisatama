@@ -310,6 +310,7 @@ hyper_serde = { package = "servo-hyper-serde", version = "=0.3.0", path = "compo
 jstraceable_derive = { package = "servo-jstraceable-derive", version = "=0.3.0", path = "components/jstraceable_derive" }
 kotisatama-whitelist = { package = "kotisatama-whitelist", version = "0.1.0", path = "components/kotisatama/whitelist" }
 kotisatama-search = { package = "kotisatama-search", version = "0.1.0", path = "components/kotisatama/search" }
+kotisatama-report = { package = "kotisatama-report", version = "0.1.0", path = "components/kotisatama/report" }
 layout = { package = "servo-layout", version = "=0.3.0", path = "components/layout" }
 layout_api = { package = "servo-layout-api", version = "=0.3.0", path = "components/shared/layout" }
 malloc_size_of = { package = "servo-malloc-size-of", version = "=0.3.0", path = "components/malloc_size_of" }

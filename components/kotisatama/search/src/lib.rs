@@ -22,6 +22,12 @@ const INDEX_UID: &str = "documents";
 const HEALTH_POLL_MS: u64 = 100;
 const HEALTH_TIMEOUT_SECS: u64 = 30;
 
+fn data_dir() -> PathBuf {
+    std::env::var("KOTISATAMA_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("index-data"))
+}
+
 /// A single search hit from the local index.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SearchHit {
@@ -61,11 +67,11 @@ impl SearchClient {
 
         let binary = find_meilisearch_binary()?;
         let db_path = std::env::var("KOTISATAMA_MEILISEARCH_DB")
-            .unwrap_or_else(|_| "index-data/meilisearch".to_string());
+            .unwrap_or_else(|_| data_dir().join("meilisearch").to_string_lossy().into_owned());
         fs::create_dir_all(&db_path).map_err(SearchError::Io)?;
 
         let dump_path = std::env::var("KOTISATAMA_INDEX_DUMP")
-            .unwrap_or_else(|_| "index-data/index.dump".to_string());
+            .unwrap_or_else(|_| data_dir().join("index.dump").to_string_lossy().into_owned());
         let import_dump = should_import_dump(&dump_path, &db_path);
 
         if import_dump && PathBuf::from(&db_path).exists() {

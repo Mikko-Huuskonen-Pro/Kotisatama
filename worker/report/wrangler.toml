@@ -1,0 +1,14 @@
+name = "kotisatama-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "REPORTS"
+id = "REPLACE_WITH_REPORTS_KV_ID"
+
+[[kv_namespaces]]
+binding = "FALLBACK"
+id = "REPLACE_WITH_FALLBACK_KV_ID"
+
+[vars]
+# WEBHOOK_URL = "https://script.google.com/macros/s/.../exec"

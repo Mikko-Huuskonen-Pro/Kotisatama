@@ -74,6 +74,12 @@ public class JNIServo {
 
     public native void doFrame();
 
+    public native String kotisatamaSearch(String query);
+
+    public native String kotisatamaSubmitReport(String kind, String domain, String message, String contextUrl);
+
+    public native boolean kotisatamaShouldShowReport(String currentUrl);
+
     public static class ServoOptions {
         public String args;
         public String url;

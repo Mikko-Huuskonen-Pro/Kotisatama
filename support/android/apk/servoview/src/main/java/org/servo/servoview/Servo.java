@@ -142,6 +142,18 @@ public class Servo {
         mRunCallback.inGLThread(() -> mJNI.doFrame());
     }
 
+    public String kotisatamaSearch(String query) {
+        return mJNI.kotisatamaSearch(query);
+    }
+
+    public String kotisatamaSubmitReport(String kind, String domain, String message, String contextUrl) {
+        return mJNI.kotisatamaSubmitReport(kind, domain, message, contextUrl);
+    }
+
+    public boolean kotisatamaShouldShowReport(String currentUrl) {
+        return mJNI.kotisatamaShouldShowReport(currentUrl);
+    }
+
     public interface Client {
         void onAlert(String message);
 

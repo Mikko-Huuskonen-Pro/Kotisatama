@@ -4,6 +4,9 @@
 
 #![allow(non_snake_case)]
 
+#[cfg(feature = "kotisatama")]
+mod kotisatama;
+
 use std::cell::RefCell;
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr::NonNull;

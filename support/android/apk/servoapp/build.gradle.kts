@@ -137,6 +137,37 @@ project.afterEvaluate {
     }
 }
 
+val repoRoot = rootProject.projectDir.parentFile.parentFile.parentFile
+
+tasks.register<Copy>("copyKotisatamaAssets") {
+    description = "Copy Kotisatama config into APK assets"
+    from("$repoRoot/config/whitelist.json") {
+        into("kotisatama")
+    }
+    from("$repoRoot/config/search-index/documents.json") {
+        into("kotisatama")
+        rename { "documents.json" }
+    }
+    val indexDump = File("$repoRoot/index-data/index.dump")
+    if (indexDump.exists()) {
+        from(indexDump) {
+            into("kotisatama")
+            rename { "index.dump" }
+        }
+    }
+    val meilisearchBin = File("src/main/assets/kotisatama/bin/meilisearch")
+    if (meilisearchBin.exists()) {
+        from(meilisearchBin) {
+            into("kotisatama/bin")
+        }
+    }
+    into("src/main/assets")
+}
+
+tasks.named("preBuild").configure {
+    dependsOn("copyKotisatamaAssets")
+}
+
 dependencies {
     if (findProject(":servoview-local") != null) {
         implementation(project(":servoview-local"))

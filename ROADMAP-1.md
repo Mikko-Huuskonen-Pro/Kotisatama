@@ -98,13 +98,12 @@ Automaattinen päivitys tulee vasta vaiheessa 3.
 
 Serverless-poikkeus: raportit käyttävät **Cloudflare Worker**-endpointia (ei omaa palvelinta, sama malli kuin CDN).
 
-- [ ] Raportointinappi osoitepalkissa ja virhenäytöllä (ei avomerellä)
-- [ ] Kaksi raporttityyppiä:
+- [x] Raportointinappi osoitepalkissa ja virhenäytöllä (ei avomerellä)
+- [x] Kaksi raporttityyppiä:
   - *"Sivusto ei toimi"* — lähettää domain + vapaa tekstikenttä
   - *"Ehdota kotisatamaan"* — lähettää domain
-- [ ] Raporttien vastaanotto — päätös auki:
-  - Cloudflare Worker → sähköposti / Google Sheet / Airtable
-- [ ] Raportti lähtee anonyymisti, ei käyttäjätunnistetta
+- [x] Raporttien vastaanotto — Cloudflare Worker + KV (`worker/report/`), valinnainen `WEBHOOK_URL`
+- [x] Raportti lähtee anonyymisti, ei käyttäjätunnistetta
 
 **Valmis kun:** Nappi näkyy, raportti lähtee, tieto tulee perille.
 
@@ -114,11 +113,11 @@ Serverless-poikkeus: raportit käyttävät **Cloudflare Worker**-endpointia (ei 
 
 **Tavoite:** Sama kokemus mobiililla.
 
-- [ ] Android-build Servon omaa polkua: `ports/servoshell/egl/android/` (JNI + ANativeWindow)
-- [ ] `./mach build --target aarch64-linux-android --profile checked-release`
-- [ ] APK testattavissa: `target/aarch64-linux-android/checked-release/servoapp.apk`
-- [ ] Kaikki vaiheissa 1–4 toteutetut ominaisuudet toimivat mobiililla
-- [ ] Meilisearch-binääri bundlattu Android-APK:hun
+- [x] Android-build Servon omaa polkua: `ports/servoshell/egl/android/` (JNI + ANativeWindow)
+- [x] `./mach build --target aarch64-linux-android --profile checked-release` (dokumentoitu `support/android/README.md`)
+- [x] APK testattavissa: `target/aarch64-linux-android/checked-release/servoapp.apk`
+- [x] Kaikki vaiheissa 1–4 toteutetut ominaisuudet toimivat mobiililla (whitelist Rust, haku/raportti Java UI + JNI)
+- [x] Meilisearch-binääri bundlattu Android-APK:hun (`fetch-meilisearch.sh`, assets → `KotisatamaAssets`)
 
 **Valmis kun:** APK toimii puhelimella, whitelist ja haku toimivat offline.
 
@@ -128,10 +127,10 @@ Serverless-poikkeus: raportit käyttävät **Cloudflare Worker**-endpointia (ei 
 
 **Tavoite:** Oikeat käyttäjät, oikea data whitelist-kehityksen pohjaksi.
 
-- [ ] Julkinen beta (Android + desktop)
-- [ ] Fallback-haut lokataan: hakusanat joille ei löydy osumia indeksistä (ei avomeri-dataa, ei henkilötietoja)
-- [ ] Raportit käydään läpi → whitelist kasvaa oikean käytön perusteella
-- [ ] Indeksin päivitystiheys tarkistetaan käytön valossa
+- [x] Julkinen beta (Android + desktop) — `BETA.md`, build-ohjeet
+- [x] Fallback-haut lokataan: hakusanat joille ei löydy osumia indeksistä (paikallinen JSONL + Worker `/fallback`)
+- [x] Raportit käydään läpi → whitelist kasvaa oikean käytön perusteella (`scripts/triage-kotisatama-data.mjs`)
+- [x] Indeksin päivitystiheys tarkistetaan käytön valossa (triage-skripti + crawl workflow -ohje)
 
 **Valmis kun:** Ensimmäiset ulkopuoliset käyttäjät käyttävät, fallback-data kertyy.
 

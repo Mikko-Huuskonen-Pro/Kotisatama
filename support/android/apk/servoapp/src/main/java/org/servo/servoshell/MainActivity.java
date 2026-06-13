@@ -89,6 +89,8 @@ public class MainActivity extends Activity implements Servo.Client {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        KotisatamaAssets.prepare(this);
+
         mServoView = findViewById(R.id.servoview);
         mUrlField = findViewById(R.id.urlfield);
         mUrlFieldIsFocused = false;
@@ -133,6 +135,7 @@ public class MainActivity extends Activity implements Servo.Client {
         bindClick(R.id.cancel_menu_item);
         bindClick(R.id.settings_menu_item);
         bindClick(R.id.history_menu_item);
+        bindClick(R.id.report_menu_item);
 
         mServoView.setClient(this);
         mServoView.requestFocus();
@@ -189,6 +192,8 @@ public class MainActivity extends Activity implements Servo.Client {
         } else if (id == R.id.history_menu_item) {
             Intent myIntent = new Intent(this, HistoryActivity.class);
             startActivityForResult(myIntent, HISTORY_REQUEST_CODE);
+        } else if (id == R.id.report_menu_item) {
+            KotisatamaUi.showReportDialog(this, mServoView, mCurrentUrl);
         }
         return false;
     }
@@ -265,9 +270,7 @@ public class MainActivity extends Activity implements Servo.Client {
 
     public void loadUrlFromField() {
         String text = mUrlField.getText().toString();
-        text = text.trim();
-
-        mServoView.loadUri(text);
+        KotisatamaUi.handleUrlOrSearch(this, mServoView, text);
     }
 
     @Override
@@ -354,6 +357,12 @@ public class MainActivity extends Activity implements Servo.Client {
     public void onUrlChanged(String url) {
         mUrlField.setText(url);
         mCurrentUrl = url != null ? url : "";
+        View reportButton = findViewById(R.id.report_menu_item);
+        if (reportButton != null) {
+            reportButton.setVisibility(
+                    mServoView.kotisatamaShouldShowReport(mCurrentUrl) ? View.VISIBLE : View.GONE
+            );
+        }
     }
 
     @Override

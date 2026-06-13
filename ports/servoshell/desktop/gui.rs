@@ -79,6 +79,14 @@ pub struct Gui {
     /// Kotisatama search results panel.
     #[cfg(feature = "kotisatama")]
     search_panel: Option<crate::kotisatama::KotisatamaSearchPanel>,
+
+    /// Kotisatama anonymous report dialog.
+    #[cfg(feature = "kotisatama")]
+    report_dialog_open: bool,
+    #[cfg(feature = "kotisatama")]
+    report_form: crate::kotisatama::KotisatamaReportForm,
+    #[cfg(feature = "kotisatama")]
+    report_status: Option<Result<(), String>>,
 }
 
 fn truncate_with_ellipsis(input: &str, max_length: usize) -> String {
@@ -245,6 +253,12 @@ impl Gui {
             search_query: String::new(),
             #[cfg(feature = "kotisatama")]
             search_panel: None,
+            #[cfg(feature = "kotisatama")]
+            report_dialog_open: false,
+            #[cfg(feature = "kotisatama")]
+            report_form: crate::kotisatama::default_report_form(initial_url.as_str()),
+            #[cfg(feature = "kotisatama")]
+            report_status: None,
         }
     }
 
@@ -464,6 +478,23 @@ impl Gui {
                                 },
                             }
                             ui.add_space(2.0);
+
+                            #[cfg(feature = "kotisatama")]
+                            if crate::kotisatama::should_show_report_button(location) {
+                                let report_button = ui.add(Gui::toolbar_button("Ilmoita"));
+                                report_button.widget_info(|| {
+                                    let mut info = WidgetInfo::new(WidgetType::Button);
+                                    info.label = Some("Ilmoita ongelmasta".into());
+                                    info
+                                });
+                                if report_button.clicked() {
+                                    self.report_form =
+                                        crate::kotisatama::default_report_form(location);
+                                    self.report_status = None;
+                                    self.report_dialog_open = true;
+                                    window.set_needs_repaint();
+                                }
+                            }
 
                             ui.allocate_ui_with_layout(
                                 ui.available_size(),
@@ -703,6 +734,76 @@ impl Gui {
                     });
                 if close_panel {
                     self.search_panel = None;
+                }
+            }
+
+            #[cfg(feature = "kotisatama")]
+            if self.report_dialog_open {
+                use kotisatama_report::ReportKind;
+
+                let mut close_dialog = false;
+                egui::Window::new("Ilmoita")
+                    .collapsible(false)
+                    .resizable(false)
+                    .default_width(420.0)
+                    .show(ctx, |ui| {
+                        ui.label("Lähetä anonyymi raportti (ei käyttäjätunnistetta).");
+                        ui.separator();
+
+                        ui.horizontal(|ui| {
+                            ui.radio_value(
+                                &mut self.report_form.kind,
+                                ReportKind::SiteBroken,
+                                "Sivusto ei toimi",
+                            );
+                            ui.radio_value(
+                                &mut self.report_form.kind,
+                                ReportKind::SuggestSite,
+                                "Ehdota kotisatamaan",
+                            );
+                        });
+
+                        ui.label("Domain:");
+                        ui.text_edit_singleline(&mut self.report_form.domain);
+
+                        if self.report_form.kind == ReportKind::SiteBroken {
+                            ui.label("Kuvaus (valinnainen):");
+                            ui.text_edit_multiline(&mut self.report_form.message);
+                        }
+
+                        if let Some(status) = &self.report_status {
+                            match status {
+                                Ok(()) => {
+                                    ui.colored_label(
+                                        egui::Color32::from_rgb(0, 128, 0),
+                                        "Raportti lähetetty.",
+                                    );
+                                },
+                                Err(message) => {
+                                    ui.colored_label(egui::Color32::RED, message);
+                                },
+                            }
+                        }
+
+                        ui.horizontal(|ui| {
+                            if ui.button("Lähetä").clicked() {
+                                let context_url = Some(location.clone());
+                                self.report_status = Some(
+                                    crate::kotisatama::submit_report(
+                                        &self.report_form,
+                                        context_url,
+                                    )
+                                    .map_err(|error| error.to_string()),
+                                );
+                            }
+                            if ui.button("Sulje").clicked() {
+                                close_dialog = true;
+                            }
+                        });
+                    });
+                if close_dialog {
+                    self.report_dialog_open = false;
+                    self.report_status = None;
                 }
             }
 

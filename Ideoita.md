@@ -1,5 +1,7 @@
 ### Ideoita ja ajatuksia tulevaisuudesta. Ehkä toteutukseen, ei lähdetä rakentamaan näiden mukaan, vielä. 
 
+# 6-emojia tähän projektiin offline käyttöä varten, eli kolmas vene, sukellusvene
+
 # Whitelist-pipeline — suunnitelma
 *Kotisatama— kesäkuu 2026*
 

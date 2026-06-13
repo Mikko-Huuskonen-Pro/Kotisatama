@@ -78,8 +78,15 @@ git fetch upstream
 
 Android käyttää Servon omaa `servoshell`-embedderia (`ports/servoshell/egl/android/`), ei Tauria. Tauri käyttää Androidilla System WebViewia (Chromium) — se ei kantaa Servo-moottoria.
 
+Aseta Android-ympäristö (upstream NDK-versio):
+
 ```bash
-# Esimerkki: arm64-APK (vaatii ANDROID_NDK_ROOT)
+export ANDROID_SDK_ROOT=~/android-sdk
+export ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/28.2.13676358
+```
+
+```bash
+# Esimerkki: arm64-APK
 ./mach build --target aarch64-linux-android --profile checked-release
 # APK: target/aarch64-linux-android/checked-release/servoapp.apk
 ```
@@ -144,4 +151,4 @@ Kotisatama-spesifiset muutokset Servo-koodiin julkaistaan MPL 2.0:n mukaisesti. 
 
 ---
 
-
+*Kotisatama on osa [Ilio](https://ilio.fi)-toiminimeä (Y-tunnus 2010).*

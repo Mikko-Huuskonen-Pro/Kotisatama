@@ -4,11 +4,9 @@ plugins {
     id("com.android.application")
 }
 
-layout.buildDirectory = File(rootDir.absolutePath, "/../../../target/android/gradle/servoapp")
-
 android {
     compileSdk = 34
-    buildToolsVersion = "34.0.0"
+    buildToolsVersion = "36.0.0"
 
     namespace = "org.servo.servoshell"
 

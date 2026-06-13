@@ -39,8 +39,8 @@ Ei omaa palvelinta. Ei VPN-infraa. Haku tapahtuu laitteelle esiladatusta indeksi
 | Versio | Whitelist | Indeksi |
 |---|---|---|
 | Kotisatama | Geneerinen, perhe hallinnoi | Yleinen |
-| Kotisatama Hopeakettu | Kuratoidtu: Kela, terveys, uutiset, virastot | Suomenkielinen, selkeä rakenne |
-| Kotisatama Lapsi | Kuratoidtu: oppiminen, pelit, ikäluokitettu sisältö | Kuvat, videot, ikäluokitus |
+| Kotisatama Hopeakettu | Kuratoitu: Kela, terveys, uutiset, virastot | Suomenkielinen, selkeä rakenne |
+| Kotisatama Lapsi | Kuratoitu: oppiminen, pelit, ikäluokitettu sisältö | Kuvat, videot, ikäluokitus |
 
 ---
 

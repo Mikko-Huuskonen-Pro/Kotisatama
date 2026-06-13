@@ -98,6 +98,13 @@ impl ServoShellWindow {
     /// Must be called *after* `self` is in `state.windows`, otherwise it will panic.
     #[servo::servo_tracing::instrument(skip(self, state))]
     pub(crate) fn create_toplevel_webview(&self, state: Rc<RunningAppState>, url: Url) -> WebView {
+        #[cfg(feature = "kotisatama")]
+        let url = if crate::kotisatama::check_url(&url) {
+            url
+        } else {
+            crate::kotisatama::blocked_url_for(&url)
+        };
+
         #[cfg_attr(any(target_os = "android", target_env = "ohos"), expect(unused_mut))]
         let mut webview_builder =
             WebViewBuilder::new(state.servo(), self.platform_window.rendering_context())
@@ -325,6 +332,12 @@ impl ServoShellWindow {
                         break;
                     };
                     if let Some(active_webview) = self.active_webview() {
+                        #[cfg(feature = "kotisatama")]
+                        crate::kotisatama::load_url_or_blocked(
+                            &active_webview,
+                            url.into_url(),
+                        );
+                        #[cfg(not(feature = "kotisatama"))]
                         active_webview.load(url.into_url());
                     }
                 },

@@ -171,14 +171,15 @@ Ilmainen → kokemus karttuu → "en jaksa hallita itse" → 5€/kk Pro
 - [ ] Pro-julkaisun ajankohta — milloin ilmaisen dataa on riittävästi
 - [ ] PRH: aputoiminimi tai uusi toiminimi Kotisatamalle
 
-## Toteutusjärjestys (tekninen)
+## Toteutusjärjestys (tekninen — vastaa `ROADMAP-1.md`)
 
 1. `components/kotisatama/whitelist` + `request_navigation`-hook servoshellissa
-2. Hakukenttä servoshell-UI:ssa (desktop)
-3. Crawler + CDN-pipeline
-4. Meilisearch subprocess + `kotisatama-search`
+2. Hakukenttä servoshell-UI:ssa + Meilisearch subprocess + `kotisatama-search` (testi-indeksi manuaalisesti)
+3. Crawler + CDN-pipeline + OTA
+4. Raportointinappi (Cloudflare Worker)
 5. Android: servoshell EGL (`./mach build --target aarch64-linux-android`)
-6. Tauri-hallintapaneeli (valinnainen, erillinen)
+6. Julkaisu ja datankeruu
+7. Tauri-hallintapaneeli (valinnainen, erillinen — Pro-versioiden yhteydessä)
 
 ---
 

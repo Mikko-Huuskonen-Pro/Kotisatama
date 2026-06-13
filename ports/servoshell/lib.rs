@@ -25,6 +25,9 @@ mod running_app_state;
 mod webdriver;
 mod window;
 
+#[cfg(feature = "kotisatama")]
+mod kotisatama;
+
 pub mod platform {
     #[cfg(target_os = "macos")]
     pub use crate::platform::macos::deinit;

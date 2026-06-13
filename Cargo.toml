@@ -308,6 +308,7 @@ fonts = { package = "servo-fonts", version = "=0.3.0", path = "components/fonts"
 fonts_traits = { package = "servo-fonts-traits", version = "=0.3.0", path = "components/shared/fonts" }
 hyper_serde = { package = "servo-hyper-serde", version = "=0.3.0", path = "components/hyper_serde" }
 jstraceable_derive = { package = "servo-jstraceable-derive", version = "=0.3.0", path = "components/jstraceable_derive" }
+kotisatama-whitelist = { package = "kotisatama-whitelist", version = "0.1.0", path = "components/kotisatama/whitelist" }
 layout = { package = "servo-layout", version = "=0.3.0", path = "components/layout" }
 layout_api = { package = "servo-layout-api", version = "=0.3.0", path = "components/shared/layout" }
 malloc_size_of = { package = "servo-malloc-size-of", version = "=0.3.0", path = "components/malloc_size_of" }

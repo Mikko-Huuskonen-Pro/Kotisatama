@@ -41,7 +41,7 @@ OriginalFilename = "servoshell.exe"
 ProductName = "ServoShell"
 
 [features]
-default = ["baked-in-resources", "gamepad", "servo/clipboard", "js_jit", "max_log_level", "webgpu", "webxr"]
+default = ["baked-in-resources", "gamepad", "kotisatama", "servo/clipboard", "js_jit", "max_log_level", "webgpu", "webxr"]
 baked-in-resources = ["servo/baked-in-resources"]
 crown = ["servo/crown"]
 debugmozjs = ["servo/debugmozjs"]
@@ -60,6 +60,7 @@ vello = ["servo/vello"]
 webgl_backtrace = ["servo/webgl_backtrace"]
 webgpu = ["servo/webgpu"]
 webxr = ["servo/webxr"]
+kotisatama = ["dep:kotisatama-whitelist"]
 
 [dependencies]
 accesskit = { workspace = true }
@@ -71,6 +72,7 @@ euclid = { workspace = true }
 hitrace = { workspace = true, optional = true }
 image = { workspace = true }
 keyboard-types = { workspace = true }
+kotisatama-whitelist = { workspace = true, optional = true }
 libc = { workspace = true }
 log = { workspace = true }
 mime_guess = { workspace = true }

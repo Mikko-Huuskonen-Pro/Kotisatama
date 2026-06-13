@@ -1,0 +1,22 @@
+[package]
+name = "kotisatama-whitelist"
+version = "0.1.0"
+edition.workspace = true
+authors = ["Ilio / Kotisatama"]
+license = "MPL-2.0"
+publish = false
+description = "Kotisatama domain whitelist and blocked-page helpers"
+
+[lib]
+name = "kotisatama_whitelist"
+path = "src/lib.rs"
+
+[dependencies]
+base64 = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

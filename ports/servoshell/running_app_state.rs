@@ -22,7 +22,8 @@ use servo::{
     AllowOrDenyRequest, AuthenticationRequest, BluetoothDeviceSelectionRequest, CSSPixel,
     ConsoleLogLevel, CreateNewWebViewRequest, DeviceIntPoint, DeviceIntSize, EmbedderControl,
     EmbedderControlId, EventLoopWaker, GenericSender, InputEvent, InputEventId, InputEventResult,
-    JSValue, LoadStatus, MediaSessionEvent, PermissionRequest, PrefValue, Preferences,
+    JSValue, LoadStatus, MediaSessionEvent, NavigationRequest, PermissionRequest, PrefValue,
+    Preferences,
     ScreenshotCaptureError, Servo, ServoDelegate, ServoError, TraversalId, UserContentManager,
     WebDriverCommandMsg, WebDriverJSResult, WebDriverLoadStatus, WebDriverScriptCommand,
     WebDriverSenders, WebView, WebViewDelegate, WebViewId,
@@ -238,6 +239,9 @@ impl RunningAppState {
         ))]
         gamepad_delegate: Option<Rc<ServoshellGamepadDelegate>>,
     ) -> Self {
+        #[cfg(feature = "kotisatama")]
+        crate::kotisatama::init();
+
         servo.set_delegate(Rc::new(ServoShellServoDelegate));
 
         let webdriver_receiver = servoshell_preferences.webdriver_port.get().map(|port| {
@@ -623,6 +627,9 @@ impl RunningAppState {
 
         info!("Loading URL in webview {}: {}", webview_id, url);
         self.set_load_status_sender(webview_id, load_status_sender);
+        #[cfg(feature = "kotisatama")]
+        crate::kotisatama::load_url_or_blocked(&webview, url);
+        #[cfg(not(feature = "kotisatama"))]
         webview.load(url);
     }
 
@@ -886,6 +893,17 @@ impl WebViewDelegate for RunningAppState {
     ) {
         self.platform_window_for_webview_id(webview.id())
             .notify_accessibility_tree_update(webview, tree_update);
+    }
+
+    #[cfg(feature = "kotisatama")]
+    fn request_navigation(&self, webview: WebView, request: NavigationRequest) {
+        let blocked_target = request.url.clone();
+        if crate::kotisatama::check_url(&blocked_target) {
+            request.allow();
+        } else {
+            request.deny();
+            webview.load(crate::kotisatama::blocked_url_for(&blocked_target));
+        }
     }
 }
 

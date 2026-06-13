@@ -71,6 +71,14 @@ pub struct Gui {
     /// AccessKit tree updates pending the next egui tick.
     /// This allows us to ensure that graft nodes are sent before the subtrees they graft.
     pending_accesskit_updates: Vec<accesskit::TreeUpdate>,
+
+    /// Kotisatama local search query (desktop toolbar).
+    #[cfg(feature = "kotisatama")]
+    search_query: String,
+
+    /// Kotisatama search results panel.
+    #[cfg(feature = "kotisatama")]
+    search_panel: Option<crate::kotisatama::KotisatamaSearchPanel>,
 }
 
 fn truncate_with_ellipsis(input: &str, max_length: usize) -> String {
@@ -233,6 +241,10 @@ impl Gui {
             can_go_forward: false,
             favicon_textures: Default::default(),
             pending_accesskit_updates: vec![],
+            #[cfg(feature = "kotisatama")]
+            search_query: String::new(),
+            #[cfg(feature = "kotisatama")]
+            search_panel: None,
         }
     }
 
@@ -527,6 +539,33 @@ impl Gui {
                     );
                 });
 
+                #[cfg(feature = "kotisatama")]
+                {
+                    let search_frame = egui::Frame::default()
+                        .fill(ctx.style().visuals.window_fill)
+                        .inner_margin(4.0);
+                    Panel::top("kotisatama_search_bar")
+                        .frame(search_frame)
+                        .show_inside(ctx, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label("Hae:");
+                                let search_id = Id::new("kotisatama_search_input");
+                                let search_field = ui.add(
+                                    egui::TextEdit::singleline(&mut self.search_query)
+                                        .id(search_id)
+                                        .hint_text("Hae kotisatamasta…"),
+                                );
+                                if search_field.lost_focus() &&
+                                    ui.input(|i| i.key_pressed(Key::Enter))
+                                {
+                                    self.search_panel =
+                                        Some(crate::kotisatama::search(&self.search_query));
+                                    window.set_needs_repaint();
+                                }
+                            });
+                        });
+                }
+
                 // A simple Tab header strip
                 let outer = Panel::top("tabs").show_inside(ctx, |ui| {
                     // Add scroll for overflowing tabs
@@ -614,6 +653,57 @@ impl Gui {
                     pos2(0.0, available_rect.max.y),
                 )
                 .show(|ui| ui.add(Label::new(status_text.clone()).extend()));
+            }
+
+            #[cfg(feature = "kotisatama")]
+            if let Some(panel) = &self.search_panel {
+                use crate::kotisatama::SearchOutcome;
+
+                let mut close_panel = false;
+                egui::Window::new("Kotisatama-haku")
+                    .collapsible(false)
+                    .resizable(true)
+                    .default_width(520.0)
+                    .show(ctx, |ui| {
+                        ui.label(format!("Haku: {}", panel.query));
+                        ui.separator();
+                        match &panel.outcome {
+                            SearchOutcome::Hits(hits) => {
+                                for hit in hits {
+                                    let label = truncate_with_ellipsis(
+                                        &format!("{} — {}", hit.title, hit.url),
+                                        80,
+                                    );
+                                    if ui.button(label).clicked() {
+                                        if let Some(webview) = window.active_webview() {
+                                            crate::kotisatama::open_search_hit(&webview, hit);
+                                        }
+                                        close_panel = true;
+                                    }
+                                }
+                            },
+                            SearchOutcome::NoResults => {
+                                ui.label("Ei löydy kotisatamasta — haluatko hakea avomereltä?");
+                                if ui.button("Hae avomereltä").clicked() {
+                                    if let Some(webview) = window.active_webview() {
+                                        webview.load(
+                                            crate::kotisatama::avomeri_search_url(&panel.query),
+                                        );
+                                    }
+                                    close_panel = true;
+                                }
+                            },
+                            SearchOutcome::Error(message) => {
+                                ui.colored_label(egui::Color32::RED, message);
+                            },
+                        }
+                        if ui.button("Sulje").clicked() {
+                            close_panel = true;
+                        }
+                    });
+                if close_panel {
+                    self.search_panel = None;
+                }
             }
 
             window.repaint_webviews();

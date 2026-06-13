@@ -22,12 +22,14 @@ use servo::{
     AllowOrDenyRequest, AuthenticationRequest, BluetoothDeviceSelectionRequest, CSSPixel,
     ConsoleLogLevel, CreateNewWebViewRequest, DeviceIntPoint, DeviceIntSize, EmbedderControl,
     EmbedderControlId, EventLoopWaker, GenericSender, InputEvent, InputEventId, InputEventResult,
-    JSValue, LoadStatus, MediaSessionEvent, NavigationRequest, PermissionRequest, PrefValue,
+    JSValue, LoadStatus, MediaSessionEvent, PermissionRequest, PrefValue,
     Preferences,
     ScreenshotCaptureError, Servo, ServoDelegate, ServoError, TraversalId, UserContentManager,
     WebDriverCommandMsg, WebDriverJSResult, WebDriverLoadStatus, WebDriverScriptCommand,
     WebDriverSenders, WebView, WebViewDelegate, WebViewId,
 };
+#[cfg(feature = "kotisatama")]
+use servo::NavigationRequest;
 use url::Url;
 
 #[cfg(all(

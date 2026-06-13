@@ -41,14 +41,14 @@ Tekninen linja vastaa `README.md`, `AGENT.md` ja `kotisatama-konsepti-1.md`: Ser
 
 **Tavoite:** Toimiva selain joka päästää läpi vain whitelistan domainit.
 
-- [ ] Fork servo/servo, hakemistorakenne kuntoon (`components/kotisatama/`)
-- [ ] `kotisatama-whitelist`-crate: domain-tarkistus, JSON-lataus
-- [ ] `request_navigation`-hook `ports/servoshell/`-kerroksessa (KOTISATAMA-PATCH)
-- [ ] Geneerinen whitelist: `config/whitelist.json` — ensimmäiset domainit käsin
-- [ ] Virhenäyttö kun domain ei ole whitelistillä:
+- [x] Fork servo/servo, hakemistorakenne kuntoon (`components/kotisatama/`)
+- [x] `kotisatama-whitelist`-crate: domain-tarkistus, JSON-lataus
+- [x] `request_navigation`-hook `ports/servoshell/`-kerroksessa (KOTISATAMA-PATCH)
+- [x] Geneerinen whitelist: `config/whitelist.json` — ensimmäiset domainit käsin
+- [x] Virhenäyttö kun domain ei ole whitelistillä:
   - Selkeä viesti: *"Tätä sivua ei löydy kotisatamassa."*
   - Nappi: *"Jatka avomerelle"* → Startpage hakusanalla (ks. Avomeri-osio)
-- [ ] `./mach build --release` toimii (desktop)
+- [ ] `./mach build --release` toimii (desktop) — vaatii MSVC Windowsilla
 - [ ] `cargo build` toimii ilman `--features kotisatama` (upstream ei rikkoudu)
 
 **Valmis kun:** Selain aukeaa, whitelist-domain läpäisee, tuntematon domain näyttää virhenäytön.
@@ -66,12 +66,12 @@ Tekninen linja vastaa `README.md`, `AGENT.md` ja `kotisatama-konsepti-1.md`: Ser
 
 Automaattinen päivitys tulee vasta vaiheessa 3.
 
-- [ ] Hakukenttä servoshell-UI:ssa (desktop)
-- [ ] `kotisatama-search`-crate: Meilisearch subprocess-käynnistys, HTTP-client (`http://127.0.0.1:7700`)
-- [ ] Meilisearch bundlattu binäärinä appiin
-- [ ] Testi-indeksi: manuaalinen dump tai kertaluontoinen crawl (ei vaadi CI/CD)
-- [ ] Hakutulos klikkaamalla avaa sivun selaimessa normaalisti
-- [ ] Jos ei hakuosumia: *"Ei löydy kotisatamasta — haluatko hakea avomereltä?"* → Startpage (`https://www.startpage.com/search?q=HAKUSANA`)
+- [x] Hakukenttä servoshell-UI:ssa (desktop)
+- [x] `kotisatama-search`-crate: Meilisearch subprocess-käynnistys, HTTP-client (`http://127.0.0.1:7700`)
+- [ ] Meilisearch bundlattu binäärinä appiin (dev: asenna PATH / `KOTISATAMA_MEILISEARCH_BIN`)
+- [x] Testi-indeksi: `config/search-index/documents.json` (seed automaattisesti)
+- [x] Hakutulos klikkaamalla avaa sivun selaimessa normaalisti
+- [x] Jos ei hakuosumia: *"Ei löydy kotisatamasta — haluatko hakea avomereltä?"* → Startpage
 
 **Valmis kun:** Käyttäjä kirjoittaa "eläke", saa tuloksia testi-indeksistä, klikkaa, sivu aukeaa.
 

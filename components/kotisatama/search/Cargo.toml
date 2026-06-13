@@ -1,0 +1,21 @@
+[package]
+name = "kotisatama-search"
+version = "0.1.0"
+edition.workspace = true
+authors = ["Ilio / Kotisatama"]
+license = "MPL-2.0"
+publish = false
+description = "Kotisatama local search via Meilisearch subprocess"
+
+[lib]
+name = "kotisatama_search"
+path = "src/lib.rs"
+
+[dependencies]
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+ureq = { version = "2.12", features = ["json"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }

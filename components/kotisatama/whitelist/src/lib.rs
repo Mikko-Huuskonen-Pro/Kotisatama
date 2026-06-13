@@ -58,7 +58,7 @@ impl std::error::Error for WhitelistError {}
 
 /// Hosts that act as the avomeri gateway (Startpage). MVP: always allowed so the
 /// blocked-page link works. Users can also navigate here directly via the URL bar.
-const AVOMERI_GATEWAY_HOSTS: &[&str] = ["startpage.com", "www.startpage.com"];
+const AVOMERI_GATEWAY_HOSTS: &[&str] = &["startpage.com", "www.startpage.com"];
 
 /// Returns whether navigation to `url` is allowed under `whitelist`.
 pub fn is_allowed(url: &Url, whitelist: &Whitelist) -> bool {

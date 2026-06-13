@@ -1,0 +1,207 @@
+{
+  "version": "1.0",
+  "profile": "hyvinvointialueet",
+  "updated": "2026-06-13",
+  "description": "Kaikki 22 hyvinvointialuetta + Helsingin kaupunki",
+  "entries": [
+    {
+      "domain": "hyvaks.fi",
+      "label": "Hyvinvointialue Keski-Suomi",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "keski-suomi"
+      ]
+    },
+    {
+      "domain": "pohde.fi",
+      "label": "Pohde — Pohjois-Pohjanmaa",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "pohjois-pohjanmaa"
+      ]
+    },
+    {
+      "domain": "soite.fi",
+      "label": "Soite — Keski-Pohjanmaa",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "keski-pohjanmaa"
+      ]
+    },
+    {
+      "domain": "hyvinvointialuelapin.fi",
+      "label": "Lapin hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "lappi"
+      ]
+    },
+    {
+      "domain": "pohjanmaanhva.fi",
+      "label": "Pohjanmaan hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "pohjanmaa"
+      ]
+    },
+    {
+      "domain": "etela-pohjanmaa.fi",
+      "label": "Etelä-Pohjanmaan hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "etela-pohjanmaa"
+      ]
+    },
+    {
+      "domain": "pirha.fi",
+      "label": "Pirkanmaan hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "pirkanmaa"
+      ]
+    },
+    {
+      "domain": "hyvinvointialuekainuu.fi",
+      "label": "Kainuun hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "kainuu"
+      ]
+    },
+    {
+      "domain": "pohjois-karjala.fi",
+      "label": "Pohjois-Karjalan hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "pohjois-karjala"
+      ]
+    },
+    {
+      "domain": "pohjois-savo.fi",
+      "label": "Pohjois-Savon hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "pohjois-savo"
+      ]
+    },
+    {
+      "domain": "etelasavo.fi",
+      "label": "Etelä-Savon hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "etela-savo"
+      ]
+    },
+    {
+      "domain": "kymsote.fi",
+      "label": "Kymenlaakson hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "kymenlaakso"
+      ]
+    },
+    {
+      "domain": "eksote.fi",
+      "label": "Etelä-Karjalan hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "etela-karjala"
+      ]
+    },
+    {
+      "domain": "hameenlinna.fi",
+      "label": "Kanta-Hämeen hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "kanta-hame"
+      ]
+    },
+    {
+      "domain": "paijat-hame.fi",
+      "label": "Päijät-Hämeen hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "paijat-hame"
+      ]
+    },
+    {
+      "domain": "varsinaissuomi.fi",
+      "label": "Varsinais-Suomen hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "varsinais-suomi"
+      ]
+    },
+    {
+      "domain": "satakunta.fi",
+      "label": "Satakunnan hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "satakunta"
+      ]
+    },
+    {
+      "domain": "hyvinvointialueuusimaa.fi",
+      "label": "Länsi-Uudenmaan hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "lansi-uusimaa"
+      ]
+    },
+    {
+      "domain": "vantaa-kerava.fi",
+      "label": "Vantaa-Kerava hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "vantaa-kerava"
+      ]
+    },
+    {
+      "domain": "itauusimaa.fi",
+      "label": "Itä-Uudenmaan hyvinvointialue",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "ita-uusimaa"
+      ]
+    },
+    {
+      "domain": "hus.fi",
+      "label": "HUS — Helsingin yliopistollinen sairaala",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "sairaala",
+        "uusimaa"
+      ]
+    },
+    {
+      "domain": "hel.fi",
+      "label": "Helsingin kaupunki (terveys- ja sosiaalipalvelut)",
+      "tags": [
+        "terveys",
+        "hyvinvointialue",
+        "helsinki"
+      ]
+    }
+  ]
+}

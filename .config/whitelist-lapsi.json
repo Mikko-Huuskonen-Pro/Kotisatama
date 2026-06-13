@@ -1,0 +1,270 @@
+{
+  "version": "1.0",
+  "profile": "lapsi",
+  "updated": "2026-06-13",
+  "description": "Kotisatama Lapsi — testilista kesäkuu 2026. Ikäryhmä 5–12v.",
+  "entries": [
+    {
+      "domain": "yle.fi/lapset",
+      "label": "Yle Areena Lapset",
+      "tags": [
+        "tv",
+        "videot",
+        "lapset"
+      ]
+    },
+    {
+      "domain": "areena.yle.fi",
+      "label": "Yle Areena",
+      "tags": [
+        "tv",
+        "videot"
+      ]
+    },
+    {
+      "domain": "yleoppiminen.fi",
+      "label": "Yle Oppiminen",
+      "tags": [
+        "oppiminen",
+        "koulu"
+      ]
+    },
+    {
+      "domain": "oppi.fi",
+      "label": "Oppi.fi",
+      "tags": [
+        "oppiminen",
+        "koulu"
+      ]
+    },
+    {
+      "domain": "matikka.fi",
+      "label": "Matikka.fi",
+      "tags": [
+        "oppiminen",
+        "matematiikka"
+      ]
+    },
+    {
+      "domain": "oppiminen.fi",
+      "label": "Oppiminen.fi",
+      "tags": [
+        "oppiminen"
+      ]
+    },
+    {
+      "domain": "pikkukoulu.fi",
+      "label": "Pikkukoulu",
+      "tags": [
+        "oppiminen",
+        "esikoulu"
+      ]
+    },
+    {
+      "domain": "tieteen-kuvalehti.fi",
+      "label": "Tieteen Kuvalehti",
+      "tags": [
+        "oppiminen",
+        "tiede"
+      ]
+    },
+    {
+      "domain": "tiedelehti.fi",
+      "label": "Tiedelehti",
+      "tags": [
+        "oppiminen",
+        "tiede"
+      ]
+    },
+    {
+      "domain": "kirjastot.fi",
+      "label": "Kirjastot.fi",
+      "tags": [
+        "kirjat",
+        "kirjasto"
+      ]
+    },
+    {
+      "domain": "helmet.fi",
+      "label": "HelMet — pääkaupunkiseudun kirjasto",
+      "tags": [
+        "kirjat",
+        "kirjasto"
+      ]
+    },
+    {
+      "domain": "lasten-kirja.fi",
+      "label": "Lasten Kirja",
+      "tags": [
+        "kirjat"
+      ]
+    },
+    {
+      "domain": "pokemon.com/fi",
+      "label": "Pokémon",
+      "tags": [
+        "pelit",
+        "kortit"
+      ]
+    },
+    {
+      "domain": "lego.com/fi-fi",
+      "label": "LEGO",
+      "tags": [
+        "pelit",
+        "rakentelu"
+      ]
+    },
+    {
+      "domain": "roblox.com",
+      "label": "Roblox",
+      "tags": [
+        "pelit",
+        "ikä:7+"
+      ]
+    },
+    {
+      "domain": "minecraft.net",
+      "label": "Minecraft",
+      "tags": [
+        "pelit",
+        "ikä:7+"
+      ]
+    },
+    {
+      "domain": "coolmathgames.com",
+      "label": "Cool Math Games",
+      "tags": [
+        "pelit",
+        "matematiikka"
+      ]
+    },
+    {
+      "domain": "ruutu.fi",
+      "label": "Ruutu — Nelonen Media",
+      "tags": [
+        "tv",
+        "videot"
+      ]
+    },
+    {
+      "domain": "katsomo.fi",
+      "label": "Katsomo",
+      "tags": [
+        "tv",
+        "videot"
+      ]
+    },
+    {
+      "domain": "luontoportti.com",
+      "label": "Luontoportti",
+      "tags": [
+        "luonto",
+        "eläimet",
+        "kasvit"
+      ]
+    },
+    {
+      "domain": "wwf.fi",
+      "label": "WWF Suomi",
+      "tags": [
+        "luonto",
+        "eläimet"
+      ]
+    },
+    {
+      "domain": "finna.fi",
+      "label": "Finna — museot ja arkistot",
+      "tags": [
+        "oppiminen",
+        "historia",
+        "taide"
+      ]
+    },
+    {
+      "domain": "museokortti.fi",
+      "label": "Museokortti",
+      "tags": [
+        "museo",
+        "kulttuuri"
+      ]
+    },
+    {
+      "domain": "urheiluseurat.fi",
+      "label": "Urheiluseurat.fi",
+      "tags": [
+        "urheilu",
+        "harrastukset"
+      ]
+    },
+    {
+      "domain": "palloliiitto.fi",
+      "label": "Palloliitto",
+      "tags": [
+        "urheilu",
+        "jalkapallo"
+      ]
+    },
+    {
+      "domain": "jääkiekkoliitto.fi",
+      "label": "Jääkiekkoliitto",
+      "tags": [
+        "urheilu",
+        "jääkiekko"
+      ]
+    },
+    {
+      "domain": "partio.fi",
+      "label": "Partio",
+      "tags": [
+        "harrastukset",
+        "ulkoilu"
+      ]
+    },
+    {
+      "domain": "4h.fi",
+      "label": "4H-liitto",
+      "tags": [
+        "harrastukset"
+      ]
+    },
+    {
+      "domain": "ruokala.net",
+      "label": "Ruokala — reseptit lapsille",
+      "tags": [
+        "reseptit",
+        "ruoka"
+      ]
+    },
+    {
+      "domain": "kotikokki.net",
+      "label": "Kotikokki",
+      "tags": [
+        "reseptit",
+        "ruoka"
+      ]
+    },
+    {
+      "domain": "112.fi",
+      "label": "112 Suomi — hätänumero ja turvallisuus",
+      "tags": [
+        "turvallisuus"
+      ]
+    },
+    {
+      "domain": "mll.fi",
+      "label": "Mannerheimin Lastensuojeluliitto",
+      "tags": [
+        "turvallisuus",
+        "järjestö"
+      ]
+    },
+    {
+      "domain": "pelastusopisto.fi",
+      "label": "Pelastusopisto — turvallisuustieto",
+      "tags": [
+        "turvallisuus"
+      ]
+    }
+  ]
+}

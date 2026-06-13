@@ -10,7 +10,7 @@ Käytännesäännöt koskevat tätä GitHub-repositoriota ja kaikkia virallisia 
 
 Jos olet kohdannut tai havainnut sopimattoman toiminnan, tai sinulla on muita huolia, ota yhteyttä projektin ylläpitäjään:
 
-- Mikko Huuskonen <mikko@ilio.fi>
+- Mikko Huuskonen <huuskonen92@gmail.com>
 
 ---
 

@@ -1,5 +1,5 @@
-# Whitelist-pipeline — suunnitelma
-*Kotisatama / Ilio — kesäkuu 2026*
+###Ideoita ja ajatuksia tulevaisuudesta. Ehkä toteutukseen, ei lähdetä rakentamaan näiden mukaan, vielä. # Whitelist-pipeline — suunnitelma
+*Kotisatama— kesäkuu 2026*
 
 ---
 
@@ -22,7 +22,7 @@ GitHub (Ilio-organisaatio)
     └── deploy/
 ```
 
-`kotisatama-whitelistat` ei koskaan forkkaudu julkiseen repoon.
+`kotisatama-whitelistat` ei koskaan forkkaudu julkiseen repoon. Kun niissä alkaa olla tuhansia ja tuhansia sivuja, niille alkaa muodostumaan arvoa. 
 MPL-velvoite koskee Servo-koodia — ei JSON-dataa erillisessä repossa.
 
 ---

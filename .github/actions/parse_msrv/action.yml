@@ -1,21 +1,21 @@
-name: Parse rust-version from libservo
-description: "Parse rust-version from libservo. Requires cargo-metadata."
+name: Parse browser engine rust-version
+description: "Parse the browser engine rust-version. Requires cargo-metadata."
 outputs:
   rust_version:
-    description: "Minimum rust-version defined by libservo"
+    description: "Minimum rust-version defined by the browser engine crate"
     value: ${{ steps.parse_version.outputs.LIBSERVO_RUST_VERSION }}
 
 runs:
   using: "composite"
   steps:
-    - name: Parse libservo version
+    - name: Parse browser engine version
       id: parse_version
       shell: bash
       run:  |
         msrv=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "servo") | .rust_version')
         if [[ "${msrv}" == "null" ]]; then
-          echo "Failed to determine MSRV of servo"
+          echo "Failed to determine browser engine MSRV"
           exit 1
         fi
-        echo "servo has a minimum supported Rust version of ${msrv}."
+        echo "Browser engine has a minimum supported Rust version of ${msrv}."
         echo "LIBSERVO_RUST_VERSION=${msrv}" >> "$GITHUB_OUTPUT"

@@ -112,7 +112,7 @@ impl Default for ServoShellPreferences {
             clean_shutdown: false,
             device_pixel_ratio_override: None,
             headless: false,
-            homepage: "https://servo.org".into(),
+            homepage: "about:blank".into(),
             initial_window_size: Size2D::new(1024, 740),
             no_native_titlebar: true,
             screen_size_override: None,
@@ -575,7 +575,7 @@ struct CmdArgs {
     zealous_gc: bool,
 
     /// The url we should load.
-    #[bpaf(positional("URL"), fallback(String::from("https://www.servo.org")))]
+    #[bpaf(positional("URL"), fallback(String::from("about:blank")))]
     url: String,
 }
 
@@ -856,7 +856,7 @@ fn test_create_prefs_map() {
     let json_str = "{
         \"layout.writing-mode.enabled\": true,
         \"network.mime.sniff\": false,
-        \"shell.homepage\": \"https://servo.org\"
+        \"shell.homepage\": \"about:blank\"
     }";
     assert_eq!(read_prefs_map(json_str).len(), 3);
 }

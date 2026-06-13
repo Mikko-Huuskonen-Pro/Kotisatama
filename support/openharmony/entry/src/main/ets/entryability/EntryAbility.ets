@@ -10,14 +10,14 @@ const WRONG_COMMAND_ARRAY = ["tracing", "devtools", "force_ipc", "multiprocess",
 export default class EntryAbility extends UIAbility {
   init_params: LocalStorage = new LocalStorage();
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam) {
-    let uri: string = want.uri || "https://servo.org"
+    let uri: string = want.uri || "about:blank"
     let params: string[] = []
     if (typeof want.parameters !== "undefined") {
       Object.entries(want.parameters).forEach((entry) => {
         let key = entry[0]
         // The commandline parameters we are interested in all start with `--`.
         // OpenHarmony also adds quite a few default parameters to the wants.parameters
-        // dictionary, and servo currently fails with an error if it receives unknown
+        // dictionary, and the engine currently fails with an error if it receives unknown
         // options.
         // On the commandline you can pass parameters via the `aa` tool.
         // ```
@@ -36,15 +36,15 @@ export default class EntryAbility extends UIAbility {
             params.push(value)
           }
         } else if (WRONG_COMMAND_ARRAY.some(value => key.startsWith(value))) {
-          hilog.error(0xE0C3, "Servo EntryAbility", "-------------------------------------------------------------------------------------------------");
-          hilog.error(0xE0C3, "Servo EntryAbility", "\n\nYou probably meant to add -- infront of your argument, i.e., --psn=--tracing vs --psn=tracing. You used " + entry);
-          hilog.error(0xE0C3, "Servo EntryAbility", "-------------------------------------------------------------------------------------------------");
+          hilog.error(0xE0C3, "Kotisatama EntryAbility", "-------------------------------------------------------------------------------------------------");
+          hilog.error(0xE0C3, "Kotisatama EntryAbility", "\n\nYou probably meant to add -- infront of your argument, i.e., --psn=--tracing vs --psn=tracing. You used " + entry);
+          hilog.error(0xE0C3, "Kotisatama EntryAbility", "-------------------------------------------------------------------------------------------------");
           return;
         }
       })
     }
     let servoshell_params = params.join("\u{001f}")
-    hilog.debug(0x0000, 'Servo EntryAbility', 'Servoshell parameters: %{public}s', servoshell_params);
+    hilog.debug(0x0000, 'Kotisatama EntryAbility', 'Servoshell parameters: %{public}s', servoshell_params);
 
     let resource_dir: string = this.context.resourceDir;
     console.debug("resourceDir: ", resource_dir);

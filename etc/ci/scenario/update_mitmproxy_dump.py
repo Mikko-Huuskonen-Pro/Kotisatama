@@ -21,7 +21,6 @@ import time
 import common_function_for_servo_test
 import servo_speedometer
 import servo_test_open_page_base
-import servo_test_open_page_servo
 import servo_test_redirection
 import servo_test_slide
 
@@ -50,7 +49,7 @@ def run_test(name: str, f):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Create a mitmdump file from google, servo, speedometer and scenario tests"
+        description="Create a mitmdump file from google, speedometer and scenario tests"
     )
     parser.add_argument("dump_file", type=str, help="the file we write the dump to")
     args = parser.parse_args()
@@ -70,7 +69,6 @@ if __name__ == "__main__":
     print(f"Writing to {args.dump_file}")
 
     time.sleep(5)
-    run_test("Running servo_test_open_page_servo", servo_test_open_page_servo.operator)
     run_test("Running servo_test_open_page_base", servo_test_open_page_base.operator)
     run_test("Running servo_test_redirection", servo_test_redirection.operator)
     run_test("Running servo_test_slide", servo_test_slide.operator)

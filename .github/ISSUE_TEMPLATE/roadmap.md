@@ -1,6 +1,6 @@
 ---
 name: Roadmap Issue
-about: Create an issue to track in the Servo roadmap
+about: Create an issue to track in the Kotisatama roadmap
 title: ''
 labels: B-roadmap
 assignees: ''

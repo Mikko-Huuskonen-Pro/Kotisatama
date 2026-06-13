@@ -1,0 +1,426 @@
+{
+  "version": "1.0",
+  "profile": "hopeakettu",
+  "updated": "2026-06-13",
+  "description": "Kotisatama Hopeakettu — testilista kesäkuu 2026",
+  "entries": [
+    {
+      "domain": "kela.fi",
+      "label": "Kela",
+      "tags": [
+        "virastot",
+        "eläke",
+        "terveys",
+        "korvaukset"
+      ]
+    },
+    {
+      "domain": "vero.fi",
+      "label": "Verohallinto",
+      "tags": [
+        "virastot",
+        "verot",
+        "omavero"
+      ]
+    },
+    {
+      "domain": "dvv.fi",
+      "label": "Digi- ja väestötietovirasto",
+      "tags": [
+        "virastot",
+        "henkilötiedot",
+        "passi"
+      ]
+    },
+    {
+      "domain": "suomi.fi",
+      "label": "Suomi.fi",
+      "tags": [
+        "virastot",
+        "sähköinenasiointi"
+      ]
+    },
+    {
+      "domain": "traficom.fi",
+      "label": "Traficom",
+      "tags": [
+        "virastot",
+        "ajokortti",
+        "ajoneuvo"
+      ]
+    },
+    {
+      "domain": "te-palvelut.fi",
+      "label": "TE-palvelut",
+      "tags": [
+        "virastot",
+        "työ",
+        "tyottomyys"
+      ]
+    },
+    {
+      "domain": "keha-keskus.fi",
+      "label": "KEHA-keskus",
+      "tags": [
+        "virastot"
+      ]
+    },
+    {
+      "domain": "elake.fi",
+      "label": "Työeläke.fi",
+      "tags": [
+        "eläke"
+      ]
+    },
+    {
+      "domain": "varma.fi",
+      "label": "Varma",
+      "tags": [
+        "eläke"
+      ]
+    },
+    {
+      "domain": "ilmarinen.fi",
+      "label": "Ilmarinen",
+      "tags": [
+        "eläke"
+      ]
+    },
+    {
+      "domain": "keva.fi",
+      "label": "Keva",
+      "tags": [
+        "eläke"
+      ]
+    },
+    {
+      "domain": "eläkeliitto.fi",
+      "label": "Eläkeliitto",
+      "tags": [
+        "eläke",
+        "järjestö"
+      ]
+    },
+    {
+      "domain": "xn--elkkeliitto-v5ab.fi",
+      "label": "Eläkeliitto (ascii)",
+      "tags": [
+        "eläke",
+        "järjestö"
+      ]
+    },
+    {
+      "domain": "thl.fi",
+      "label": "Terveyden ja hyvinvoinnin laitos",
+      "tags": [
+        "terveys",
+        "virastot"
+      ]
+    },
+    {
+      "domain": "terveyskirjasto.fi",
+      "label": "Terveyskirjasto (Duodecim)",
+      "tags": [
+        "terveys",
+        "lääkkeet",
+        "sairaudet"
+      ]
+    },
+    {
+      "domain": "fimea.fi",
+      "label": "Fimea — Lääkevirasto",
+      "tags": [
+        "terveys",
+        "lääkkeet"
+      ]
+    },
+    {
+      "domain": "omakanta.fi",
+      "label": "Omakanta",
+      "tags": [
+        "terveys",
+        "potilastiedot"
+      ]
+    },
+    {
+      "domain": "hus.fi",
+      "label": "HUS — Helsingin yliopistollinen sairaala",
+      "tags": [
+        "terveys",
+        "sairaala"
+      ]
+    },
+    {
+      "domain": "hyvinvointialue.fi",
+      "label": "Hyvinvointialue.fi",
+      "tags": [
+        "terveys",
+        "virastot"
+      ]
+    },
+    {
+      "domain": "yle.fi",
+      "label": "Yle",
+      "tags": [
+        "uutiset",
+        "radio",
+        "tv"
+      ]
+    },
+    {
+      "domain": "hs.fi",
+      "label": "Helsingin Sanomat",
+      "tags": [
+        "uutiset"
+      ]
+    },
+    {
+      "domain": "iltasanomat.fi",
+      "label": "Ilta-Sanomat",
+      "tags": [
+        "uutiset"
+      ]
+    },
+    {
+      "domain": "iltalehti.fi",
+      "label": "Iltalehti",
+      "tags": [
+        "uutiset"
+      ]
+    },
+    {
+      "domain": "maaseuduntulevaisuus.fi",
+      "label": "Maaseudun Tulevaisuus",
+      "tags": [
+        "uutiset",
+        "maaseutu"
+      ]
+    },
+    {
+      "domain": "kauppalehti.fi",
+      "label": "Kauppalehti",
+      "tags": [
+        "uutiset",
+        "talous"
+      ]
+    },
+    {
+      "domain": "kotikokki.net",
+      "label": "Kotikokki",
+      "tags": [
+        "reseptit",
+        "ruoka"
+      ]
+    },
+    {
+      "domain": "maku.fi",
+      "label": "Maku",
+      "tags": [
+        "reseptit",
+        "ruoka"
+      ]
+    },
+    {
+      "domain": "soppa365.fi",
+      "label": "Soppa365",
+      "tags": [
+        "reseptit",
+        "ruoka"
+      ]
+    },
+    {
+      "domain": "ruokala.net",
+      "label": "Ruokala",
+      "tags": [
+        "reseptit",
+        "ruoka"
+      ]
+    },
+    {
+      "domain": "kinuskikissa.fi",
+      "label": "Kinuskikissa",
+      "tags": [
+        "reseptit",
+        "leivonta"
+      ]
+    },
+    {
+      "domain": "op.fi",
+      "label": "OP",
+      "tags": [
+        "pankki"
+      ]
+    },
+    {
+      "domain": "nordea.fi",
+      "label": "Nordea",
+      "tags": [
+        "pankki"
+      ]
+    },
+    {
+      "domain": "s-pankki.fi",
+      "label": "S-Pankki",
+      "tags": [
+        "pankki"
+      ]
+    },
+    {
+      "domain": "handelsbanken.fi",
+      "label": "Handelsbanken",
+      "tags": [
+        "pankki"
+      ]
+    },
+    {
+      "domain": "saastopankki.fi",
+      "label": "Säästöpankki",
+      "tags": [
+        "pankki"
+      ]
+    },
+    {
+      "domain": "s-kaupat.fi",
+      "label": "S-kaupat",
+      "tags": [
+        "kauppa",
+        "ruoka"
+      ]
+    },
+    {
+      "domain": "k-ruoka.fi",
+      "label": "K-Ruoka",
+      "tags": [
+        "kauppa",
+        "ruoka"
+      ]
+    },
+    {
+      "domain": "alko.fi",
+      "label": "Alko",
+      "tags": [
+        "kauppa"
+      ]
+    },
+    {
+      "domain": "apteekki.fi",
+      "label": "Apteekki.fi",
+      "tags": [
+        "terveys",
+        "lääkkeet",
+        "kauppa"
+      ]
+    },
+    {
+      "domain": "posti.fi",
+      "label": "Posti",
+      "tags": [
+        "arki",
+        "posti"
+      ]
+    },
+    {
+      "domain": "fmi.fi",
+      "label": "Ilmatieteen laitos",
+      "tags": [
+        "sää"
+      ]
+    },
+    {
+      "domain": "foreca.fi",
+      "label": "Foreca",
+      "tags": [
+        "sää"
+      ]
+    },
+    {
+      "domain": "vr.fi",
+      "label": "VR",
+      "tags": [
+        "liikenne",
+        "juna",
+        "matka"
+      ]
+    },
+    {
+      "domain": "hsl.fi",
+      "label": "HSL",
+      "tags": [
+        "liikenne",
+        "bussi",
+        "metro"
+      ]
+    },
+    {
+      "domain": "matkahuolto.fi",
+      "label": "Matkahuolto",
+      "tags": [
+        "liikenne",
+        "bussi"
+      ]
+    },
+    {
+      "domain": "finavia.fi",
+      "label": "Finavia — lentoasemat",
+      "tags": [
+        "liikenne",
+        "lento"
+      ]
+    },
+    {
+      "domain": "seniori.fi",
+      "label": "Seniori.fi",
+      "tags": [
+        "järjestö",
+        "seniorit"
+      ]
+    },
+    {
+      "domain": "vtkl.fi",
+      "label": "Vanhus- ja lähimmäispalvelun liitto",
+      "tags": [
+        "järjestö",
+        "seniorit"
+      ]
+    },
+    {
+      "domain": "ikainstitiuutti.fi",
+      "label": "Ikäinstituutti",
+      "tags": [
+        "järjestö",
+        "seniorit"
+      ]
+    },
+    {
+      "domain": "punainenristi.fi",
+      "label": "Punainen Risti",
+      "tags": [
+        "järjestö",
+        "apu"
+      ]
+    },
+    {
+      "domain": "mll.fi",
+      "label": "Mannerheimin Lastensuojeluliitto",
+      "tags": [
+        "järjestö"
+      ]
+    },
+    {
+      "domain": "fonecta.fi",
+      "label": "Fonecta — puhelinluettelo",
+      "tags": [
+        "hakemisto",
+        "yhteystiedot"
+      ]
+    },
+    {
+      "domain": "eniron.fi",
+      "label": "Eniro",
+      "tags": [
+        "hakemisto",
+        "yhteystiedot"
+      ]
+    }
+  ]
+}

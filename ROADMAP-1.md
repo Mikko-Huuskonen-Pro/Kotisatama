@@ -136,6 +136,10 @@ Serverless-poikkeus: raportit käyttävät **Cloudflare Worker**-endpointia (ei 
 
 ---
 
+## Vaihe 7 - teemat
+
+assets/themes löytyy eri tiloihin teemakuvat tekstin taakse. 
+
 ## Avoimet päätökset
 
 - [ ] CDN-valinta: Cloudflare R2 vai Bunny

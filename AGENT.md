@@ -200,6 +200,33 @@ cargo build  # Pitää myös toimia ilman featurea
 
 ---
 
+## Upstream-merge — Agentin vastuulla
+
+Upstream-synkronointi (`git merge upstream/main`) tehdään **Agentilla**,
+ei manuaalisesti, jotta ei tuhota kaikki puhdistuksessa muutettuja tiedostoja.
+
+### Ennen muutoksia: tarkista Puhdistukset.md
+
+`Puhdistukset.md` on rekisteri kaikista tehdyistä Servo-siivousmuutoksista.
+Ennen kuin muutat tiedostoa joka sisältää Servo-viittauksen, tarkista:
+onko tämä tiedosto jo käsitelty ja onko muutos tarkoituksellinen?
+
+Älä "korjaa" Kotisatama-muutosta takaisin Servo-oletukseksi vaikka se
+näyttäisi upstream:ista poikkeavalta — se on todennäköisesti tarkoituksellinen.
+
+### Tiedostoluokat
+
+| Luokka | Esimerkki | Upstream ylikirjoittaa? |
+|---|---|---|
+| Kotisatama-omat | `components/kotisatama/`, `tauri/`, `crawler/` | Ei koskaan |
+| Patchattu upstream | `ports/servoshell/`, `resources/resource_protocol/newtab.html` | Voi — katso KOTISATAMA-PATCH-kommentit |
+| Puhdistettu upstream | ks. Puhdistukset.md | Voi — Cursor ratkaisee konfliktin |
+| Koskematon upstream | `components/script/`, `tests/wpt/` | Kyllä, tarkoituksella |
+
+---
+
+---
+
 ## Mitä agentin pitää tarkistaa ennen PR:ää
 
 - [ ] `cargo build` toimii ilman `--features kotisatama` (upstream ei rikkoudu)

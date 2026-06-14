@@ -59,7 +59,7 @@ Seuraa ensin Servon omaa [setup-ohjetta](https://book.servo.org/hacking/setting-
 ### Kloonataan
 
 ```bash
-git clone https://github.com/<sinun-fork>/kotisatama.git
+git clone https://github.com/Mikko-Huuskonen-Pro/Kotisatama.git
 cd kotisatama
 
 # Lisätään Servo upstream

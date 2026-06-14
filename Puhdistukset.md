@@ -6,6 +6,8 @@ ja upstream-infran jaanneista.
 
 ## 2026-06-13: Servo-projektijaanteiden ensimmainen siivous
 
+github/workflows poistettu kaikki muut paitsi kotisatamaan liittyvä crawler. 
+
 Branch: `cursor/remove-servo-leftovers-5fdf`  
 Commit: `3772c92ba6b Remove obsolete Servo project leftovers`
 

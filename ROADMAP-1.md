@@ -138,7 +138,11 @@ Serverless-poikkeus: raportit käyttävät **Cloudflare Worker**-endpointia (ei 
 
 ## Vaihe 7 - teemat
 
-assets/themes löytyy eri tiloihin teemakuvat tekstin taakse. 
+assets/themes löytyy eri tiloihin teemakuvat tekstin taakse. Upotetaan kuvatekstin taakse, eli Satama on etusivu, whitelistatut hakutulokset. Avomeri avautuu kun painaa avomeri painiketta. Myrsky on offline-tilan teema, ei pääse vesille=ei pääse nettiin
+
+
+---
+
 
 ## Avoimet päätökset
 

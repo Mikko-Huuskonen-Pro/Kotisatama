@@ -6,6 +6,7 @@
 Konsepti: Pulloposti Kotisatamassa
 Kotisatama on Servo-fork. Sinulla on erillinen Tauri-app jossa BLE-logiikka on valmiina. Nämä ovat kaksi eri sovellusta, kaksi eri arkkitehtuuria — niitä ei yhdistetä kooditasolla suoraan.
 Ratkaisu on todennäköisesti rinnakkaiselo, ei integraatio.
+Kotisataman julkisessa repossa näkyy vain "pulloposti-subprocess käynnistetään" — ei sen sisältö, ei salauslogiikka, ei avainten hallinta. Ne pysyvät suljetussa repossa ja bundlataan APK:hon buildin yhteydessä.
 Pulloposti pyörii omana prosessinaan taustalla. Kotisatama-selain tarjoaa sille UI:n paikallisena sivuna, aivan kuten se tarjoaa Meilisearch-subprocessille hakurajapinnan. Sama pattern — Kotisatama ei tiedä mitä subprocess tekee, se vain näyttää tulokset.
 Avainten vaihto on tuotteen sydän, ei tekninen detalji.
 Fyysinen hetki ennen lähtöä — avain vaihdetaan kasvotusten, jää mieleen, ei tallennu mihinkään pilveen. Tämä on lupaus jota mikään online-sovellus ei voi tehdä.

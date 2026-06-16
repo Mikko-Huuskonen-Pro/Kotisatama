@@ -138,9 +138,20 @@ Serverless-poikkeus: raportit käyttävät **Cloudflare Worker**-endpointia (ei 
 
 ## Vaihe 7 - teemat
 
-assets/themes löytyy eri tiloihin teemakuvat tekstin taakse. Upotetaan kuvatekstin taakse, eli Satama on etusivu, whitelistatut hakutulokset. Avomeri avautuu kun painaa avomeri painiketta. Myrsky on offline-tilan teema, ei pääse vesille=ei pääse nettiin.
+**Tavoite:** Käyttäjä tunnistaa yhdellä silmäyksellä missä tilassa ollaan, ja tausta luo tunnelmaa eri tiloihin.
+
+`assets/themes/` sisältää **staattiset taustakuvat**, jotka näytetään **sisällön (teksti/UI) takana**. Tausta vaihtuu sovelluksen tilan mukaan.
+
+**Tilat ja teemat:**
+
+- **Satama**: etusivu
+- **Kotisatama**: kotisataman sisäiset näkymät (esim. whitelistan sisällä selaus ja kotisataman hakutulokset)
+- **Avomeri**: kun käyttäjä valitsee avomeri-toiminnon (*"Jatka avomerelle"* / *"Hae avomereltä"*) ja siirtyy avomeren hakuun (Startpage)
+- **Myrsky**: offline-tila (ei verkkoyhteyttä / ei pääse nettiin)
 
 Kuvat ovat staattisia bundlattuja assetteja — ei CDN-hakua, toimii offline-tilassa
+
+**Valmis kun:** jokaisessa yllä olevassa tilassa näkyy selvästi eri tausta, ja tausta ei estä luettavuutta (kontrasti/overlay tarvittaessa).
 
 
 ---

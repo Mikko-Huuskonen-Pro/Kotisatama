@@ -110,6 +110,8 @@ pub fn blocked_page_url(blocked_url: &Url) -> Url {
     let search_term = blocked_url
         .host_str()
         .unwrap_or_else(|| blocked_url.as_str());
+    // Note: use Startpage directly here because not all platform builds
+    // register the `servo:` protocol handler (e.g. some embedded/EGL paths).
     let startpage_href = startpage_search_url(search_term);
 
     let html = format!(
@@ -119,7 +121,20 @@ pub fn blocked_page_url(blocked_url: &Url) -> Url {
   <meta charset="utf-8">
   <title>Ei löydy kotisatamasta</title>
   <style>
-    body {{ font-family: system-ui, sans-serif; margin: 2.5rem; line-height: 1.5; color: #1a1a1a; }}
+    html, body {{ height: 100%; }}
+    body {{
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      line-height: 1.5;
+      color: #1a1a1a;
+      background-repeat: no-repeat;
+      background-size: cover;
+      background-position: center;
+      background-image:
+        linear-gradient(rgba(250, 250, 250, 0.92), rgba(250, 250, 250, 0.92)),
+        url("resource:///themes/kotisatama.svg");
+    }}
+    main {{ max-width: 52rem; margin: 2.5rem; padding: 1.25rem 1.25rem; border-radius: 14px; background: rgba(255,255,255,0.65); box-shadow: 0 10px 32px rgba(0,0,0,0.15); }}
     h1 {{ font-size: 1.5rem; margin-bottom: 0.75rem; }}
     p {{ margin: 0.5rem 0; }}
     a {{ font-size: 1.05rem; }}
@@ -127,10 +142,12 @@ pub fn blocked_page_url(blocked_url: &Url) -> Url {
   </style>
 </head>
 <body>
-  <h1>Tätä sivua ei löydy kotisatamassa.</h1>
-  <p class="url">{display}</p>
-  <p><a href="{startpage_href}">Jatka avomerelle</a></p>
-  <p style="margin-top: 1.5rem; color: #666; font-size: 0.9rem;">Voit ilmoittaa ongelmasta tai ehdottaa sivustoa selaimen <strong>Ilmoita</strong>-napilla.</p>
+  <main>
+    <h1>Tätä sivua ei löydy kotisatamassa.</h1>
+    <p class="url">{display}</p>
+    <p><a href="{startpage_href}">Jatka avomerelle</a></p>
+    <p style="margin-top: 1.5rem; color: #666; font-size: 0.9rem;">Voit ilmoittaa ongelmasta tai ehdottaa sivustoa selaimen <strong>Ilmoita</strong>-napilla.</p>
+  </main>
 </body>
 </html>"#,
     );
@@ -140,6 +157,13 @@ pub fn blocked_page_url(blocked_url: &Url) -> Url {
         STANDARD.encode(html.as_bytes())
     );
     Url::parse(&data_url).expect("blocked page data URL must be valid")
+}
+
+/// Internal Kotisatama avomeri gateway page (`servo:avomeri?q=...`).
+pub fn avomeri_gateway_url(query: &str) -> Url {
+    let encoded = url::form_urlencoded::byte_serialize(query.as_bytes()).collect::<String>();
+    Url::parse(&format!("servo:avomeri?q={encoded}"))
+        .expect("avomeri gateway URL must be valid")
 }
 
 /// Startpage search URL for avomeri fallback.

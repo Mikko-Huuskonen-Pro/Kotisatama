@@ -12,7 +12,8 @@ use kotisatama_search::SearchClient;
 pub use kotisatama_search::{SearchHit, SearchOutcome};
 pub use kotisatama_report::{domain_from_url, last_blocked_url};
 use kotisatama_whitelist::{
-    blocked_page_url, is_allowed, is_avomeri_gateway, startpage_search_url, Whitelist,
+    avomeri_gateway_url, blocked_page_url, is_allowed, is_avomeri_gateway, startpage_search_url,
+    Whitelist,
 };
 use log::{info, warn};
 use servo::WebView;
@@ -158,7 +159,12 @@ pub fn submit_report(
 
 /// Startpage URL for avomeri search fallback.
 pub fn avomeri_search_url(query: &str) -> Url {
-    startpage_search_url(query)
+    if cfg!(target_os = "android") || cfg!(target_env = "ohos") {
+        // Embedded/EGL builds may not register the `servo:` protocol handler.
+        startpage_search_url(query)
+    } else {
+        avomeri_gateway_url(query)
+    }
 }
 
 /// Search the local Kotisatama index.

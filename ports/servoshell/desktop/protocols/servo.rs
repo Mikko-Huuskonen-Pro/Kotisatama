@@ -8,6 +8,7 @@
 //! - servo:experimental-preferences
 //! - servo:config
 //! - servo:newtab
+//! - servo:avomeri
 //! - servo:preferences
 
 use std::future::Future;
@@ -55,6 +56,12 @@ impl ProtocolHandler for ServoProtocolHandler {
                 done_chan,
                 context,
                 "/newtab.html",
+            ),
+            "avomeri" => ResourceProtocolHandler::response_for_path(
+                request,
+                done_chan,
+                context,
+                "/avomeri.html",
             ),
 
             "preferences" => ResourceProtocolHandler::response_for_path(

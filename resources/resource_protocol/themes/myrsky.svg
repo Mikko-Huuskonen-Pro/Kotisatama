@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a0f16"/>
+      <stop offset="0.6" stop-color="#121a24"/>
+      <stop offset="1" stop-color="#182636"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#12314a"/>
+      <stop offset="1" stop-color="#060c12"/>
+    </linearGradient>
+    <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <g opacity="0.55" filter="url(#blur)">
+    <ellipse cx="520" cy="170" rx="520" ry="170" fill="#1e2a39"/>
+    <ellipse cx="1120" cy="220" rx="620" ry="190" fill="#1a2431"/>
+    <ellipse cx="860" cy="300" rx="760" ry="210" fill="#202c3c"/>
+  </g>
+  <rect y="520" width="1600" height="380" fill="url(#sea)"/>
+  <path d="M0 580 C170 520, 340 650, 520 585 C700 520, 920 680, 1140 585 C1360 500, 1480 640, 1600 585 L1600 900 L0 900 Z"
+        fill="#0a121b" opacity="0.65"/>
+  <path d="M980 250 L880 440 L960 440 L860 650" fill="none" stroke="#ffd166" stroke-opacity="0.55" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

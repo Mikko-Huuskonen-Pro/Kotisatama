@@ -17,6 +17,9 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
 }
 
 h1 {
@@ -79,7 +82,9 @@ a:hover {
 
 @media (prefers-color-scheme: light) {
   body {
-    background: #f9f9f9;
+    background-image:
+      linear-gradient(rgba(249, 249, 249, 0.92), rgba(249, 249, 249, 0.92)),
+      url("resource:///themes/satama.svg");
   }
 
   input {
@@ -98,7 +103,9 @@ a:hover {
 
 @media (prefers-color-scheme: dark) {
   body {
-    background-color: #121619;
+    background-image:
+      linear-gradient(rgba(18, 22, 25, 0.84), rgba(18, 22, 25, 0.84)),
+      url("resource:///themes/satama.svg");
     color: hsl(0, 0%, 96%);
   }
 

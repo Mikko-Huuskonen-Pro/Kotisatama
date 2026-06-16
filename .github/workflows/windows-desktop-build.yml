@@ -1,0 +1,95 @@
+name: Windows desktop build (servoshell)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "ports/servoshell/**"
+      - "components/kotisatama/**"
+      - "resources/**"
+      - "python/**"
+      - "mach"
+      - "rust-toolchain.toml"
+      - ".github/workflows/windows-desktop-build.yml"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Install uv (Python runner)
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install uv
+          uv --version
+
+      # Servo's Windows build expects GStreamer >= 1.18. Prefer Servo's own prepackaged layout
+      # under target/dependencies so python/servo/platform/windows.py can auto-detect it.
+      - name: Bootstrap dependencies (includes GStreamer)
+        shell: pwsh
+        run: |
+          .\mach bootstrap --yes
+
+      - name: Show GStreamer version (best-effort)
+        shell: pwsh
+        run: |
+          $possible = @(
+            "target\dependencies\gstreamer\1.0\msvc_X86_64\bin\gst-inspect-1.0.exe",
+            "target\dependencies\gstreamer\1.0\msvc_X86_64\bin\gst-launch-1.0.exe",
+            "C:\gstreamer\1.0\msvc_X86_64\bin\gst-inspect-1.0.exe",
+            "C:\gstreamer\1.0\msvc_X86_64\bin\gst-launch-1.0.exe"
+          )
+          foreach ($p in $possible) {
+            if (Test-Path $p) {
+              & $p --version
+              break
+            }
+          }
+
+      - name: Build (release)
+        shell: pwsh
+        run: |
+          .\mach build --release
+
+      - name: Package build output
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+
+          # Try the common locations used by Servo/servoshell.
+          $candidates = @(
+            "target\release\servoshell.exe",
+            "target\release\servo.exe",
+            "target\release\servoshell",
+            "target\release\servo"
+          )
+          $bin = $null
+          foreach ($c in $candidates) {
+            if (Test-Path $c) { $bin = $c; break }
+          }
+          if (-not $bin) {
+            Write-Host "Could not find built binary. Listing target\release:"
+            Get-ChildItem -Path target\release -ErrorAction Continue | Format-Table -AutoSize
+            throw "Built binary not found"
+          }
+
+          Copy-Item -Force $bin dist\
+          Copy-Item -Recurse -Force resources dist\resources
+
+          $sha = (git rev-parse --short HEAD).Trim()
+          $zip = "kotisatama-win11-$sha.zip"
+          Compress-Archive -Path dist\* -DestinationPath $zip -Force
+          echo "ZIP_NAME=$zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotisatama-win11
+          path: ${{ env.ZIP_NAME }}
+          if-no-files-found: error

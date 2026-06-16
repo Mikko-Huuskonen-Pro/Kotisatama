@@ -1,6 +1,16 @@
 ### Ideoita ja ajatuksia tulevaisuudesta. Ehkä toteutukseen, ei lähdetä rakentamaan näiden mukaan, vielä. 
 
-# 6-emojia tähän projektiin offline käyttöä varten, eli kolmas vene, sukellusvene
+# Nist tähän projektiin offline käyttöä varten, eli kolmas vene, sukellusvene. 
+
+
+Konsepti: Pulloposti Kotisatamassa
+Kotisatama on Servo-fork. Sinulla on erillinen Tauri-app jossa BLE-logiikka on valmiina. Nämä ovat kaksi eri sovellusta, kaksi eri arkkitehtuuria — niitä ei yhdistetä kooditasolla suoraan.
+Ratkaisu on todennäköisesti rinnakkaiselo, ei integraatio.
+Pulloposti pyörii omana prosessinaan taustalla. Kotisatama-selain tarjoaa sille UI:n paikallisena sivuna, aivan kuten se tarjoaa Meilisearch-subprocessille hakurajapinnan. Sama pattern — Kotisatama ei tiedä mitä subprocess tekee, se vain näyttää tulokset.
+Avainten vaihto on tuotteen sydän, ei tekninen detalji.
+Fyysinen hetki ennen lähtöä — avain vaihdetaan kasvotusten, jää mieleen, ei tallennu mihinkään pilveen. Tämä on lupaus jota mikään online-sovellus ei voi tehdä.
+Laiva on täydellinen pilotti.
+Suljettu ympäristö, ihmiset offline pakosta, pitkä aika, luontainen yhteisö. Ei tarvita markkinointia — tilanne luo tarpeen.
 
 # Whitelist-pipeline — suunnitelma
 *Kotisatama— kesäkuu 2026*

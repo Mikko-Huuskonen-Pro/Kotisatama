@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Avomeri</title>
+    <link rel="stylesheet" href="resource:///avomeri.css" />
+  </head>
+  <body>
+    <main class="card" role="main">
+      <h1>Avomeri</h1>
+      <p class="muted">
+        Olet siirtymässä avomerelle. Kotisataman ulkopuolelle mennään vain käyttäjän omasta valinnasta.
+      </p>
+
+      <form id="form" autocomplete="off">
+        <label for="q">Hae avomereltä</label>
+        <div class="row">
+          <input id="q" name="q" placeholder="Kirjoita hakusana…" />
+          <button type="submit">Hae</button>
+        </div>
+      </form>
+
+      <p id="offline" class="offline hidden" aria-live="polite">
+        Myrsky: verkkoyhteyttä ei ole. Avomeri ei ole käytettävissä offline-tilassa.
+      </p>
+    </main>
+
+    <script>
+      (function () {
+        const params = new URLSearchParams(location.search);
+        const q = params.get("q") || "";
+        const input = document.getElementById("q");
+        const form = document.getElementById("form");
+        const offlineEl = document.getElementById("offline");
+
+        input.value = q;
+
+        function setOffline(isOffline) {
+          document.documentElement.classList.toggle("is-offline", isOffline);
+          offlineEl.classList.toggle("hidden", !isOffline);
+          input.disabled = isOffline;
+          form.querySelector("button").disabled = isOffline;
+        }
+
+        function updateOffline() {
+          // navigator.onLine is not perfect, but good enough for a state indicator.
+          setOffline(navigator.onLine === false);
+        }
+
+        window.addEventListener("online", updateOffline);
+        window.addEventListener("offline", updateOffline);
+        updateOffline();
+
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          const query = (input.value || "").trim();
+          if (!query) return;
+          const url = "https://www.startpage.com/search?q=" + encodeURIComponent(query);
+          location.href = url;
+        });
+      })();
+    </script>
+  </body>
+</html>

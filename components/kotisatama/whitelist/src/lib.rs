@@ -110,7 +110,9 @@ pub fn blocked_page_url(blocked_url: &Url) -> Url {
     let search_term = blocked_url
         .host_str()
         .unwrap_or_else(|| blocked_url.as_str());
-    let avomeri_href = avomeri_gateway_url(search_term);
+    // Note: use Startpage directly here because not all platform builds
+    // register the `servo:` protocol handler (e.g. some embedded/EGL paths).
+    let startpage_href = startpage_search_url(search_term);
 
     let html = format!(
         r#"<!DOCTYPE html>
@@ -143,7 +145,7 @@ pub fn blocked_page_url(blocked_url: &Url) -> Url {
   <main>
     <h1>Tätä sivua ei löydy kotisatamassa.</h1>
     <p class="url">{display}</p>
-    <p><a href="{avomeri_href}">Jatka avomerelle</a></p>
+    <p><a href="{startpage_href}">Jatka avomerelle</a></p>
     <p style="margin-top: 1.5rem; color: #666; font-size: 0.9rem;">Voit ilmoittaa ongelmasta tai ehdottaa sivustoa selaimen <strong>Ilmoita</strong>-napilla.</p>
   </main>
 </body>

@@ -22,6 +22,13 @@ jobs:
         with:
           submodules: false
 
+      - name: Install uv (Python runner)
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install uv
+          uv --version
+
       # Servo's Windows build expects GStreamer >= 1.18 to be installed.
       - name: Install GStreamer (Chocolatey)
         shell: pwsh

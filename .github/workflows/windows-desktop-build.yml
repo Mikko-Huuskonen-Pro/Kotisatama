@@ -29,21 +29,21 @@ jobs:
           python -m pip install uv
           uv --version
 
-      # Servo's Windows build expects GStreamer >= 1.18 to be installed.
-      - name: Install GStreamer (Chocolatey)
+      # Servo's Windows build expects GStreamer >= 1.18. Prefer Servo's own prepackaged layout
+      # under target/dependencies so python/servo/platform/windows.py can auto-detect it.
+      - name: Bootstrap dependencies (includes GStreamer)
         shell: pwsh
         run: |
-          choco install -y gstreamer --no-progress
-          choco install -y gstreamer-devel --no-progress
+          .\mach bootstrap --yes
 
       - name: Show GStreamer version (best-effort)
         shell: pwsh
         run: |
           $possible = @(
-            "C:\gstreamer\1.0\msvc_x86_64\bin\gst-launch-1.0.exe",
-            "C:\gstreamer\1.0\msvc_x86_64\bin\gst-inspect-1.0.exe",
-            "C:\Program Files\gstreamer\1.0\msvc_x86_64\bin\gst-launch-1.0.exe",
-            "C:\Program Files\gstreamer\1.0\msvc_x86_64\bin\gst-inspect-1.0.exe"
+            "target\dependencies\gstreamer\1.0\msvc_X86_64\bin\gst-inspect-1.0.exe",
+            "target\dependencies\gstreamer\1.0\msvc_X86_64\bin\gst-launch-1.0.exe",
+            "C:\gstreamer\1.0\msvc_X86_64\bin\gst-inspect-1.0.exe",
+            "C:\gstreamer\1.0\msvc_X86_64\bin\gst-launch-1.0.exe"
           )
           foreach ($p in $possible) {
             if (Test-Path $p) {

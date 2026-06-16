@@ -1,6 +1,6 @@
 ### Ideoita ja ajatuksia tulevaisuudesta. Ehkä toteutukseen, ei lähdetä rakentamaan näiden mukaan, vielä. 
 
-# Nist tähän projektiin offline käyttöä varten, eli kolmas vene, sukellusvene. 
+# Nist tähän projektiin offline käyttöä varten, eli kun menee offline (myrsky) kysyy haluatko viestiä pullopostilla
 
 
 Konsepti: Pulloposti Kotisatamassa

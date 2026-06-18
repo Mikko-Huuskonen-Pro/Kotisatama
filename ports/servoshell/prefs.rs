@@ -117,7 +117,7 @@ impl Default for ServoShellPreferences {
             no_native_titlebar: true,
             screen_size_override: None,
             simulate_touch_events: false,
-            searchpage: "https://duckduckgo.com/html/?q=%s".into(),
+            searchpage: "https://www.startpage.com/search?q=%s".into(),
             tracing_filter: None,
             url: None,
             output_image_path: None,

@@ -13,8 +13,8 @@ use kotisatama_search::SearchClient;
 pub use kotisatama_search::{SearchHit, SearchOutcome};
 pub use kotisatama_report::{domain_from_url, last_blocked_url};
 use kotisatama_whitelist::{
-    avomeri_gateway_url, blocked_page_url, is_allowed, is_avomeri_gateway, startpage_search_url,
-    Whitelist,
+    blocked_page_url, is_allowed, is_avomeri_gateway, note_avomeri_query, startpage_query,
+    startpage_search_url, Whitelist,
 };
 use log::{info, warn};
 use servo::WebView;
@@ -71,24 +71,7 @@ pub fn init() {
         })
     });
 
-    SEARCH.get_or_init(|| match SearchClient::start() {
-        Ok(client) => Some(client),
-        Err(error) => {
-            warn!("Kotisatama search unavailable: {error}");
-            None
-        },
-    });
-
-    PULLOPOSTI.get_or_init(|| match PullopostiClient::start() {
-        Ok(client) => {
-            info!("Pulloposti subprocess valmiina");
-            Some(client)
-        },
-        Err(error) => {
-            warn!("Pulloposti unavailable: {error}");
-            None
-        },
-    });
+    // Meilisearch and Pulloposti start lazily on first use (avoid blocking startup).
 }
 
 fn whitelist() -> &'static Whitelist {
@@ -100,9 +83,17 @@ pub fn check_url(url: &Url) -> bool {
     is_allowed(url, whitelist())
 }
 
+/// Track allowed navigations (Startpage query for blocked-page fallback).
+pub fn on_allowed_navigation(url: &Url) {
+    if let Some(query) = startpage_query(url) {
+        note_avomeri_query(&query);
+    }
+}
+
 /// Load `url` or show the blocked page if not whitelisted.
 pub fn load_url_or_blocked(webview: &WebView, url: Url) {
     if check_url(&url) {
+        on_allowed_navigation(&url);
         webview.load(url);
     } else {
         note_blocked_url(&url);
@@ -183,31 +174,59 @@ pub fn pulloposti_available() -> bool {
     }
 }
 
-/// Startpage URL for avomeri search fallback.
+/// Startpage URL for avomeri search fallback (direct — no extra gateway page on desktop).
 pub fn avomeri_search_url(query: &str) -> Url {
-    if cfg!(target_os = "android") || cfg!(target_env = "ohos") {
-        // Embedded/EGL builds may not register the `servo:` protocol handler.
-        startpage_search_url(query)
-    } else {
-        avomeri_gateway_url(query)
-    }
+    note_avomeri_query(query);
+    startpage_search_url(query)
+}
+
+fn ensure_pulloposti() {
+    PULLOPOSTI.get_or_init(|| match PullopostiClient::start() {
+        Ok(client) => {
+            info!("Pulloposti subprocess valmiina");
+            Some(client)
+        },
+        Err(error) => {
+            warn!("Pulloposti unavailable: {error}");
+            None
+        },
+    });
+}
+
+/// Open Pulloposti gateway (daemon starts in background).
+pub fn open_pulloposti(webview: &WebView) {
+    std::thread::spawn(|| ensure_pulloposti());
+    webview.load(PullopostiClient::gateway_url());
 }
 
 /// Search the local Kotisatama index.
 pub fn search(query: &str) -> KotisatamaSearchPanel {
     let query = query.trim().to_string();
+    if query.is_empty() {
+        return KotisatamaSearchPanel {
+            query,
+            outcome: SearchOutcome::Error("Hakusana puuttuu.".into()),
+        };
+    }
+    note_avomeri_query(&query);
     let platform = if cfg!(target_os = "android") {
         "android"
     } else {
         "desktop"
     };
-    let outcome = match SEARCH.get() {
-        Some(Some(client)) => client.search(&query),
-        Some(None) => SearchOutcome::Error(
-            "Paikallinen haku ei käytettävissä. Asenna Meilisearch tai aseta KOTISATAMA_MEILISEARCH_BIN."
+    let client = SEARCH.get_or_init(|| match SearchClient::start() {
+        Ok(client) => Some(client),
+        Err(error) => {
+            warn!("Kotisatama search unavailable: {error}");
+            None
+        },
+    });
+    let outcome = match client {
+        Some(client) => client.search(&query),
+        None => SearchOutcome::Error(
+            "Paikallinen haku ei kaytettavissa. Asenna Meilisearch tai aseta KOTISATAMA_MEILISEARCH_BIN."
                 .into(),
         ),
-        None => SearchOutcome::Error("Kotisatama-haku ei alustettu.".into()),
     };
     if matches!(outcome, SearchOutcome::NoResults) {
         kotisatama_report::log_fallback_search(&query, platform);

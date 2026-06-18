@@ -901,6 +901,7 @@ impl WebViewDelegate for RunningAppState {
     fn request_navigation(&self, webview: WebView, request: NavigationRequest) {
         let blocked_target = request.url.clone();
         if crate::kotisatama::check_url(&blocked_target) {
+            crate::kotisatama::on_allowed_navigation(&blocked_target);
             request.allow();
         } else {
             request.deny();

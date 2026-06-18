@@ -9,6 +9,7 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver};
 
 use dpi::PhysicalSize;
 use egui::text::{CCursor, CCursorRange};
@@ -80,6 +81,10 @@ pub struct Gui {
     #[cfg(feature = "kotisatama")]
     search_panel: Option<crate::kotisatama::KotisatamaSearchPanel>,
 
+    /// Background Kotisatama search in progress.
+    #[cfg(feature = "kotisatama")]
+    search_pending: Option<Receiver<crate::kotisatama::KotisatamaSearchPanel>>,
+
     /// Kotisatama anonymous report dialog.
     #[cfg(feature = "kotisatama")]
     report_dialog_open: bool,
@@ -87,6 +92,8 @@ pub struct Gui {
     report_form: crate::kotisatama::KotisatamaReportForm,
     #[cfg(feature = "kotisatama")]
     report_status: Option<Result<(), String>>,
+    #[cfg(feature = "kotisatama")]
+    report_pending: Option<Receiver<Result<(), String>>>,
 }
 
 fn truncate_with_ellipsis(input: &str, max_length: usize) -> String {
@@ -254,11 +261,15 @@ impl Gui {
             #[cfg(feature = "kotisatama")]
             search_panel: None,
             #[cfg(feature = "kotisatama")]
+            search_pending: None,
+            #[cfg(feature = "kotisatama")]
             report_dialog_open: false,
             #[cfg(feature = "kotisatama")]
             report_form: crate::kotisatama::default_report_form(initial_url.as_str()),
             #[cfg(feature = "kotisatama")]
             report_status: None,
+            #[cfg(feature = "kotisatama")]
+            report_pending: None,
         }
     }
 
@@ -589,13 +600,19 @@ impl Gui {
                                 if search_field.lost_focus() &&
                                     ui.input(|i| i.key_pressed(Key::Enter))
                                 {
-                                    self.search_panel =
-                                        Some(crate::kotisatama::search(&self.search_query));
+                                    let query = self.search_query.clone();
+                                    let (tx, rx) = mpsc::channel();
+                                    self.search_pending = Some(rx);
+                                    self.search_panel = None;
+                                    std::thread::spawn(move || {
+                                        let _ = tx.send(crate::kotisatama::search(&query));
+                                    });
                                     window.set_needs_repaint();
                                 }
                                 if ui.button("Pulloposti").clicked() {
                                     if let Some(webview) = window.active_webview() {
-                                        webview.load(crate::kotisatama::pulloposti_gateway_url());
+                                        crate::kotisatama::open_pulloposti(&webview);
+                                        window.set_needs_repaint();
                                     }
                                 }
                             });
@@ -692,14 +709,45 @@ impl Gui {
             }
 
             #[cfg(feature = "kotisatama")]
+            {
+                if let Some(rx) = &self.search_pending {
+                    if let Ok(panel) = rx.try_recv() {
+                        self.search_panel = Some(panel);
+                        self.search_pending = None;
+                        window.set_needs_repaint();
+                    }
+                }
+                if let Some(rx) = &self.report_pending {
+                    if let Ok(status) = rx.try_recv() {
+                        self.report_status = Some(status);
+                        self.report_pending = None;
+                        window.set_needs_repaint();
+                    }
+                }
+            }
+
+            #[cfg(feature = "kotisatama")]
+            if self.search_pending.is_some() {
+                egui::Window::new("Kotisatama-haku")
+                    .collapsible(false)
+                    .resizable(false)
+                    .default_width(320.0)
+                    .show(ctx, |ui| {
+                        ui.label("Haetaan…");
+                    });
+            }
+
+            #[cfg(feature = "kotisatama")]
             if let Some(panel) = &self.search_panel {
                 use crate::kotisatama::SearchOutcome;
 
                 let mut close_panel = false;
+                let mut panel_open = true;
                 egui::Window::new("Kotisatama-haku")
                     .collapsible(false)
                     .resizable(true)
                     .default_width(520.0)
+                    .open(&mut panel_open)
                     .show(ctx, |ui| {
                         ui.label(format!("Haku: {}", panel.query));
                         ui.separator();
@@ -722,7 +770,8 @@ impl Gui {
                                 ui.label("Ei löydy kotisatamasta — haluatko hakea avomereltä?");
                                 if ui.button("Hae avomereltä").clicked() {
                                     if let Some(webview) = window.active_webview() {
-                                        webview.load(
+                                        crate::kotisatama::load_url_or_blocked(
+                                            &webview,
                                             crate::kotisatama::avomeri_search_url(&panel.query),
                                         );
                                     }
@@ -737,7 +786,7 @@ impl Gui {
                             close_panel = true;
                         }
                     });
-                if close_panel {
+                if close_panel || !panel_open {
                     self.search_panel = None;
                 }
             }
@@ -751,6 +800,7 @@ impl Gui {
                     .collapsible(false)
                     .resizable(false)
                     .default_width(420.0)
+                    .open(&mut self.report_dialog_open)
                     .show(ctx, |ui| {
                         ui.label("Lähetä anonyymi raportti (ei käyttäjätunnistetta).");
                         ui.separator();
@@ -791,24 +841,36 @@ impl Gui {
                         }
 
                         ui.horizontal(|ui| {
-                            if ui.button("Lähetä").clicked() {
+                            let submitting = self.report_pending.is_some();
+                            if ui
+                                .add_enabled(!submitting, egui::Button::new("Lähetä"))
+                                .clicked()
+                            {
+                                let form = self.report_form.clone();
                                 let context_url = Some(location.clone());
-                                self.report_status = Some(
-                                    crate::kotisatama::submit_report(
-                                        &self.report_form,
-                                        context_url,
-                                    )
-                                    .map_err(|error| error.to_string()),
-                                );
+                                let (tx, rx) = mpsc::channel();
+                                self.report_pending = Some(rx);
+                                self.report_status = None;
+                                std::thread::spawn(move || {
+                                    let status = crate::kotisatama::submit_report(&form, context_url)
+                                        .map_err(|error| error.to_string());
+                                    let _ = tx.send(status);
+                                });
+                                window.set_needs_repaint();
                             }
                             if ui.button("Sulje").clicked() {
                                 close_dialog = true;
                             }
                         });
+                        if self.report_pending.is_some() {
+                            ui.label("Lähetetään…");
+                        }
                     });
                 if close_dialog {
                     self.report_dialog_open = false;
                     self.report_status = None;
+                    self.report_pending = None;
+                    window.set_needs_repaint();
                 }
             }
 

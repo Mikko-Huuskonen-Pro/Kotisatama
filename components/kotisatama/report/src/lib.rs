@@ -101,7 +101,12 @@ pub fn submit(report: &Report) -> Result<(), ReportError> {
 
     let endpoint = std::env::var("KOTISATAMA_REPORT_URL").map_err(|_| ReportError::MissingEndpoint)?;
 
-    let response = ureq::post(&endpoint)
+    let agent = ureq::AgentBuilder::new()
+        .timeout(std::time::Duration::from_secs(10))
+        .build();
+
+    let response = agent
+        .post(&endpoint)
         .set("Content-Type", "application/json")
         .send_json(report)
         .map_err(|error| ReportError::Http(error.to_string()))?;

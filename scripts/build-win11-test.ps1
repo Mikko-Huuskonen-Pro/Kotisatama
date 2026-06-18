@@ -169,6 +169,16 @@ function Write-RunScript {
 $Root = $PSScriptRoot
 $env:PATH = (Join-Path $Root "bin") + ";" + $env:PATH
 
+$logDir = Join-Path $Root "logs"
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$logFile = Join-Path $logDir ("kotisatama-{0:yyyyMMdd-HHmmss}.log" -f (Get-Date))
+
+if (-not $env:RUST_LOG) { $env:RUST_LOG = "info,servoshell=debug,kotisatama=debug" }
+if (-not $env:RUST_BACKTRACE) { $env:RUST_BACKTRACE = "1" }
+
+Write-Host "Lokit: $logFile"
+Write-Host "RUST_LOG=$($env:RUST_LOG)"
+
 if (-not $env:KOTISATAMA_WHITELIST_PATH) {
     $wl = Join-Path $Root "config\whitelist.json"
     if (Test-Path $wl) { $env:KOTISATAMA_WHITELIST_PATH = $wl }
@@ -195,7 +205,7 @@ New-Item -ItemType Directory -Force -Path $env:KOTISATAMA_DATA_DIR | Out-Null
 $exe = Join-Path $Root "servoshell.exe"
 if (-not (Test-Path $exe)) { throw "servoshell.exe missing in $Root" }
 
-& $exe @args
+& $exe @args 2>&1 | Tee-Object -FilePath $logFile
 '@
     Set-Content -Path $runPath -Value $content -Encoding UTF8
 }

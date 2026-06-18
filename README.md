@@ -52,7 +52,7 @@ Seuraa ensin Servon omaa [setup-ohjetta](https://book.servo.org/hacking/setting-
 
 - Rust (stable, versio Servon `rust-toolchain.toml` mukaan)
 - Python 3.10+
-- Android SDK + NDK (mobiili-APK)
+- Android SDK + NDK (mobiili-APK, compile SDK 37)
 - Node.js 20+ (crawler)
 - Tauri 2.0 CLI (vain hallintapaneeli, valinnainen)
 
@@ -154,7 +154,7 @@ git checkout main
 git merge upstream/main
 ```
 
-Kotisatama-spesifiset hakemistot (`components/kotisatama/`, `tauri/`, `crawler/`) ei tule upstream-merge-konflikteja — ne ovat vain tässä forkissa. Konfliktit syntyvät **KOTISATAMA-PATCH**-kohdissa upstream-tiedostoissa, tyypillisesti `ports/servoshell/` tai minimaalisissa feature-flag-hookeissa.
+Kotisatama-spesifiset hakemistot (`components/kotisatama/`, `tauri/`, `crawler/`) eivät tule upstream-merge-konflikteja — ne ovat vain tässä forkissa. Konfliktit syntyvät **KOTISATAMA-PATCH**-kohdissa upstream-tiedostoissa, tyypillisesti `ports/servoshell/`. Katso `Puhdistukset.md` aiemmista siivouskierroksista.
 
 ---
 
@@ -162,8 +162,6 @@ Kotisatama-spesifiset hakemistot (`components/kotisatama/`, `tauri/`, `crawler/`
 
 Servo-koodi: [MPL 2.0](https://www.mozilla.org/en-US/MPL/2.0/)
 
-Kotisatama-spesifiset muutokset Servo-koodiin julkaistaan MPL 2.0:n mukaisesti. Oma bisneslogiikka (whitelist-hallinta, Pro-integraatio) pysyy suljettuna.
+Kotisatama-spesifiset muutokset Servo-koodiin julkaistaan MPL 2.0:n mukaisesti. Oma bisneslogiikka (whitelist-hallinta, Pro-integraatio, Pulloposti) pysyy suljetussa repossa.
 
 ---
-
-

@@ -65,6 +65,7 @@ use style::properties::style_structs::Font;
 use style::properties::{ComputedValues, PropertyId};
 use style::queries::values::PrefersColorScheme;
 use style::selector_parser::{PseudoElement, SnapshotMap};
+use style::servo::media_features::PointerCapabilities;
 use style::shared_lock::{SharedRwLock, SharedRwLockReadGuard, StylesheetGuards};
 use style::stylesheets::{
     CustomMediaMap, DocumentStyleSheet, Origin, Stylesheet, StylesheetInDocument,
@@ -88,7 +89,8 @@ use crate::display_list::{DisplayListBuilder, HitTest, PaintTimingHandler, Stack
 use crate::dom::NodeExt;
 use crate::query::{
     find_character_offset_in_fragment_descendants, get_the_text_steps, process_box_area_request,
-    process_box_areas_request, process_client_rect_request, process_containing_block_query,
+    process_box_areas_request, process_client_rect_request,
+    process_containing_block_descendant_query, process_containing_block_query,
     process_current_css_zoom_query, process_effective_overflow_query,
     process_node_scroll_area_request, process_offset_parent_query, process_padding_request,
     process_resolved_font_style_query, process_resolved_style_request,
@@ -364,6 +366,24 @@ impl Layout for LayoutThread {
         with_layout_state(|| {
             let node = unsafe { ServoLayoutNode::new(&node) };
             process_containing_block_query(node)
+        })
+    }
+
+    /// Return the node corresponding to the containing block of the provided node.
+    #[servo_tracing::instrument(skip_all)]
+    fn query_containing_block_is_descendant(
+        &self,
+        root: TrustedNodeAddress,
+        possible_descendant: TrustedNodeAddress,
+    ) -> bool {
+        with_layout_state(|| {
+            let (root, possible_descendant) = unsafe {
+                (
+                    ServoLayoutNode::new(&root),
+                    ServoLayoutNode::new(&possible_descendant),
+                )
+            };
+            process_containing_block_descendant_query(root, possible_descendant)
         })
     }
 
@@ -776,6 +796,8 @@ impl LayoutThread {
             Box::new(LayoutFontMetricsProvider(config.font_context.clone())),
             ComputedValues::initial_values_with_font_override(font),
             config.theme.into(),
+            PointerCapabilities::default(),
+            PointerCapabilities::default(),
         );
 
         LayoutThread {
@@ -1221,6 +1243,7 @@ impl LayoutThread {
         };
 
         let mut box_tree = self.box_tree.borrow_mut();
+        let mut layout_roots = Vec::new();
         let damage = {
             let box_tree = &mut *box_tree;
             let mut compute_damage_and_build_box_tree = || {
@@ -1230,6 +1253,7 @@ impl LayoutThread {
                     dirty_root.layout_node(),
                     root_node,
                     damage_from_environment,
+                    &mut layout_roots,
                 )
             };
 
@@ -1258,8 +1282,21 @@ impl LayoutThread {
                     .clear_scrollable_overflow();
             }
 
-            layout_context.style_context.stylist.rule_tree().maybe_gc();
-            return (ReflowPhasesRun::empty(), IFrameSizes::default());
+            if !damage.contains(LayoutDamage::DescendantCollectedAsLayoutRoot) {
+                layout_context.style_context.stylist.rule_tree().maybe_gc();
+                return (ReflowPhasesRun::empty(), IFrameSizes::default());
+            }
+
+            debug_assert!(!layout_roots.is_empty());
+            if layout_roots
+                .into_iter()
+                .all(|layout_root| layout_root.try_layout(&layout_context))
+            {
+                return (
+                    ReflowPhasesRun::RanLayout,
+                    std::mem::take(&mut *layout_context.iframe_sizes.lock()),
+                );
+            }
         }
 
         let box_tree = &*box_tree;
@@ -1824,6 +1861,7 @@ impl ReflowPhases {
                 QueryMsg::BoxArea |
                 QueryMsg::BoxAreas |
                 QueryMsg::ElementsFromPoint |
+                QueryMsg::FlushForUpdateTheRenderingQuery |
                 QueryMsg::OffsetParentQuery |
                 QueryMsg::ResolvedStyleQuery |
                 QueryMsg::ScrollingAreaOrOffsetQuery |

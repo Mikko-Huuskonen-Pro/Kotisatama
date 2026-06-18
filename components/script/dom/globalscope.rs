@@ -180,7 +180,7 @@ pub(crate) struct AutoCloseWorker {
 impl Drop for AutoCloseWorker {
     /// <https://html.spec.whatwg.org/multipage/#terminate-a-worker>
     fn drop(&mut self) {
-        // Step 1.
+        // Step 1. Set the worker's `WorkerGlobalScope` object's closing flag to true.
         self.closing.store(true, Ordering::SeqCst);
 
         if self
@@ -193,8 +193,10 @@ impl Drop for AutoCloseWorker {
 
         self.context.request_interrupt_callback();
 
-        // TODO: step 2 and 3.
-        // Step 4 is unnecessary since we don't use actual ports for dedicated workers.
+        // Step 2. If there are any tasks queued in the `WorkerGlobalScope` object's relevant agent's event loop's task queues, discard them without processing them.
+        // Step 3. Abort the script currently running in the worker.
+        // Step 4. If the worker's WorkerGlobalScope object is actually a DedicatedWorkerGlobalScope object (i.e. the worker is a dedicated worker), then empty the port message queue of the port that the worker's implicit port is entangled with.
+        // TODO Steps 2-4.
         if self
             .join_handle
             .take()
@@ -1531,7 +1533,7 @@ impl GlobalScope {
             // Note: this is necessary, on top of entering the realm above,
             // for the call to `GlobalScope::incumbent`,
             // in `MessagePort::post_message_impl` to succeed.
-            run_a_script::<DomTypeHolder, _>(self, || {
+            run_a_script::<DomTypeHolder, _, _>(cx, self, |cx| {
                 // Let deserializeRecord be StructuredDeserializeWithTransfer(serializeWithTransferResult, targetRealm).
                 // Let newPorts be a new frozen array
                 // consisting of all MessagePort objects in deserializeRecord.[[TransferredValues]],
@@ -2946,7 +2948,7 @@ impl GlobalScope {
         introduction_type: Option<&'static CStr>,
         rval: Option<MutableHandleValue>,
     ) -> Result<(), JavaScriptEvaluationError> {
-        run_a_script::<DomTypeHolder, _>(self, || {
+        run_a_script::<DomTypeHolder, _, _>(cx, self, |cx| {
             let url = self.api_base_url();
             let fetch_options = ScriptFetchOptions::default_classic_script();
 
@@ -3175,20 +3177,18 @@ impl GlobalScope {
     /// <https://w3c.github.io/performance-timeline/#supportedentrytypes-attribute>
     pub(crate) fn supported_performance_entry_types(
         &self,
-        cx: SafeJSContext,
+        cx: &mut js::context::JSContext,
         retval: MutableHandleValue,
-        can_gc: CanGc,
     ) {
         self.frozen_supported_performance_entry_types.get_or_init(
+            cx,
             || {
                 EntryType::VARIANTS
                     .iter()
                     .map(|t| DOMString::from(t.as_str()))
                     .collect()
             },
-            cx,
             retval,
-            can_gc,
         );
     }
 

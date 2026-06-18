@@ -92,7 +92,7 @@ pub(crate) fn gen_type_error(
     error: Error,
 ) -> RethrowError {
     rooted!(&in(cx) let mut thrown = UndefinedValue());
-    error.to_jsval(cx.into(), global, thrown.handle_mut(), CanGc::from_cx(cx));
+    error.to_jsval(cx, global, thrown.handle_mut());
 
     RethrowError(RootedTraceableBox::from_box(Heap::boxed(thrown.get())))
 }
@@ -1701,7 +1701,7 @@ pub(crate) fn register_import_map(
 
             // Step 1. If result's error to rethrow is not null, then report
             // an exception given by result's error to rethrow for global and return.
-            throw_dom_exception(cx.into(), global, exception, CanGc::from_cx(cx));
+            throw_dom_exception(cx, global, exception);
             report_pending_exception(cx);
         },
     }

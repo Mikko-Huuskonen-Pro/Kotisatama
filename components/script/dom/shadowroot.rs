@@ -8,11 +8,11 @@ use std::collections::hash_map::Entry;
 
 use dom_struct::dom_struct;
 use html5ever::serialize::TraversalScope;
+use js::context::JSContext;
 use js::rust::{HandleValue, MutableHandleValue};
 use script_bindings::cell::{DomRefCell, RefMut};
 use script_bindings::error::{ErrorResult, Fallible};
 use script_bindings::reflector::reflect_dom_object;
-use script_bindings::script_runtime::JSContext;
 use servo_arc::Arc;
 use style::author_styles::AuthorStyles;
 use style::invalidation::element::restyle_hints::RestyleHint;
@@ -205,7 +205,7 @@ impl ShadowRoot {
     #[cfg_attr(crown, expect(crown::unrooted_must_root))] // Owner needs to be rooted already necessarily.
     pub(crate) fn add_owned_stylesheet(
         &self,
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         owner_node: &Element,
         sheet: Arc<Stylesheet>,
     ) {
@@ -243,7 +243,7 @@ impl ShadowRoot {
     #[cfg_attr(crown, expect(crown::unrooted_must_root))]
     pub(crate) fn append_constructed_stylesheet(
         &self,
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         cssom_stylesheet: &CSSStyleSheet,
     ) {
         debug_assert!(cssom_stylesheet.is_constructed());
@@ -385,6 +385,7 @@ impl ShadowRootMethods<crate::DomTypeHolder> for ShadowRoot {
         // Return the result of running the retargeting algorithm with context object
         // and the original result as input.
         match self.document_or_shadow_root.element_from_point(
+            self.upcast(),
             x,
             y,
             None,
@@ -405,7 +406,13 @@ impl ShadowRootMethods<crate::DomTypeHolder> for ShadowRoot {
         let mut elements = Vec::new();
         for e in self
             .document_or_shadow_root
-            .elements_from_point(x, y, None, self.document.has_browsing_context())
+            .elements_from_point(
+                self.upcast(),
+                x,
+                y,
+                None,
+                self.document.has_browsing_context(),
+            )
             .iter()
         {
             let retargeted_node = e.upcast::<EventTarget>().retarget(self.upcast());
@@ -455,7 +462,7 @@ impl ShadowRootMethods<crate::DomTypeHolder> for ShadowRoot {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-shadowroot-gethtml>
-    fn GetHTML(&self, cx: &mut js::context::JSContext, options: &GetHTMLOptions) -> DOMString {
+    fn GetHTML(&self, cx: &mut JSContext, options: &GetHTMLOptions) -> DOMString {
         // > ShadowRoot's getHTML(options) method steps are to return the result of HTML fragment serialization
         // >  algorithm with this, options["serializableShadowRoots"], and options["shadowRoots"].
         self.upcast::<Node>().html_serialize(
@@ -467,10 +474,7 @@ impl ShadowRootMethods<crate::DomTypeHolder> for ShadowRoot {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-shadowroot-innerhtml>
-    fn GetInnerHTML(
-        &self,
-        cx: &mut js::context::JSContext,
-    ) -> Fallible<TrustedHTMLOrNullIsEmptyString> {
+    fn GetInnerHTML(&self, cx: &mut JSContext) -> Fallible<TrustedHTMLOrNullIsEmptyString> {
         // ShadowRoot's innerHTML getter steps are to return the result of running fragment serializing
         // algorithm steps with this and true.
         self.upcast::<Node>()
@@ -481,7 +485,7 @@ impl ShadowRootMethods<crate::DomTypeHolder> for ShadowRoot {
     /// <https://html.spec.whatwg.org/multipage/#dom-shadowroot-innerhtml>
     fn SetInnerHTML(
         &self,
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         value: TrustedHTMLOrNullIsEmptyString,
     ) -> ErrorResult {
         // Step 1. Let compliantString be the result of invoking the Get Trusted Type compliant string algorithm
@@ -516,7 +520,7 @@ impl ShadowRootMethods<crate::DomTypeHolder> for ShadowRoot {
     /// <https://html.spec.whatwg.org/multipage/#dom-shadowroot-sethtmlunsafe>
     fn SetHTMLUnsafe(
         &self,
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         value: TrustedHTMLOrString,
         options: &SetHTMLUnsafeOptions,
     ) -> ErrorResult {
@@ -547,7 +551,7 @@ impl ShadowRootMethods<crate::DomTypeHolder> for ShadowRoot {
     /// <https://wicg.github.io/sanitizer-api/#dom-shadowroot-sethtml>
     fn SetHTML(
         &self,
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         html: DOMString,
         options: &SetHTMLOptions,
     ) -> ErrorResult {
@@ -564,8 +568,9 @@ impl ShadowRootMethods<crate::DomTypeHolder> for ShadowRoot {
     event_handler!(slotchange, GetOnslotchange, SetOnslotchange);
 
     /// <https://drafts.csswg.org/cssom/#dom-documentorshadowroot-adoptedstylesheets>
-    fn AdoptedStyleSheets(&self, context: JSContext, can_gc: CanGc, retval: MutableHandleValue) {
+    fn AdoptedStyleSheets(&self, cx: &mut JSContext, retval: MutableHandleValue) {
         self.adopted_stylesheets_frozen_types.get_or_init(
+            cx,
             || {
                 self.adopted_stylesheets
                     .borrow()
@@ -574,18 +579,12 @@ impl ShadowRootMethods<crate::DomTypeHolder> for ShadowRoot {
                     .map(|sheet| sheet.as_rooted())
                     .collect()
             },
-            context,
             retval,
-            can_gc,
         );
     }
 
     /// <https://drafts.csswg.org/cssom/#dom-documentorshadowroot-adoptedstylesheets>
-    fn SetAdoptedStyleSheets(
-        &self,
-        cx: &mut js::context::JSContext,
-        val: HandleValue,
-    ) -> ErrorResult {
+    fn SetAdoptedStyleSheets(&self, cx: &mut JSContext, val: HandleValue) -> ErrorResult {
         let result = DocumentOrShadowRoot::set_adopted_stylesheet_from_jsval(
             cx,
             self.adopted_stylesheets.borrow_mut().as_mut(),
@@ -615,7 +614,7 @@ impl VirtualMethods for ShadowRoot {
         Some(self.upcast::<DocumentFragment>() as &dyn VirtualMethods)
     }
 
-    fn bind_to_tree(&self, cx: &mut js::context::JSContext, context: &BindContext) {
+    fn bind_to_tree(&self, cx: &mut JSContext, context: &BindContext) {
         if let Some(s) = self.super_type() {
             s.bind_to_tree(cx, context);
         }
@@ -643,7 +642,7 @@ impl VirtualMethods for ShadowRoot {
         }
     }
 
-    fn unbind_from_tree(&self, cx: &mut js::context::JSContext, context: &UnbindContext) {
+    fn unbind_from_tree(&self, cx: &mut JSContext, context: &UnbindContext) {
         if let Some(s) = self.super_type() {
             s.unbind_from_tree(cx, context);
         }

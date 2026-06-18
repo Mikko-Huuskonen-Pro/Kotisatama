@@ -158,8 +158,7 @@ use crate::network_listener::{FetchResponseListener, submit_timing};
 use crate::realms::{enter_auto_realm, enter_realm};
 use crate::script_mutation_observers::ScriptMutationObservers;
 use crate::script_runtime::{
-    CanGc, IntroductionType, JSContextHelper, Runtime, ScriptThreadEventCategory,
-    ThreadSafeJSContext,
+    CanGc, IntroductionType, Runtime, ScriptThreadEventCategory, ThreadSafeJSContext, get_reports,
 };
 use crate::script_window_proxies::ScriptWindowProxies;
 use crate::task_queue::TaskQueue;
@@ -1560,8 +1559,9 @@ impl ScriptThread {
             // https://html.spec.whatwg.org/multipage/#the-end step 6
             let mut docs = self.docs_with_no_blocking_loads.borrow_mut();
             for document in docs.iter() {
-                let _realm = enter_auto_realm(cx, &**document);
-                document.maybe_queue_document_completion();
+                let mut realm = enter_auto_realm(cx, &**document);
+                let cx = &mut realm.current_realm();
+                document.maybe_queue_document_completion(cx);
             }
             docs.clear();
         }
@@ -2110,7 +2110,7 @@ impl ScriptThread {
                 task.run_box(cx)
             },
             MainThreadScriptMsg::Common(CommonScriptMsg::CollectReports(chan)) => {
-                self.collect_reports(chan)
+                self.collect_reports(cx, chan)
             },
             MainThreadScriptMsg::Common(CommonScriptMsg::ReportCspViolations(
                 pipeline_id,
@@ -2780,7 +2780,7 @@ impl ScriptThread {
         );
     }
 
-    fn collect_reports(&self, reports_chan: ReportsChan) {
+    fn collect_reports(&self, cx: &mut js::context::JSContext, reports_chan: ReportsChan) {
         let documents = self.documents.borrow();
         let urls = itertools::join(documents.iter().map(|(_, d)| d.url().to_string()), ", ");
 
@@ -2794,7 +2794,7 @@ impl ScriptThread {
             }
 
             let prefix = format!("url({urls})");
-            reports.extend(self.get_cx().get_reports(prefix, ops));
+            reports.extend(get_reports(cx, prefix, ops));
         });
 
         reports_chan.send(ProcessReports::new(reports));

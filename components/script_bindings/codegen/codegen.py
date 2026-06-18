@@ -1552,12 +1552,16 @@ def returnTypeNeedsOutparam(type: IDLType | None) -> bool:
     if type.nullable():
         assert isinstance(type, IDLNullableType)
         type = type.inner
+    if type.isObject():
+        return True
     return type.isAny()
 
 
 def outparamTypeFromReturnType(type: IDLType) -> str:
     if type.isAny():
         return "MutableHandleValue"
+    if type.isObject():
+        return "MutableHandleObject"
     raise TypeError(f"Don't know how to handle {type} as an outparam")
 
 
@@ -1658,10 +1662,7 @@ def getRetvalDeclarationForType(returnType: IDLType | None, descriptorProvider: 
     if returnType.isAny():
         return CGGeneric("JSVal")
     if returnType.isObject() or returnType.isSpiderMonkeyInterface():
-        result = CGGeneric("NonNull<JSObject>")
-        if returnType.nullable():
-            result = CGWrapper(result, pre="Option<", post=">")
-        return result
+        return CGGeneric("*mut JSObject")
     if returnType.isSequence() or returnType.isRecord():
         result = getRetvalDeclarationForType(innerContainerType(returnType), descriptorProvider)
         result = wrapInNativeContainerType(returnType, result)
@@ -6533,7 +6534,7 @@ class CGDOMJSProxyHandler_ownPropertyKeys(CGAbstractExternMethod):
         else:
             cross_origin = "None"
         if self.descriptor.operations['IndexedGetter']:
-            if "Length" in self.descriptor.cxMethods:
+            if "Length" in self.descriptor.cxMethods or "Length" in self.descriptor.cx_no_gcMethods:
                 length = f"Some(|unwrapped_proxy: &{self.descriptor.concreteType}, cx| unwrapped_proxy.Length(cx))"
             else:
                 length = f"Some(|unwrapped_proxy: &{self.descriptor.concreteType}, _cx| unwrapped_proxy.Length())"
@@ -6577,7 +6578,7 @@ class CGDOMJSProxyHandler_getOwnEnumerablePropertyKeys(CGAbstractExternMethod):
 
     def definition_body(self) -> CGThing:
         if self.descriptor.operations['IndexedGetter']:
-            if "Length" in self.descriptor.cxMethods:
+            if "Length" in self.descriptor.cxMethods or "Length" in self.descriptor.cx_no_gcMethods:
                 length = f"Some(Box::new(|unwrapped_proxy: &{self.descriptor.concreteType}, cx| unwrapped_proxy.Length(cx)))"
             else:
                 length = f"Some(Box::new(|unwrapped_proxy: &{self.descriptor.concreteType}, _cx| unwrapped_proxy.Length()))"
@@ -7164,7 +7165,7 @@ class CGInterfaceTrait(CGThing):
             methods.extend(list(ctorMethod(ctor)))
 
         if descriptor.operations['IndexedGetter'] and not hasLength:
-            methods.append(CGGeneric("fn Length(&self) -> u32;\n"))
+            methods.append(CGGeneric("fn Length(&self, cx:&JSContext) -> u32;\n"))
 
         name = descriptor.interface.identifier.name
         self.cgRoot = CGWrapper(CGIndenter(CGList(methods, "")),

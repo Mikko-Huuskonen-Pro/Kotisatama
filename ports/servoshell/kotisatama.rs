@@ -7,6 +7,7 @@
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+use kotisatama_pulloposti::PullopostiClient;
 use kotisatama_report::{note_blocked_url, Report, ReportError, ReportKind};
 use kotisatama_search::SearchClient;
 pub use kotisatama_search::{SearchHit, SearchOutcome};
@@ -21,6 +22,7 @@ use url::Url;
 
 static WHITELIST: OnceLock<Whitelist> = OnceLock::new();
 static SEARCH: OnceLock<Option<SearchClient>> = OnceLock::new();
+static PULLOPOSTI: OnceLock<Option<PullopostiClient>> = OnceLock::new();
 
 /// Active Kotisatama search panel state for the servoshell UI.
 #[derive(Debug, Clone)]
@@ -73,6 +75,17 @@ pub fn init() {
         Ok(client) => Some(client),
         Err(error) => {
             warn!("Kotisatama search unavailable: {error}");
+            None
+        },
+    });
+
+    PULLOPOSTI.get_or_init(|| match PullopostiClient::start() {
+        Ok(client) => {
+            info!("Pulloposti subprocess valmiina");
+            Some(client)
+        },
+        Err(error) => {
+            warn!("Pulloposti unavailable: {error}");
             None
         },
     });
@@ -155,6 +168,19 @@ pub fn submit_report(
         message,
         context_url,
     })
+}
+
+/// Pulloposti gateway page (`servo:pulloposti`).
+pub fn pulloposti_gateway_url() -> Url {
+    PullopostiClient::gateway_url()
+}
+
+/// Whether Pulloposti subprocess responds to health checks.
+pub fn pulloposti_available() -> bool {
+    match PULLOPOSTI.get() {
+        Some(Some(client)) => client.is_available(),
+        _ => false,
+    }
 }
 
 /// Startpage URL for avomeri search fallback.

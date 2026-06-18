@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pulloposti</title>
+    <link rel="stylesheet" href="resource:///pulloposti.css" />
+  </head>
+  <body>
+    <main class="card" role="main">
+      <h1>Pulloposti</h1>
+      <p class="muted">
+        Myrskymoodi: salattu viestintä ilman verkkoa. Kirjeet kulkevat laitteelta laitteelle
+        Bluetoothin kautta — avain sovitaan etukäteen kuudella emojilla.
+      </p>
+
+      <p id="status" class="status" aria-live="polite">Tarkistetaan Pulloposti-palvelua…</p>
+
+      <div class="actions">
+        <a id="openPulloposti" class="button hidden" href="servo:pulloposti/app">Avaa Pulloposti</a>
+        <button type="button" id="retry" class="secondary">Yritä uudelleen</button>
+      </div>
+
+      <p class="muted small">
+        Pulloposti-prosessi käynnistyy taustalla (kuten paikallinen haku). Salauslogiikka pysyy
+        laitteella — ei pilveä, ei tilejä.
+      </p>
+    </main>
+
+    <script>
+      (function () {
+        const statusEl = document.getElementById("status");
+        const openEl = document.getElementById("openPulloposti");
+        const retryEl = document.getElementById("retry");
+
+        function setOffline(isOffline) {
+          document.documentElement.classList.toggle("is-offline", isOffline);
+        }
+
+        function updateOffline() {
+          setOffline(navigator.onLine === false);
+        }
+
+        async function checkHealth() {
+          statusEl.textContent = "Tarkistetaan Pulloposti-palvelua…";
+          openEl.classList.add("hidden");
+          try {
+            const response = await fetch("http://127.0.0.1:7701/health", {
+              cache: "no-store",
+            });
+            if (response.ok) {
+              statusEl.textContent = "Pulloposti on valmiina. Voit lähettää ja vastaanottaa kirjeitä.";
+              openEl.classList.remove("hidden");
+              return;
+            }
+          } catch (_) {
+            /* daemon not running yet */
+          }
+          statusEl.textContent =
+            "Pulloposti ei ole käynnissä. Käynnistä se Kotisatamasta uudelleen tai bundlaa pulloposti-daemon buildiin.";
+        }
+
+        retryEl.addEventListener("click", checkHealth);
+        window.addEventListener("online", updateOffline);
+        window.addEventListener("offline", updateOffline);
+        updateOffline();
+        checkHealth();
+      })();
+    </script>
+  </body>
+</html>

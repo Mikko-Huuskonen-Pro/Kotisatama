@@ -552,7 +552,7 @@ impl ReadableStreamDefaultController {
         let promise = result.unwrap_or_else(|error| {
             rooted!(&in(cx) let mut rval = UndefinedValue());
             // TODO: check if `self.global()` is the right globalscope.
-            error.to_jsval(cx.into(), &global, rval.handle_mut(), CanGc::from_cx(cx));
+            error.to_jsval(cx, &global, rval.handle_mut());
             Promise::new_rejected(cx, &global, rval.handle())
         });
         promise.append_native_handler(cx, &handler);
@@ -583,7 +583,7 @@ impl ReadableStreamDefaultController {
         let promise = result.unwrap_or_else(|error| {
             rooted!(&in(cx) let mut rval = UndefinedValue());
 
-            error.to_jsval(cx.into(), global, rval.handle_mut(), CanGc::from_cx(cx));
+            error.to_jsval(cx, global, rval.handle_mut());
             let promise = Promise::new2(cx, global);
             promise.reject_native_with_cx(cx, &rval.handle());
             promise
@@ -704,7 +704,7 @@ impl ReadableStreamDefaultController {
                     // First, throw the exception.
                     // Note: this must be done manually here,
                     // because `enqueue_value_with_size` does not call into JS.
-                    throw_dom_exception(cx.into(), &self.global(), error, CanGc::from_cx(cx));
+                    throw_dom_exception(cx, &self.global(), error);
 
                     // Then, get a handle to the JS val for the exception,
                     // and use that to error the stream.

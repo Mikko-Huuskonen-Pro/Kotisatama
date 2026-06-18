@@ -356,6 +356,11 @@ pub trait Layout {
     ) -> NodeRenderingType;
 
     fn query_containing_block(&self, node: TrustedNodeAddress) -> Option<UntrustedNodeAddress>;
+    fn query_containing_block_is_descendant(
+        &self,
+        root: TrustedNodeAddress,
+        possible_descendant: TrustedNodeAddress,
+    ) -> bool;
     fn query_padding(&self, node: TrustedNodeAddress) -> Option<PhysicalSides>;
     fn query_box_area(
         &self,
@@ -550,6 +555,7 @@ pub enum QueryMsg {
     StyleQuery,
     TextIndexQuery,
     PaddingQuery,
+    FlushForUpdateTheRenderingQuery,
 }
 
 /// The goal of a reflow request.

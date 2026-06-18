@@ -153,9 +153,22 @@ Kuvat ovat staattisia bundlattuja assetteja — ei CDN-hakua, toimii offline-til
 
 **Valmis kun:** jokaisessa yllä olevassa tilassa näkyy selvästi eri tausta, ja tausta ei estä luettavuutta (kontrasti/overlay tarvittaessa).
 
-
 ---
 
+## Vaihe 8 — Pulloposti (myrskymoodi)
+
+**Tavoite:** Offline-viestintä subprocess-mallilla — sama kuin Meilisearch-haulla.
+
+- [x] `kotisatama-pulloposti` subprocess-client (julkinen repo, ei kryptoa)
+- [x] `servo:pulloposti` gateway-sivu + desktop-nappi
+- [x] Avomeri offline: "Haluatko viestiä pullopostilla?"
+- [x] `pulloposti-daemon` suljetussa repossa (`/health`, portti 7701)
+- [ ] HTTP-API kirjeille daemonissa + UI ilman Tauri-invokea
+- [ ] Android: daemon bundlattu APK:hon
+
+**Valmis kun:** Myrskytilanteessa käyttäjä voi avata Pullopostin Kotisatamasta ilman erillistä asennusta.
+
+---
 
 ## Avoimet päätökset
 

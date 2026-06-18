@@ -1,0 +1,17 @@
+[package]
+name = "kotisatama-pulloposti"
+version = "0.1.0"
+edition.workspace = true
+authors = ["Ilio / Kotisatama"]
+license = "MPL-2.0"
+publish = false
+description = "Kotisatama Pulloposti subprocess client (myrskymoodi) — ei salauslogiikkaa"
+
+[lib]
+name = "kotisatama_pulloposti"
+path = "src/lib.rs"
+
+[dependencies]
+log = { workspace = true }
+ureq = { version = "2.12", features = ["json"] }
+url = { workspace = true }

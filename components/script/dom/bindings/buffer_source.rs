@@ -521,12 +521,11 @@ where
 
     pub(crate) fn set_data(
         &self,
-        cx: JSContext,
+        cx: &mut js::context::JSContext,
         data: &[T::Element],
-        can_gc: CanGc,
     ) -> Result<(), ()> {
-        rooted!(in (*cx) let mut array = ptr::null_mut::<JSObject>());
-        let _ = create_buffer_source::<T>(cx, data, array.handle_mut(), can_gc)?;
+        rooted!(&in(cx) let mut array = ptr::null_mut::<JSObject>());
+        let _ = create_buffer_source::<T>(cx.into(), data, array.handle_mut(), CanGc::from_cx(cx))?;
 
         match &self.buffer_source {
             BufferSource::ArrayBufferView(buffer) | BufferSource::ArrayBuffer(buffer) => {
@@ -914,6 +913,7 @@ pub(crate) fn create_array_buffer_with_size(
 
 #[cfg(feature = "webgpu")]
 #[derive(JSTraceable, MallocSizeOf)]
+#[cfg_attr(crown, crown::unrooted_must_root_lint::must_root)]
 pub(crate) struct DataBlock {
     #[conditional_malloc_size_of]
     data: Arc<Box<[u8]>>,
@@ -1008,7 +1008,7 @@ impl DataBlock {
 
 #[cfg(feature = "webgpu")]
 #[derive(JSTraceable, MallocSizeOf)]
-#[cfg_attr(crown, expect(crown::unrooted_must_root))]
+#[cfg_attr(crown, crown::unrooted_must_root_lint::must_root)]
 pub(crate) struct DataView {
     #[no_trace]
     range: Range<usize>,

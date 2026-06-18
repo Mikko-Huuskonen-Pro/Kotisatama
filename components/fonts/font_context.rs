@@ -38,6 +38,7 @@ use style::device::Device;
 use style::font_face::{
     FontFaceSourceFormat, FontFaceSourceFormatKeyword, Source, SourceList, UrlSource,
 };
+use style::properties::generated::font_face::Descriptors as FontFaceRuleDescriptors;
 use style::properties::style_structs::Font as FontStyleStruct;
 use style::shared_lock::SharedRwLockReadGuard;
 use style::stylesheets::{
@@ -611,19 +612,11 @@ pub trait FontContextWebFontMethods {
     fn load_web_font_for_script(
         &self,
         webview_id: Option<WebViewId>,
-        source_list: SourceList,
+        sources: SourceList,
         descriptors: CSSFontFaceDescriptors,
         finished_callback: ScriptWebFontLoadFinishedCallback,
         document_context: &WebFontDocumentContext,
     );
-    fn add_template_to_font_context(
-        &self,
-        family_name: LowercaseFontFamilyName,
-        font_template: FontTemplate,
-    );
-    fn remove_all_web_fonts_from_stylesheet(&self, stylesheet: &DocumentStyleSheet);
-    fn collect_unused_webrender_resources(&self, all: bool)
-    -> (Vec<FontKey>, Vec<FontInstanceKey>);
 }
 
 impl FontContextWebFontMethods for Arc<FontContext> {
@@ -663,7 +656,7 @@ impl FontContextWebFontMethods for Arc<FontContext> {
 
             let initiator = FontFaceRuleInitiator {
                 stylesheet: stylesheet.clone(),
-                font_face_rule: rule.clone(),
+                font_face_rule: rule.descriptors.clone(),
                 callback: finished_callback.clone(),
             };
 
@@ -680,36 +673,27 @@ impl FontContextWebFontMethods for Arc<FontContext> {
         number_loading
     }
 
-    fn remove_all_web_fonts_from_stylesheet(&self, stylesheet: &DocumentStyleSheet) {
-        let mut web_fonts = self.web_fonts.write();
-        let mut fonts = self.fonts.write();
-        let mut font_groups = self.resolved_font_groups.write();
-
-        // Cancel any currently in-progress web font loads.
-        web_fonts.handle_stylesheet_removed(stylesheet);
-
-        let mut removed_any = false;
-        for family in web_fonts.families.values_mut() {
-            removed_any |= family.remove_templates_for_stylesheet(stylesheet);
-        }
-        if !removed_any {
-            return;
-        };
-
-        fonts.retain(|_, font| match font {
-            Some(font) => font.template.borrow().stylesheet.as_ref() != Some(stylesheet),
-            _ => true,
-        });
-
-        // Removing this stylesheet modified the available fonts, so invalidate the cache
-        // of resolved font groups.
-        font_groups.clear();
-
-        // Ensure that we clean up any WebRender resources on the next display list update.
-        self.have_removed_web_fonts.store(true, Ordering::Relaxed);
+    fn load_web_font_for_script(
+        &self,
+        webview_id: Option<WebViewId>,
+        sources: SourceList,
+        descriptors: CSSFontFaceDescriptors,
+        finished_callback: ScriptWebFontLoadFinishedCallback,
+        document_context: &WebFontDocumentContext,
+    ) {
+        let completion_handler = WebFontLoadInitiator::Script(finished_callback);
+        self.start_loading_one_web_font(
+            webview_id,
+            &sources,
+            descriptors,
+            completion_handler,
+            document_context,
+        );
     }
+}
 
-    fn collect_unused_webrender_resources(
+impl FontContext {
+    pub fn collect_unused_webrender_resources(
         &self,
         all: bool,
     ) -> (Vec<FontKey>, Vec<FontInstanceKey>) {
@@ -776,25 +760,36 @@ impl FontContextWebFontMethods for Arc<FontContext> {
         )
     }
 
-    fn load_web_font_for_script(
-        &self,
-        webview_id: Option<WebViewId>,
-        sources: SourceList,
-        descriptors: CSSFontFaceDescriptors,
-        finished_callback: ScriptWebFontLoadFinishedCallback,
-        document_context: &WebFontDocumentContext,
-    ) {
-        let completion_handler = WebFontLoadInitiator::Script(finished_callback);
-        self.start_loading_one_web_font(
-            webview_id,
-            &sources,
-            descriptors,
-            completion_handler,
-            document_context,
-        );
+    pub fn remove_all_web_fonts_from_stylesheet(&self, stylesheet: &DocumentStyleSheet) {
+        let mut web_fonts = self.web_fonts.write();
+        let mut fonts = self.fonts.write();
+        let mut font_groups = self.resolved_font_groups.write();
+
+        // Cancel any currently in-progress web font loads.
+        web_fonts.handle_stylesheet_removed(stylesheet);
+
+        let mut removed_any = false;
+        for family in web_fonts.families.values_mut() {
+            removed_any |= family.remove_templates_for_stylesheet(stylesheet);
+        }
+        if !removed_any {
+            return;
+        };
+
+        fonts.retain(|_, font| match font {
+            Some(font) => font.template.borrow().stylesheet.as_ref() != Some(stylesheet),
+            _ => true,
+        });
+
+        // Removing this stylesheet modified the available fonts, so invalidate the cache
+        // of resolved font groups.
+        font_groups.clear();
+
+        // Ensure that we clean up any WebRender resources on the next display list update.
+        self.have_removed_web_fonts.store(true, Ordering::Relaxed);
     }
 
-    fn add_template_to_font_context(
+    pub fn add_template_to_font_context(
         &self,
         family_name: LowercaseFontFamilyName,
         new_template: FontTemplate,
@@ -804,9 +799,7 @@ impl FontContextWebFontMethods for Arc<FontContext> {
             .add_new_template(family_name, new_template);
         self.invalidate_font_groups_after_web_font_load();
     }
-}
 
-impl FontContext {
     pub fn construct_web_font_from_data(
         &self,
         data: &[u8],
@@ -931,7 +924,7 @@ pub(crate) type ScriptWebFontLoadFinishedCallback =
 
 pub(crate) struct FontFaceRuleInitiator {
     stylesheet: DocumentStyleSheet,
-    font_face_rule: FontFaceRule,
+    font_face_rule: FontFaceRuleDescriptors,
     callback: StylesheetWebFontLoadFinishedCallback,
 }
 
@@ -948,7 +941,7 @@ impl WebFontLoadInitiator {
         }
     }
 
-    pub(crate) fn font_face_rule(&self) -> Option<&FontFaceRule> {
+    pub(crate) fn font_face_rule(&self) -> Option<&FontFaceRuleDescriptors> {
         match self {
             Self::Stylesheet(initiator) => Some(&initiator.font_face_rule),
             Self::Script(_) => None,

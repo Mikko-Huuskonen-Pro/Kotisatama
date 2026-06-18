@@ -149,3 +149,41 @@ Commit: `...`
 #### Validointi
 
 -
+
+## 2026-06-14: Upstream Servo merge + Pulloposti-integraatio
+
+Branch: `main` (ei commitoitu — käyttäjä commitoi kerralla myöhemmin)
+
+### Tavoite
+
+- Synkronoida `upstream/main` (mozjs 140.12, Android Kotlin MainActivity, compile SDK 37, jne.)
+- Säilyttää Kotisatama-PATCHit (whitelist, haku, raportti, teemat)
+- Liittää Pulloposti subprocess-mallilla (`Ideoita.md`)
+
+### Poistetut asiat
+
+- `.github/workflows/release.yml` — pysyy pois (edellinen siivouskierros)
+- `support/android/.../MainActivity.java` — korvattu upstream Kotlin + Kotisatama-PATCH
+
+### Muutetut asiat
+
+- Upstream merge ~20 committia (`upstream/main` → paikallinen `main`)
+- `MainActivity.kt`: KotisatamaAssets, KotisatamaUi, raporttinappi (Java → Kotlin siirto)
+- `components/kotisatama/pulloposti/` — subprocess-client (kuten Meilisearch)
+- `servo:pulloposti` gateway + myrsky/offline-ehdotus avomeri-sivulla
+- `scripts/sync-pulloposti-daemon.ps1` — daemon suljetusta reposta
+
+### Suljetussa repossa
+
+- `Pulloposti/daemon/` — `pulloposti-daemon` (/health, portti 7701)
+- `docs/KOTISATAMA-INTEGRAATIO.md` — päivitetty subprocess-malliin
+
+### Tarkoituksella paikalleen jätetyt asiat
+
+- WPT, servo-crate-nimet, MPL-attribuutiot (kuten edellinen kierros)
+
+### Validointi
+
+- Merge-konfliktit ratkaistu (README, Cargo.lock, MainActivity, release.yml)
+- `cargo test -p kotisatama-pulloposti -p kotisatama-whitelist -p kotisatama-search -p kotisatama-report` — 8/8 OK (2026-06-18)
+- `scripts/sync-pulloposti-daemon.ps1` — daemon kopioitu `bin/pulloposti-daemon.exe`

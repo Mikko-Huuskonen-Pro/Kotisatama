@@ -6,6 +6,7 @@
 /.wpt
 /.vs
 /target
+/bin
 /crawler/node_modules
 /output
 /index-data

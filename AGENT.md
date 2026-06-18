@@ -20,6 +20,7 @@ kotisatama/
 │   ├── kotisatama/          ← KAIKKI omat Rust-muutokset tänne
 │   │   ├── whitelist/       ← Whitelist-logiikka
 │   │   ├── search/          ← Meilisearch-client (HTTP → paikallinen prosessi)
+│   │   └── pulloposti/      ← Pulloposti subprocess-client (HTTP → paikallinen daemon)
 │   │   └── lib.rs
 │   └── [servo-upstream]/    ← ÄLÄ KOSKE (paitsi minimaalinen KOTISATAMA-PATCH)
 ├── ports/

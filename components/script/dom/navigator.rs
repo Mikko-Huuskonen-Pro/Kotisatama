@@ -373,7 +373,7 @@ impl NavigatorMethods<crate::DomTypeHolder> for Navigator {
 
     // https://html.spec.whatwg.org/multipage/#dom-navigator-languages
     fn Languages(&self, cx: &mut js::context::JSContext, retval: MutableHandleValue) {
-        to_frozen_array(&[self.Language()], cx.into(), retval, CanGc::from_cx(cx))
+        to_frozen_array(cx, &[self.Language()], retval)
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-navigator-online>
@@ -473,9 +473,9 @@ impl NavigatorMethods<crate::DomTypeHolder> for Navigator {
 
     /// <https://immersive-web.github.io/webxr/#dom-navigator-xr>
     #[cfg(feature = "webxr")]
-    fn Xr(&self) -> DomRoot<XRSystem> {
+    fn Xr(&self, cx: &mut JSContext) -> DomRoot<XRSystem> {
         self.xr
-            .or_init(|| XRSystem::new(self.global().as_window(), CanGc::deprecated_note()))
+            .or_init(|| XRSystem::new(cx, self.global().as_window()))
     }
 
     /// <https://w3c.github.io/mediacapture-main/#dom-navigator-mediadevices>

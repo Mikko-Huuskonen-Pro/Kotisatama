@@ -24,6 +24,11 @@
       <p id="offline" class="offline hidden" aria-live="polite">
         Myrsky: verkkoyhteyttä ei ole. Avomeri ei ole käytettävissä offline-tilassa.
       </p>
+
+      <p id="pullopostiPrompt" class="pulloposti hidden" aria-live="polite">
+        Haluatko viestiä pullopostilla?
+        <a href="servo:pulloposti">Avaa Pulloposti</a>
+      </p>
     </main>
 
     <script>
@@ -33,12 +38,14 @@
         const input = document.getElementById("q");
         const form = document.getElementById("form");
         const offlineEl = document.getElementById("offline");
+        const pullopostiEl = document.getElementById("pullopostiPrompt");
 
         input.value = q;
 
         function setOffline(isOffline) {
           document.documentElement.classList.toggle("is-offline", isOffline);
           offlineEl.classList.toggle("hidden", !isOffline);
+          pullopostiEl.classList.toggle("hidden", !isOffline);
           input.disabled = isOffline;
           form.querySelector("button").disabled = isOffline;
         }

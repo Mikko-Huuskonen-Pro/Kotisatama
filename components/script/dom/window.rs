@@ -2807,6 +2807,14 @@ impl Window {
         self.reflow(&mut cx, ReflowGoal::LayoutQuery(query_msg));
     }
 
+    /// Trigger a reflow in preparation for subsequent queries that don't perform a reflow.
+    pub(crate) fn reflow_for_non_flushing_update_the_rendering_queries(&self, cx: &mut JSContext) {
+        self.reflow(
+            cx,
+            ReflowGoal::LayoutQuery(QueryMsg::FlushForUpdateTheRenderingQuery),
+        );
+    }
+
     pub(crate) fn resolved_font_style_query(
         &self,
         node: &Node,
@@ -2835,6 +2843,19 @@ impl Window {
             .borrow()
             .query_containing_block(node.to_trusted_node_address())
             .map(|address| unsafe { from_untrusted_node_address(address) })
+    }
+
+    /// Query whether a node is part of another node's containing block chain.
+    /// <https://drafts.csswg.org/css-display/#containing-block-chain>
+    pub(crate) fn is_containing_block_descendant_query_without_reflow(
+        &self,
+        possible_ancestor: &Node,
+        possible_descendant: &Node,
+    ) -> bool {
+        self.layout.borrow().query_containing_block_is_descendant(
+            possible_ancestor.to_trusted_node_address(),
+            possible_descendant.to_trusted_node_address(),
+        )
     }
 
     /// Query the used padding values for the given node, but do not force a reflow.

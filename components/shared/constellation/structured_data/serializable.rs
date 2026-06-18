@@ -146,6 +146,7 @@ pub struct SerializableFile {
     pub blob_impl: BlobImpl,
     pub name: String,
     pub modified: i64,
+    pub webkit_relative_path: String,
 }
 
 impl BroadcastClone for SerializableFile {
@@ -165,6 +166,7 @@ impl BroadcastClone for SerializableFile {
             blob_impl,
             name: self.name.clone(),
             modified: self.modified,
+            webkit_relative_path: self.webkit_relative_path.clone(),
         })
     }
 }
@@ -583,6 +585,15 @@ pub struct SerializableTurboShakeParams {
     pub domain_separation: Option<u8>,
 }
 
+/// A serializable version of the `KangarooTwelvelParams` dictionary, used by the `SubtleCrypto`
+/// interface.
+#[derive(Clone, Debug, Deserialize, MallocSizeOf, Serialize)]
+pub struct SerializableKangarooTwelveParams {
+    pub name: String,
+    pub output_length: u32,
+    pub customization: Option<Vec<u8>>,
+}
+
 /// A serializable version of the `DigestAlgorithm` type, used the `SubtleCrypto` interface.
 #[derive(Clone, Debug, Deserialize, MallocSizeOf, Serialize)]
 pub enum SerializableDigestAlgorithm {
@@ -590,6 +601,7 @@ pub enum SerializableDigestAlgorithm {
     Sha3(SerializableAlgorithm),
     CShake(SerializableCShakeParams),
     TurboShake(SerializableTurboShakeParams),
+    KangarooTwelve(SerializableKangarooTwelveParams),
 }
 
 /// A serializable version of the `KeyAlgorithm` dictionary, used the `SubtleCrypto` interface.

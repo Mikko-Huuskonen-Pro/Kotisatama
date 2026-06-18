@@ -3,11 +3,11 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 use std::cell::Cell;
-use std::ptr::NonNull;
 use std::str::FromStr;
 
 use dom_struct::dom_struct;
 use js::jsapi::{Heap, JSObject, Value};
+use js::rust::MutableHandleObject;
 use malloc_size_of::MallocSizeOf;
 use rustc_hash::FxHashMap;
 use script_bindings::cell::DomRefCell;
@@ -50,9 +50,9 @@ pub(crate) enum Handle {
     Ed25519PublicKey(Vec<u8>),
     X25519PrivateKey(x25519_dalek::StaticSecret),
     X25519PublicKey(x25519_dalek::PublicKey),
-    Aes128Key(aes::cipher::crypto_common::Key<aes::Aes128>),
-    Aes192Key(aes::cipher::crypto_common::Key<aes::Aes192>),
-    Aes256Key(aes::cipher::crypto_common::Key<aes::Aes256>),
+    Aes128Key(aes::cipher::common::Key<aes::Aes128>),
+    Aes192Key(aes::cipher::common::Key<aes::Aes192>),
+    Aes256Key(aes::cipher::common::Key<aes::Aes256>),
     HkdfSecret(Zeroizing<Vec<u8>>),
     Pbkdf2(Zeroizing<Vec<u8>>),
     Hmac(Zeroizing<Vec<u8>>),
@@ -219,16 +219,16 @@ impl CryptoKeyMethods<crate::DomTypeHolder> for CryptoKey {
     }
 
     /// <https://w3c.github.io/webcrypto/#dom-cryptokey-algorithm>
-    fn Algorithm(&self, _cx: JSContext) -> NonNull<JSObject> {
+    fn Algorithm(&self, _cx: JSContext, mut return_value: MutableHandleObject) {
         // Returns the cached ECMAScript object associated with the [[algorithm]] internal slot.
-        NonNull::new(self.algorithm_cached.get()).unwrap()
+        return_value.set(self.algorithm_cached.get())
     }
 
     /// <https://w3c.github.io/webcrypto/#dom-cryptokey-usages>
-    fn Usages(&self, _cx: JSContext) -> NonNull<JSObject> {
+    fn Usages(&self, _cx: JSContext, mut return_value: MutableHandleObject) {
         // Returns the cached ECMAScript object associated with the [[usages]] internal slot, which
         // indicates which cryptographic operations are permissible to be used with this key.
-        NonNull::new(self.usages_cached.get()).unwrap()
+        return_value.set(self.usages_cached.get())
     }
 }
 
@@ -392,21 +392,15 @@ impl TryFrom<SerializableCryptoKeyHandle> for Handle {
             SerializableCryptoKeyHandle::X25519PublicKey(public_key) => {
                 Ok(Handle::X25519PublicKey((*public_key).into()))
             },
-            SerializableCryptoKeyHandle::Aes128Key(key) => {
-                Ok(Handle::Aes128Key(aes::cipher::crypto_common::Key::<
-                    aes::Aes128,
-                >::clone_from_slice(key)))
-            },
-            SerializableCryptoKeyHandle::Aes192Key(key) => {
-                Ok(Handle::Aes192Key(aes::cipher::crypto_common::Key::<
-                    aes::Aes192,
-                >::clone_from_slice(key)))
-            },
-            SerializableCryptoKeyHandle::Aes256Key(key) => {
-                Ok(Handle::Aes256Key(aes::cipher::crypto_common::Key::<
-                    aes::Aes256,
-                >::clone_from_slice(key)))
-            },
+            SerializableCryptoKeyHandle::Aes128Key(key) => Ok(Handle::Aes128Key(
+                aes::cipher::common::Key::<aes::Aes128>::try_from(key).map_err(|_| ())?,
+            )),
+            SerializableCryptoKeyHandle::Aes192Key(key) => Ok(Handle::Aes192Key(
+                aes::cipher::common::Key::<aes::Aes192>::try_from(key).map_err(|_| ())?,
+            )),
+            SerializableCryptoKeyHandle::Aes256Key(key) => Ok(Handle::Aes256Key(
+                aes::cipher::common::Key::<aes::Aes256>::try_from(key).map_err(|_| ())?,
+            )),
             SerializableCryptoKeyHandle::Hmac(bytes) => Ok(Handle::Hmac(bytes.clone().into())),
             SerializableCryptoKeyHandle::HkdfSecret(bytes) => {
                 Ok(Handle::HkdfSecret(bytes.clone().into()))
@@ -473,7 +467,7 @@ impl TryFrom<SerializableCryptoKeyHandle> for Handle {
                 ))
             },
             SerializableCryptoKeyHandle::ChaCha20Poly1305Key(key) => Ok(
-                Handle::ChaCha20Poly1305Key(chacha20poly1305::Key::clone_from_slice(key)),
+                Handle::ChaCha20Poly1305Key(chacha20poly1305::Key::try_from(key).map_err(|_| ())?),
             ),
             SerializableCryptoKeyHandle::Argon2Password(password) => {
                 Ok(Handle::Argon2Password(password.clone().into()))
@@ -533,15 +527,9 @@ impl TryFrom<&Handle> for SerializableCryptoKeyHandle {
             Handle::X25519PublicKey(public_key) => Ok(
                 SerializableCryptoKeyHandle::X25519PublicKey(public_key.to_bytes()),
             ),
-            Handle::Aes128Key(key) => Ok(SerializableCryptoKeyHandle::Aes128Key(
-                key.as_slice().into(),
-            )),
-            Handle::Aes192Key(key) => Ok(SerializableCryptoKeyHandle::Aes192Key(
-                key.as_slice().into(),
-            )),
-            Handle::Aes256Key(key) => Ok(SerializableCryptoKeyHandle::Aes256Key(
-                key.as_slice().into(),
-            )),
+            Handle::Aes128Key(key) => Ok(SerializableCryptoKeyHandle::Aes128Key(key.to_vec())),
+            Handle::Aes192Key(key) => Ok(SerializableCryptoKeyHandle::Aes192Key(key.to_vec())),
+            Handle::Aes256Key(key) => Ok(SerializableCryptoKeyHandle::Aes256Key(key.to_vec())),
             Handle::Hmac(bytes) => Ok(SerializableCryptoKeyHandle::Hmac(bytes.to_vec())),
             Handle::HkdfSecret(bytes) => {
                 Ok(SerializableCryptoKeyHandle::HkdfSecret(bytes.to_vec()))

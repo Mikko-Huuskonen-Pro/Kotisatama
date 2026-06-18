@@ -270,25 +270,17 @@ impl Promise {
         self.reject_with_cx(cx, v.handle());
     }
 
-    pub(crate) fn reject_error(&self, error: Error, can_gc: CanGc) {
-        let cx = GlobalScope::get_cx();
-        let _ac = enter_realm(self);
-        rooted!(in(*cx) let mut v = UndefinedValue());
-        error.to_jsval(cx, &self.global(), v.handle_mut(), can_gc);
-        self.reject(cx, v.handle(), can_gc);
-    }
-
-    pub(crate) fn reject_error_with_cx(&self, cx: &mut JSContext, error: Error) {
+    pub(crate) fn reject_error(&self, cx: &mut JSContext, error: Error) {
         let mut realm = enter_auto_realm(cx, self);
         let cx = &mut realm.current_realm();
         rooted!(&in(cx) let mut v = UndefinedValue());
-        error.to_jsval(
-            cx.into(),
-            &self.global(),
-            v.handle_mut(),
-            CanGc::from_cx(cx),
-        );
+        error.to_jsval(cx, &self.global(), v.handle_mut());
         self.reject_with_cx(cx, v.handle());
+    }
+
+    /// Deprecated: use [`Self::reject_error`] instead
+    pub(crate) fn reject_error_with_cx(&self, cx: &mut JSContext, error: Error) {
+        self.reject_error(cx, error);
     }
 
     #[expect(unsafe_code)]
@@ -345,7 +337,7 @@ impl Promise {
         let in_realm_proof = cx.into();
         let realm = InRealm::Already(&in_realm_proof);
 
-        run_a_script::<DomTypeHolder, _>(&handler.global_(realm), || {
+        run_a_script::<DomTypeHolder, _, _>(cx, &handler.global_(realm), |cx| {
             rooted!(&in(cx) let resolve_func =
                 create_native_handler_function(cx,
                                                handler.reflector().get_jsobject(),

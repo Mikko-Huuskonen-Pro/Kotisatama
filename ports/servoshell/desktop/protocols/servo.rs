@@ -9,6 +9,7 @@
 //! - servo:config
 //! - servo:newtab
 //! - servo:avomeri
+//! - servo:pulloposti
 //! - servo:preferences
 
 use std::future::Future;
@@ -62,6 +63,13 @@ impl ProtocolHandler for ServoProtocolHandler {
                 done_chan,
                 context,
                 "/avomeri.html",
+            ),
+
+            "pulloposti" | "pulloposti/app" => ResourceProtocolHandler::response_for_path(
+                request,
+                done_chan,
+                context,
+                "/pulloposti.html",
             ),
 
             "preferences" => ResourceProtocolHandler::response_for_path(

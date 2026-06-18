@@ -31,7 +31,9 @@ use wgpu_core::command::RenderPassDescriptor;
 use wgpu_core::resource::BufferAccessResult;
 pub use wgpu_types as wgt;
 use wgpu_types::error::WebGpuError;
-use wgpu_types::{ExperimentalFeatures, MemoryHints};
+use wgpu_types::{
+    ExperimentalFeatures, MemoryHints, TexelCopyBufferLayout, TextureDimension, TextureUsages,
+};
 use wgt::InstanceDescriptor;
 
 use crate::canvas_context::WebGpuExternalImageMap;
@@ -720,6 +722,7 @@ impl WGPU {
                         command_encoder_id,
                         compute_pass_id,
                         label,
+                        timestamp_writes,
                         device_id,
                     } => {
                         let global = &self.global;
@@ -727,7 +730,7 @@ impl WGPU {
                             command_encoder_id,
                             &ComputePassDescriptor {
                                 label,
-                                timestamp_writes: None,
+                                timestamp_writes,
                             },
                         );
                         assert!(
@@ -851,6 +854,7 @@ impl WGPU {
                         label,
                         color_attachments,
                         depth_stencil_attachment,
+                        timestamp_writes,
                         device_id,
                     } => {
                         let global = &self.global;
@@ -858,7 +862,7 @@ impl WGPU {
                             label,
                             color_attachments: color_attachments.into(),
                             depth_stencil_attachment: depth_stencil_attachment.as_ref(),
-                            timestamp_writes: None,
+                            timestamp_writes: timestamp_writes.as_ref(),
                             occlusion_query_set: None,
                             multiview_mask: None,
                         };
@@ -959,6 +963,66 @@ impl WGPU {
                             &data,
                             &data_layout,
                             &size,
+                        );
+                        drop(_guard);
+                        self.maybe_dispatch_wgpu_error(device_id, result.err());
+                    },
+                    WebGPURequest::CopyExternalImageToTexture {
+                        device_id,
+                        queue_id,
+                        usable_source,
+                        destination,
+                        dest_tex_descriptor,
+                        copy_size,
+                    } => {
+                        // device and queue timeline of https://www.w3.org/TR/webgpu/#dom-gpuqueue-copyexternalimagetotexture
+                        let global = &self.global;
+                        // If any of the following requirements are unmet, generate a validation error and return.
+                        // usability must be good.
+                        let Some(source) = usable_source else {
+                            self.maybe_dispatch_error(
+                                device_id,
+                                Some(Error::Validation("Source is not usable".to_string())),
+                            );
+                            continue;
+                        };
+                        // texture.usage must include both RENDER_ATTACHMENT
+                        if !dest_tex_descriptor
+                            .usage
+                            .contains(TextureUsages::RENDER_ATTACHMENT)
+                        {
+                            self.maybe_dispatch_error(
+                                device_id,
+                                Some(Error::Validation(
+                                    "Texture usage must include RENDER_ATTACHMENT".to_string(),
+                                )),
+                            );
+                            continue;
+                        }
+                        // texture.dimension must be "2d".
+                        if dest_tex_descriptor.dimension != TextureDimension::D2 {
+                            self.maybe_dispatch_error(
+                                device_id,
+                                Some(Error::Validation(
+                                    "Texture dimension must be 2d".to_string(),
+                                )),
+                            );
+                            continue;
+                        }
+                        // texture.format must be a plain color format supporting RENDER_ATTACHMENT and be a unorm/unorm-srgb or float/ufloat format (not snorm, uint, or sint).
+                        // currently to to hard to check
+                        // the rest will be checked as part of write texture
+                        let _guard = self.poller.lock();
+                        let result = global.queue_write_texture(
+                            queue_id,
+                            &destination,
+                            source.data(),
+                            &TexelCopyBufferLayout {
+                                offset: 0,
+                                bytes_per_row: Some(source.size().width * 4),
+                                rows_per_image: None,
+                            },
+                            &copy_size,
                         );
                         drop(_guard);
                         self.maybe_dispatch_wgpu_error(device_id, result.err());
@@ -1153,6 +1217,39 @@ impl WGPU {
                             Some(id),
                         );
                         self.maybe_dispatch_wgpu_error(device_id, error);
+                    },
+                    WebGPURequest::CreateQuerySet {
+                        device_id,
+                        query_set_id,
+                        descriptor,
+                    } => {
+                        let global = &self.global;
+                        let (_, error) = global.device_create_query_set(
+                            device_id,
+                            &descriptor,
+                            Some(query_set_id),
+                        );
+                        self.maybe_dispatch_wgpu_error(device_id, error);
+                    },
+                    WebGPURequest::ResolveQuerySet {
+                        device_id,
+                        command_encoder_id,
+                        query_set_id,
+                        start_query,
+                        query_count,
+                        destination,
+                        destination_offset,
+                    } => {
+                        let global = &self.global;
+                        let result = global.command_encoder_resolve_query_set(
+                            command_encoder_id,
+                            query_set_id,
+                            start_query,
+                            query_count,
+                            destination,
+                            destination_offset,
+                        );
+                        self.maybe_dispatch_wgpu_error(device_id, result.err());
                     },
                 }
             }

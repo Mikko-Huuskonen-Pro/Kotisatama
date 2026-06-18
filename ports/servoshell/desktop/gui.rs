@@ -593,6 +593,11 @@ impl Gui {
                                         Some(crate::kotisatama::search(&self.search_query));
                                     window.set_needs_repaint();
                                 }
+                                if ui.button("Pulloposti").clicked() {
+                                    if let Some(webview) = window.active_webview() {
+                                        webview.load(crate::kotisatama::pulloposti_gateway_url());
+                                    }
+                                }
                             });
                         });
                 }

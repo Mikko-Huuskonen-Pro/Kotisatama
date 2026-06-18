@@ -15,6 +15,15 @@ Tavoite: ensimmäiset ulkopuoliset käyttäjät, fallback-data whitelist-kehityk
 
 ## Desktop-beta
 
+Paikallinen Win11-testipaketti (vaihtoehto hitaalle GitHub CI:lle):
+
+```powershell
+.\scripts\build-win11-test.ps1
+# uudelleenrakennus: .\scripts\build-win11-test.ps1 -SkipBootstrap -Run
+```
+
+Lyhyt polku ilman paketointia:
+
 ```bash
 # Windows (lyhyt polku)
 $env:PATH = "C:\Program Files\LLVM\bin;" + $env:PATH

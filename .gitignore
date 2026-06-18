@@ -82,3 +82,7 @@ support/macos/Brewfile.lock.json
 
 # Justfiles
 justfile
+
+# Local Win11 desktop test package (build-win11-test.ps1)
+/dist/
+/kotisatama-win11-*.zip

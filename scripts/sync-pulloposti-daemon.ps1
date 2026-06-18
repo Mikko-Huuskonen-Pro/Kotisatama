@@ -19,15 +19,22 @@ if (-not (Test-Path $daemonDir)) {
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 Push-Location $daemonDir
+$previousCargoTargetDir = $env:CARGO_TARGET_DIR
 try {
-    $env:CARGO_TARGET_DIR = Join-Path $daemonDir "target"
+    $localTarget = Join-Path $daemonDir "target"
+    $env:CARGO_TARGET_DIR = $localTarget
     cargo build --release
-    $built = Join-Path $env:CARGO_TARGET_DIR "release\pulloposti-daemon.exe"
+    $built = Join-Path $localTarget "release\pulloposti-daemon.exe"
     if (-not (Test-Path $built)) {
-        $built = Join-Path $env:CARGO_TARGET_DIR "release\pulloposti-daemon"
+        $built = Join-Path $localTarget "release\pulloposti-daemon"
     }
     Copy-Item $built (Join-Path $OutputDir "pulloposti-daemon.exe") -Force
     Write-Host "Synced -> $(Join-Path $OutputDir 'pulloposti-daemon.exe')"
 } finally {
+    if ($null -eq $previousCargoTargetDir) {
+        Remove-Item Env:CARGO_TARGET_DIR -ErrorAction SilentlyContinue
+    } else {
+        $env:CARGO_TARGET_DIR = $previousCargoTargetDir
+    }
     Pop-Location
 }

@@ -132,4 +132,4 @@ Tämä on tarkoituksella roadmapin viimeinen vaihe. Suositus: **älä** rakenna 
 
 ---
 
-*Kotisatama on osa Ilio-toiminimeä (Y-tunnus 2010). Kieliroadmap täydentää `ROADMAP-1.md`:ää, ei korvaa sitä.*
+* Kieliroadmap täydentää `ROADMAP-1.md`:ää, ei korvaa sitä.*

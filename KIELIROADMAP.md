@@ -20,6 +20,8 @@ Tämä roadmap kattaa lokalisoinnin (i18n) rakentamisen Kotisatamaan, suomi olet
 
 **Tavoite:** Android-puolen oletuskieli yhtenäisesti suomeksi, ruotsi rinnalle natiivilla Android-mekanismilla.
 
+
+- [ ] Valmiit-kansiosta siirrä kielitiedostot vanhojen päälle
 - [ ] Korvaa `support/android/apk/servoapp/src/main/res/values/strings.xml` siivotulla, täysin suomenkielisellä versiolla
 - [ ] Lisää `support/android/apk/servoapp/src/main/res/values-sv/strings.xml` (ruotsinkielinen)
 - [ ] Tarkista `idle`-merkkijonon näkyvyys (debug-label vai oikeasti käyttäjälle näkyvä?)

@@ -324,6 +324,56 @@ pub fn current_theme(location: &str, last_search: Option<&SearchOutcome>) -> Kot
 
 ---
 
+
+# VAIHE8-PULLOPOSTI.md — HTTP-API ja Android-bundlaus
+
+*Suunnitelma, ei vielä toteutettu. Tarkoitettu Cursorille toteutuksen pohjaksi.*
+
+**Tärkeä rajaus:** Varsinainen daemon-logiikka (BLE, salaus, avainten hallinta) asuu yksityisessä `pulloposti-daemon`-repossa, johon minulla ei ole pääsyä. Tämä dokumentti määrittelee **rajapinnan** julkisen `kotisatama-pulloposti`-clientin ja daemonin välillä, sekä **Android-bundlauksen** vaiheet — itse daemonin sisäinen toteutus pitää tehdä siinä suljetussa repossa erikseen.
+
+---
+
+## Laajempi konteksti: ei vain Pulloposti
+
+Suljettu repo on tarkoitettu kasvamaan useammaksi bundlatuksi subprocess-appiksi ajan myötä — Pulloposti on vasta ensimmäinen (analogia: "super-app"-malli, jossa yksi sovellus sisältää useita pienempiä). Meilisearch ja Pulloposti seuraavat jo nyt samaa kaavaa: HTTP-subprocess + health-check + binäärin paikannus/käynnistys + (Androidilla) `assets/`-bundlaus ja JNI-silta.
+
+Tämä on toinen kerta sama kaava nähdään, eli **nyt on oikea hetki yleistää se**, ei rakentaa Pullopostia kertakäyttöisesti. Käytännössä tämä tarkoittaa kohtaa 0 alla — ennen varsinaista Pulloposti-työtä kannattaa eriyttää yhteinen pohja, jota kolmaskin tuleva app voi käyttää lähes sellaisenaan.
+
+---
+
+## 0. Yhteinen subprocess-app-pohja (eriytetään nyt)
+
+- [ ] Uusi crate `components/kotisatama/subprocess-app/` joka sisältää yhteisen, jo kahdesti kirjoitetun logiikan:
+  - Binäärin paikannus (env-muuttuja → tunnetut polut, sama kuvio kuin `find_pulloposti_binary()` ja Meilisearchin vastine)
+  - Subprocess-käynnistys + `/health`-pollaus (`wait_for_health()`-tyyppinen apufunktio, parametrisoitu portilla/poluilla)
+  - `Drop`-siivous (kill + wait)
+- [ ] `kotisatama-search` ja `kotisatama-pulloposti` refaktoroidaan käyttämään tätä pohjaa sen sijaan että kumpikin toistaa saman koodin
+- [ ] Android-puolelle vastaava yleistys: yksi `fetch-bundled-app.sh`-skripti, joka ottaa parametreina app-nimen + lähteen (julkinen URL Meilisearchille, suljetun repon build-polku Pullopostille), kirjoittaa aina samaan `assets/kotisatama/bin/<app-nimi>`-kuvioon
+- [ ] JNI-puolelle nimeämiskäytäntö tuleville apeille: `kotisatama<AppNimi>Start`, `kotisatama<AppNimi>Health`, jne. — ei pakollista yleistää JNI:tä itseään heti, mutta nimeämiskonventio kannattaa lyödä lukkoon nyt
+
+**Miksi tämä kannattaa tehdä ennen Pulloposti-työtä:** jos Pulloposti koodataan ensin omana erillisenä polkunaan, kolmas app (mikä se sitten onkin) joutuu joko kopioimaan saman koodin uudestaan tai purkamaan kahden eri appin logiikan jälkikäteen yhteiseksi pohjaksi. Helpompi tehdä se nyt kun on vasta kaksi instanssia eriytettävänä.
+
+---
+
+## Mikä on jo olemassa
+
+| Osa | Tila |
+|---|---|
+| `kotisatama-pulloposti`-crate (julkinen) | Subprocess-käynnistys + `/health`-tarkistus valmis (`components/kotisatama/pulloposti/src/lib.rs`) |
+| `servo:pulloposti`-yhdyskäytäväsivu | Tarkistaa `/health`, näyttää linkin `servo:pulloposti/app` jos terve (`resources/resource_protocol/pulloposti.html`) |
+| Desktop-bundlaus | `scripts/sync-pulloposti-daemon.ps1` — buildaa suljetusta repon kopiosta, kopioi `bin/pulloposti-daemon.exe`:ksi |
+| `KOTISATAMA_PULLOPOSTI_BIN` / `KOTISATAMA_PULLOPOSTI_URL` | Ympäristömuuttujat binäärin/portin löytämiseen, jo käytössä |
+
+**Puuttuu kokonaan:**
+- HTTP-API kirjeiden lähetykselle/vastaanotolle (vain `/health` on määritelty)
+- `servo:pulloposti/app`-näkymä — linkki osoittaa sinne, mutta sivua ei ole rakennettu
+- Android-bundlaus (ei fetch/build-skriptiä, ei JNI-metodeja)
+
+---
+
+## 1. HTTP-API-kontrakti (ehdotus)
+
+Tämä on rajapinta jota `kotisatama-pulloposti` (julkinen client) ja `pulloposti.html`/`/app`-UI kutsuisivat. Itse toteutus — BLE-siirto, salaus, pariutuminen kuudella emojilla — pysyy suljetussa repossa tämän rajapinnan takana, samaan tapaan kuin Meilisearchin HTTP-rajapinta piilottaa LMDB:n.
 ## Commit-ehdotus
 
 ```
@@ -333,3 +383,72 @@ git add .github/workflows/kotisatama-crawl.yml KIELIROADMAP.md VAIHE7-TEEMAT.md
 git commit -m "CI: korjaa checkout@v6 -> @v4; lisää kieli- ja teemaroadmapit"
 git push origin docs/kieliroadmap-ja-teemat-ja-ci-fix
 ```
+GET  /health                    (jo olemassa)
+GET  /peers                     -> lähistöllä olevat parittamattomat/parittuneet laitteet (BLE-skannaus)
+POST /pair                      { "emoji_code": "🐟🌊⚓🔑🏠✉️" } -> aloita pariutuminen
+GET  /letters                   -> lista vastaanotetuista/lähetetyistä kirjeistä (metadata, ei sisältöä jos ei avattu)
+POST /letters                   { "to_peer_id": "...", "body": "..." } -> lähetä kirje
+GET  /letters/{id}              -> avaa/lue yksittäinen kirje (purkaa salauksen daemonissa)
+DELETE /letters/{id}            -> poista paikallisesti
+
+- [ ] Vahvista/muuta kontraktia suljetussa repossa daemonin oikean toteutuksen mukaan
+- [ ] Lisää `kotisatama-pulloposti`-crateen ohuet wrapper-funktiot kullekin endpointille (sama HTTP-client-malli kuin `is_healthy()`:ssä jo on, `ureq`-pohjainen)
+- [ ] Virhetyypit: laajenna `PullopostiError`-enumia tarvittaessa (esim. `PeerNotFound`, `PairingExpired`)
+
+### Reaaliaikaisuus
+
+BLE-kirjeet saapuvat taustalla, ei käyttäjän aloitteesta. Kaksi vaihtoehtoa:
+
+- [ ] **Polling**: UI kysyy `/letters`-listaa esim. 5s välein kun `servo:pulloposti/app` on auki
+- [ ] **WebSocket/SSE**: daemon työntää ilmoituksen uudesta kirjeestä — monimutkaisempi, mutta ei turhaa pollausta taustalla
+
+Suositus: aloita pollingilla (yksinkertaisempi, riittää MVP:hen), harkitse push-mallia myöhemmin jos akkukulutus nousee ongelmaksi.
+
+---
+
+## 2. `servo:pulloposti/app` — puuttuva näkymä
+
+`pulloposti.html` linkkaa tänne, mutta sivua ei ole rakennettu.
+
+- [ ] Uusi sivu `resources/resource_protocol/pulloposti-app.html` (+ `.css`), reititetty `servo:pulloposti/app`:ksi samalla tavalla kuin nykyinen gateway
+- [ ] Näkymät: kirjelista (`GET /letters`), kirjeen lukeminen (`GET /letters/{id}`), uuden kirjeen kirjoitus (`POST /letters`), pariutuminen (`GET /peers` + `POST /pair`, kuusi emojia syötteenä)
+- [ ] Sama suomi/ruotsi-kytkentä kuin `KIELIROADMAP.md`:n vaihe 2 (Kotisatama-omistettu HTML-tiedosto, ei upstream-riskiä — voi tehdä samalla mekanismilla)
+
+---
+
+## 3. Android-bundlaus
+
+Mallina toimii Meilisearchin bundlaus (`support/android/fetch-meilisearch.sh`), mutta Pulloposti ei ole julkinen julkaisu — se pitää cross-kääntää suljetusta repon lähdekoodista.
+
+- [ ] **Cross-compile-kohde**: `pulloposti-daemon` pitää buildata `aarch64-linux-android`-kohteelle (Android NDK:lla, `cargo-ndk` tai vastaava — sama toolchain-periaate kuin Servon omassa Android-buildissa)
+- [ ] Uusi skripti `scripts/sync-pulloposti-daemon-android.sh` (bash-vastine nykyiselle PowerShell-skriptille), joka:
+  1. Buildaa suljetusta repon kopiosta `aarch64-linux-android`-kohteelle
+  2. Kopioi binäärin `support/android/apk/servoapp/src/main/assets/kotisatama/bin/pulloposti-daemon`-poluksi (sama kuvio kuin Meilisearchin fetch-skripteissä)
+- [ ] **Android-quirk**: `assets/`-kansion tiedostot eivät ole suoraan suoritettavia laitteella. Tarvitaan runtime-logiikka joka ensimmäisellä käynnistyksellä kopioi binäärin `assets/`:sta sovelluksen kirjoitettavaan hakemistoon (`context.filesDir`) ja asettaa suoritusoikeuden (`chmod +x`) — tarkista tehdäänkö tämä jo Meilisearchille jossain (JNI-puolella), ja toista sama kuvio
+- [ ] JNI-sillat `ports/servoshell/egl/android/kotisatama.rs`:ään — tällä hetkellä siellä on vain `kotisatamaSearch`, `kotisatamaSubmitReport`, `kotisatamaShouldShowReport`. Lisää vastaavat Pullopostille: `kotisatamaPullopostiStart`, `kotisatamaPullopostiHealth`, `kotisatamaPullopostiSendLetter`, `kotisatamaPullopostiListLetters` — sama ohut JSON-palautusmalli kuin olemassa olevilla
+- [ ] Tarkista Android BLE-permissiot manifestissa (`BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, mahdollisesti `ACCESS_FINE_LOCATION` riippuen Android-versiosta) — tämä koskee suljetun daemonin tarpeita, mutta manifesti on julkisessa repossa
+
+---
+
+## Järjestysehdotus
+
+1. **Eriytä yhteinen subprocess-app-pohja** (kohta 0) — refaktoroi `kotisatama-search` käyttämään sitä, varmista ettei mikään hajoa
+2. Lukitse HTTP-API-kontrakti (kohta 1) — tee tämä ennen daemon-työtä, koska sekä julkinen client että suljettu daemon koodataan sitä vasten
+3. Toteuta kontrakti suljetussa repossa (ei tämän repon työtä)
+4. Laajenna `kotisatama-pulloposti`-crate wrapper-funktioilla, pohjana kohdan 0 yhteinen crate
+5. Rakenna `servo:pulloposti/app`-näkymä (kohta 2) — desktopilla testattavissa heti kun API toimii paikallisesti
+6. Android-cross-compile + yleistetty bundlaus-skripti (kohta 3) — viimeisenä, koska riippuu siitä että desktop-API on jo vakaa
+
+---
+
+## Avoimet päätökset
+
+- [ ] Polling vai push uusille kirjeille (ks. kohta 1, Reaaliaikaisuus)
+- [ ] Cross-compile-toolchain Pulloposti-daemonille: `cargo-ndk` vai jokin muu?
+- [ ] Säilytetäänkö luetut/avatut kirjeet daemonissa pysyvästi, vai siirretäänkö ne pois laitteelta luvun jälkeen?
+- [ ] BLE-kantaman/akkuvaikutuksen testaus puuttuu kokonaan — pitääkö olla erillinen testisuunnitelma ennen julkaisua?
+- [ ] Onko jo tiedossa mitä seuraavat bundlattavat apit suljetusta repossa olisivat? Vaikuttaisi kohdan 0 yleistyksen laajuuteen (kannattaako esim. UI-integraatiokin yleistää jo nyt, vai riittääkö subprocess-taso toistaiseksi)
+
+---
+
+*Täydentää `ROADMAP-1.md`:n vaihetta 8. HTTP-API-kontrakti (kohta 1) on lähtökohta — kannattaa vahvistaa se suljetun repon ylläpitäjän kanssa ennen kuin julkisen puolen wrapper-funktioita aletaan koodata, jotta ei tehdä turhaa työtä väärän rajapinnan varaan.*

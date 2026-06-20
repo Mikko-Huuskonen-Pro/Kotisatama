@@ -25,6 +25,7 @@ mod running_app_state;
 mod webdriver;
 mod window;
 
+// KOTISATAMA-PATCH: Kotisatama-integraatio (whitelist, haku, raportti, pulloposti).
 #[cfg(feature = "kotisatama")]
 mod kotisatama;
 

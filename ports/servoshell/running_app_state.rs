@@ -28,6 +28,7 @@ use servo::{
     WebDriverCommandMsg, WebDriverJSResult, WebDriverLoadStatus, WebDriverScriptCommand,
     WebDriverSenders, WebView, WebViewDelegate, WebViewId,
 };
+// KOTISATAMA-PATCH: whitelist-navigointi WebViewDelegate-hookissa (ks. AGENT.md).
 #[cfg(feature = "kotisatama")]
 use servo::NavigationRequest;
 use url::Url;
@@ -241,6 +242,7 @@ impl RunningAppState {
         ))]
         gamepad_delegate: Option<Rc<ServoshellGamepadDelegate>>,
     ) -> Self {
+        // KOTISATAMA-PATCH: lataa whitelist ja käynnistä haku/pulloposti-subprocessit.
         #[cfg(feature = "kotisatama")]
         crate::kotisatama::init();
 
@@ -629,6 +631,7 @@ impl RunningAppState {
 
         info!("Loading URL in webview {}: {}", webview_id, url);
         self.set_load_status_sender(webview_id, load_status_sender);
+        // KOTISATAMA-PATCH: ohjaa estetyt URL:t blokkaussivulle ennen webview.load().
         #[cfg(feature = "kotisatama")]
         crate::kotisatama::load_url_or_blocked(&webview, url);
         #[cfg(not(feature = "kotisatama"))]
@@ -897,6 +900,7 @@ impl WebViewDelegate for RunningAppState {
             .notify_accessibility_tree_update(webview, tree_update);
     }
 
+    // KOTISATAMA-PATCH: whitelist-tarkistus navigoinnissa; estetty → data: blokkaussivu.
     #[cfg(feature = "kotisatama")]
     fn request_navigation(&self, webview: WebView, request: NavigationRequest) {
         let blocked_target = request.url.clone();

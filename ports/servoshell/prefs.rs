@@ -45,6 +45,7 @@ pub(crate) static EXPERIMENTAL_PREFS: &[&str] = &[
     "dom_storage_manager_api_enabled",
     "dom_webgl2_enabled",
     "dom_webgpu_enabled",
+    // KOTISATAMA-PATCH: poistettu layout_css_attr_enabled kokeellisista prefseistä.
     "layout_columns_enabled",
     "layout_container_queries_enabled",
     "layout_grid_enabled",
@@ -112,11 +113,13 @@ impl Default for ServoShellPreferences {
             clean_shutdown: false,
             device_pixel_ratio_override: None,
             headless: false,
+            // KOTISATAMA-PATCH: tyhjä oletussivu; uusi välilehti tulee erikseen.
             homepage: "about:blank".into(),
             initial_window_size: Size2D::new(1024, 740),
             no_native_titlebar: true,
             screen_size_override: None,
             simulate_touch_events: false,
+            // KOTISATAMA-PATCH: avomeri-haku Startpagella (ei DuckDuckGo).
             searchpage: "https://www.startpage.com/search?q=%s".into(),
             tracing_filter: None,
             url: None,
@@ -575,6 +578,7 @@ struct CmdArgs {
     zealous_gc: bool,
 
     /// The url we should load.
+    // KOTISATAMA-PATCH: oletus about:blank (ei servo.org).
     #[bpaf(positional("URL"), fallback(String::from("about:blank")))]
     url: String,
 }
@@ -856,6 +860,7 @@ fn test_create_prefs_map() {
     let json_str = "{
         \"layout.writing-mode.enabled\": true,
         \"network.mime.sniff\": false,
+        // KOTISATAMA-PATCH: testi vastaa oletuskotisatama-homepagea.
         \"shell.homepage\": \"about:blank\"
     }";
     assert_eq!(read_prefs_map(json_str).len(), 3);

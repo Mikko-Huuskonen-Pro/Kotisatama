@@ -58,6 +58,7 @@ impl ProtocolHandler for ServoProtocolHandler {
                 context,
                 "/newtab.html",
             ),
+            // KOTISATAMA-PATCH: sisäiset avomeri- ja pulloposti-sivut (resource_protocol).
             "avomeri" => ResourceProtocolHandler::response_for_path(
                 request,
                 done_chan,

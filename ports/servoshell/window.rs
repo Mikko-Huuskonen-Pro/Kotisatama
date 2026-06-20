@@ -98,6 +98,7 @@ impl ServoShellWindow {
     /// Must be called *after* `self` is in `state.windows`, otherwise it will panic.
     #[servo::servo_tracing::instrument(skip(self, state))]
     pub(crate) fn create_toplevel_webview(&self, state: Rc<RunningAppState>, url: Url) -> WebView {
+        // KOTISATAMA-PATCH: ensimmäinen sivu whitelistatun tai blokkaussivun kautta.
         #[cfg(feature = "kotisatama")]
         let url = if crate::kotisatama::check_url(&url) {
             url
@@ -332,6 +333,7 @@ impl ServoShellWindow {
                         break;
                     };
                     if let Some(active_webview) = self.active_webview() {
+                        // KOTISATAMA-PATCH: osoitepalkin Go → whitelist/blokkaussivu.
                         #[cfg(feature = "kotisatama")]
                         crate::kotisatama::load_url_or_blocked(
                             &active_webview,

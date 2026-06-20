@@ -41,6 +41,7 @@ OriginalFilename = "servoshell.exe"
 ProductName = "ServoShell"
 
 [features]
+# KOTISATAMA-PATCH: kotisatama oletuksena päällä; pois päältä upstream-käyttäytyminen.
 default = ["baked-in-resources", "gamepad", "kotisatama", "servo/clipboard", "js_jit", "max_log_level", "webgpu", "webxr"]
 baked-in-resources = ["servo/baked-in-resources"]
 crown = ["servo/crown"]
@@ -60,6 +61,7 @@ vello = ["servo/vello"]
 webgl_backtrace = ["servo/webgl_backtrace"]
 webgpu = ["servo/webgpu"]
 webxr = ["servo/webxr"]
+# KOTISATAMA-PATCH: feature flag Kotisatama-cratesille.
 kotisatama = ["dep:kotisatama-whitelist", "dep:kotisatama-search", "dep:kotisatama-report", "dep:kotisatama-pulloposti"]
 
 [dependencies]
@@ -72,6 +74,7 @@ euclid = { workspace = true }
 hitrace = { workspace = true, optional = true }
 image = { workspace = true }
 keyboard-types = { workspace = true }
+# KOTISATAMA-PATCH: valinnaiset Kotisatama-crates (aktivoituu kotisatama-featurella).
 kotisatama-whitelist = { workspace = true, optional = true }
 kotisatama-search = { workspace = true, optional = true }
 kotisatama-report = { workspace = true, optional = true }

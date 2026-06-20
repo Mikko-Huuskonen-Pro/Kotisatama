@@ -38,6 +38,7 @@ pub fn get_default_url(
 
     if let Some(url) = cmdline_url.clone() {
         // Check if the URL path corresponds to a file
+        // KOTISATAMA-PATCH: ei custom scheme -tulkintaa (poistettu is_normal_scheme-haara).
         match (url.scheme(), url.host(), url.to_file_path()) {
             ("file", None, Ok(ref path)) if exists(path) => {
                 new_url = cmdline_url;
@@ -68,6 +69,7 @@ pub fn get_default_url(
 /// interpret the string as a search term.
 pub(crate) fn location_bar_input_to_url(request: &str, searchpage: &str) -> Option<ServoUrl> {
     let request = request.trim();
+    // KOTISATAMA-PATCH: yksinkertaistettu URL-jäsennys; ei custom scheme -tulkintaa (servo: jne.).
     ServoUrl::parse(request)
         .ok()
         .or_else(|| try_as_file(request))

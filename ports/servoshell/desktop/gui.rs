@@ -9,6 +9,7 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
+// KOTISATAMA-PATCH: taustahaku ja raportointi käyttävät mpsc-kanavaa (ks. KIELIROADMAP.md Vaihe 0).
 use std::sync::mpsc::{self, Receiver};
 
 use dpi::PhysicalSize;
@@ -73,6 +74,7 @@ pub struct Gui {
     /// This allows us to ensure that graft nodes are sent before the subtrees they graft.
     pending_accesskit_updates: Vec<accesskit::TreeUpdate>,
 
+    // KOTISATAMA-PATCH: desktop-haku, raportointi ja suomenkielinen UI (ks. KIELIROADMAP.md).
     /// Kotisatama local search query (desktop toolbar).
     #[cfg(feature = "kotisatama")]
     search_query: String,
@@ -256,6 +258,7 @@ impl Gui {
             can_go_forward: false,
             favicon_textures: Default::default(),
             pending_accesskit_updates: vec![],
+            // KOTISATAMA-PATCH: alusta haku- ja raportointitila (ks. KIELIROADMAP.md).
             #[cfg(feature = "kotisatama")]
             search_query: String::new(),
             #[cfg(feature = "kotisatama")]
@@ -490,6 +493,7 @@ impl Gui {
                             }
                             ui.add_space(2.0);
 
+                            // KOTISATAMA-PATCH: "Ilmoita"-painike työkalupalkissa.
                             #[cfg(feature = "kotisatama")]
                             if crate::kotisatama::should_show_report_button(location) {
                                 let report_button = ui.add(Gui::toolbar_button("Ilmoita"));
@@ -581,6 +585,7 @@ impl Gui {
                     );
                 });
 
+                // KOTISATAMA-PATCH: kotisatama-hakupalkki ja Pulloposti-linkki.
                 #[cfg(feature = "kotisatama")]
                 {
                     let search_frame = egui::Frame::default()
@@ -708,6 +713,7 @@ impl Gui {
                 .show(|ui| ui.add(Label::new(status_text.clone()).extend()));
             }
 
+            // KOTISATAMA-PATCH: taustahakujen ja raporttien vastausten kuuntelu.
             #[cfg(feature = "kotisatama")]
             {
                 if let Some(rx) = &self.search_pending {
@@ -726,6 +732,7 @@ impl Gui {
                 }
             }
 
+            // KOTISATAMA-PATCH: haun odotusikkuna (suomenkielinen teksti).
             #[cfg(feature = "kotisatama")]
             if self.search_pending.is_some() {
                 egui::Window::new("Kotisatama-haku")
@@ -737,6 +744,7 @@ impl Gui {
                     });
             }
 
+            // KOTISATAMA-PATCH: hakutulospaneeli ja avomeri-fallback (suomenkielinen teksti).
             #[cfg(feature = "kotisatama")]
             if let Some(panel) = &self.search_panel {
                 use crate::kotisatama::SearchOutcome;
@@ -791,6 +799,7 @@ impl Gui {
                 }
             }
 
+            // KOTISATAMA-PATCH: anonyymi raportointidialogi (suomenkielinen teksti).
             #[cfg(feature = "kotisatama")]
             if self.report_dialog_open {
                 use kotisatama_report::ReportKind;

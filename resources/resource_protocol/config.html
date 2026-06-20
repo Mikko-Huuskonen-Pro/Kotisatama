@@ -1,14 +1,17 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>Advanced Config</title>
+    <meta data-i18n-title="title" />
     <link rel="stylesheet" href="resource:///config.css">
+    <script src="resource:///kotisatama-i18n.js"></script>
 </head>
 <body>
-    <input class="search" type="text" placeholder="Search for a preference…" aria-label="Search preferences" oninput="populate(this.value)">
+    <input class="search" type="text" data-i18n-placeholder="searchPlaceholder" data-i18n-aria-label="searchAriaLabel" oninput="populate(this.value)">
     <table></table>
     <script>
+        const kotisatamaLocale = KotisatamaI18n.applyDocument("config");
+
         // Helper to create a TD with class and optional text
         function td(cls, text) {
             const cell = document.createElement("td");
@@ -85,7 +88,7 @@
                     saveFn = () => {
                         const parsed = parseInt(input.value);
                         if (Number.isNaN(parsed)) {
-                            input.setCustomValidity("Please enter a valid integer.");
+                            input.setCustomValidity(KotisatamaI18n.t("config", "invalidInteger", kotisatamaLocale));
                             input.reportValidity();
                             return false;
                         }

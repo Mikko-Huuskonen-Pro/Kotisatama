@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta data-i18n-title="title" />
+    <style>
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        line-height: 1.5;
+        color: #1a1a1a;
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-position: center;
+        background-image:
+          linear-gradient(rgba(250, 250, 250, 0.92), rgba(250, 250, 250, 0.92)),
+          url("resource:///themes/kotisatama.svg");
+      }
+      main {
+        max-width: 52rem;
+        margin: 2.5rem;
+        padding: 1.25rem;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.65);
+        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.15);
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.75rem;
+      }
+      p {
+        margin: 0.5rem 0;
+      }
+      a {
+        font-size: 1.05rem;
+      }
+      .url {
+        color: #555;
+        font-size: 0.95rem;
+        word-break: break-all;
+      }
+      .report-hint {
+        margin-top: 1.5rem;
+        color: #666;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 data-i18n="heading"></h1>
+      <p id="blockedUrl" class="url"></p>
+      <p><a id="continueLink" data-i18n="continueLink"></a></p>
+      <p class="report-hint" data-i18n-html="reportHint"></p>
+    </main>
+
+    <script src="resource:///kotisatama-i18n.js"></script>
+    <script>
+      (function () {
+        KotisatamaI18n.applyDocument("blocked");
+
+        const params = new URLSearchParams(location.search);
+        const blockedUrl = params.get("u") || "";
+        const continueHref = params.get("continue") || "#";
+
+        document.getElementById("blockedUrl").textContent = blockedUrl;
+        const continueLink = document.getElementById("continueLink");
+        continueLink.href = continueHref;
+      })();
+    </script>
+  </body>
+</html>

@@ -4755,7 +4755,6 @@ dependencies = [
 name = "kotisatama-whitelist"
 version = "0.1.0"
 dependencies = [
- "base64",
  "log",
  "serde",
  "serde_json",

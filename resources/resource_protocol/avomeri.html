@@ -1,38 +1,34 @@
 <!DOCTYPE html>
-<html lang="fi">
+<html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Avomeri</title>
+    <meta data-i18n-title="title" />
     <link rel="stylesheet" href="resource:///avomeri.css" />
   </head>
   <body>
     <main class="card" role="main">
-      <h1>Avomeri</h1>
-      <p class="muted">
-        Olet siirtymässä avomerelle. Kotisataman ulkopuolelle mennään vain käyttäjän omasta valinnasta.
-      </p>
+      <h1 data-i18n="heading"></h1>
+      <p class="muted" data-i18n="intro"></p>
 
       <form id="form" autocomplete="off">
-        <label for="q">Hae avomereltä</label>
+        <label for="q" data-i18n="searchLabel"></label>
         <div class="row">
-          <input id="q" name="q" placeholder="Kirjoita hakusana…" />
-          <button type="submit">Hae</button>
+          <input id="q" name="q" data-i18n-placeholder="searchPlaceholder" />
+          <button type="submit" data-i18n="searchButton"></button>
         </div>
       </form>
 
-      <p id="offline" class="offline hidden" aria-live="polite">
-        Myrsky: verkkoyhteyttä ei ole. Avomeri ei ole käytettävissä offline-tilassa.
-      </p>
+      <p id="offline" class="offline hidden" aria-live="polite" data-i18n="offline"></p>
 
-      <p id="pullopostiPrompt" class="pulloposti hidden" aria-live="polite">
-        Haluatko viestiä pullopostilla?
-        <a href="servo:pulloposti">Avaa Pulloposti</a>
-      </p>
+      <p id="pullopostiPrompt" class="pulloposti hidden" aria-live="polite" data-i18n-html="pullopostiPrompt"></p>
     </main>
 
+    <script src="resource:///kotisatama-i18n.js"></script>
     <script>
       (function () {
+        KotisatamaI18n.applyDocument("avomeri");
+
         const params = new URLSearchParams(location.search);
         const q = params.get("q") || "";
         const input = document.getElementById("q");
@@ -51,7 +47,6 @@
         }
 
         function updateOffline() {
-          // navigator.onLine is not perfect, but good enough for a state indicator.
           setOffline(navigator.onLine === false);
         }
 

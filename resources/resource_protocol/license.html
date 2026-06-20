@@ -1,6 +1,7 @@
 <html>
 
 <head>
+    <meta data-i18n-title="title" />
     <style>
         @media (prefers-color-scheme: dark) {
             body {
@@ -38,13 +39,8 @@
 <body>
     <main class="container">
         <div class="intro">
-            <h1>Third Party Licenses</h1>
-            <p>
-                This binary has been made available by the <a href="https://servo.org/">Servo Project</a>
-                under the terms of the <a href="https://www.mozilla.org/en-US/MPL/2.0/">Mozilla Public License Version 2.0 (MPL)</a>.
-                The source code of the Servo Project is licensed under MPL. The remaining third party components
-                are licensed by one or more of the enumerated free software licenses.
-            </p>
+            <h1 data-i18n="title"></h1>
+            <p data-i18n-html="intro"></p>
         </div>
     
         <ul class="licenses-overview">
@@ -64,7 +60,7 @@
             <li><a href="#Ubuntu-font-1.0">Ubuntu Font Licence v1.0</a></li>
         </ul>
 
-        <h2>All license text:</h2>
+        <h2 data-i18n="allLicenseText"></h2>
         <ul class="licenses-list">
             <li class="license">
                 <h3 id="Apache-2.0">Apache License 2.0</h3>
@@ -20098,6 +20094,10 @@ the following restrictions:
             </li>
         </ul>
     </main>
+    <script src="resource:///kotisatama-i18n.js"></script>
+    <script>
+      KotisatamaI18n.applyDocument("license");
+    </script>
 </body>
 
 </html>

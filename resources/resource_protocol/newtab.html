@@ -4,14 +4,18 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kotisatama - New Tab</title>
+    <meta data-i18n-title="title" />
     <link rel="stylesheet" href="resource:///newtab.css" />
   </head>
   <body>
-    <h1>Kotisatama</h1>
+    <h1 data-i18n="heading"></h1>
     <form action="https://www.startpage.com/search">
-      <input name="q" placeholder="Hae avomereltä…" autofocus />
-      <button type="submit">Go!</button>
+      <input name="q" data-i18n-placeholder="searchPlaceholder" autofocus />
+      <button type="submit" data-i18n="searchButton"></button>
     </form>
+    <script src="resource:///kotisatama-i18n.js"></script>
+    <script>
+      KotisatamaI18n.applyDocument("newtab");
+    </script>
   </body>
 </html>

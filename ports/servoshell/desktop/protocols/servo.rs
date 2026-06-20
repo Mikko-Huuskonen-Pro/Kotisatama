@@ -10,6 +10,7 @@
 //! - servo:newtab
 //! - servo:avomeri
 //! - servo:pulloposti
+//! - servo:blocked
 //! - servo:preferences
 
 use std::future::Future;
@@ -71,6 +72,14 @@ impl ProtocolHandler for ServoProtocolHandler {
                 done_chan,
                 context,
                 "/pulloposti.html",
+            ),
+
+            // KOTISATAMA-PATCH: whitelist-blokkaussivu (i18n: blocked.html + kotisatama-i18n.js).
+            "blocked" => ResourceProtocolHandler::response_for_path(
+                request,
+                done_chan,
+                context,
+                "/blocked.html",
             ),
 
             "preferences" => ResourceProtocolHandler::response_for_path(

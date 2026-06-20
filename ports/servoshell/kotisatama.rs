@@ -119,7 +119,10 @@ pub fn should_show_report_button(current_location: &str) -> bool {
 
 /// Whether the active page is the Kotisatama blocked error page.
 pub fn is_blocked_page(current_location: &str) -> bool {
-    current_location.starts_with("data:text/html")
+    Url::parse(current_location)
+        .map(|url| url.scheme() == "servo" && url.path() == "blocked")
+        .unwrap_or(false)
+        || current_location.starts_with("data:text/html")
 }
 
 /// Default report form values from the current browser location.

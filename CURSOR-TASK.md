@@ -128,7 +128,7 @@ Tämän vuoksi roadmap on järjestetty **upstream-konfliktiriskin mukaan**, ei a
 ## Vaihe 1 — Android: `strings.xml` siivous + `values-sv/`
 
 **Tavoite:** Android-puolen oletuskieli yhtenäisesti suomeksi, ruotsi rinnalle natiivilla Android-mekanismilla.
-
+- [ ] valmiit-kansiossa valmiina suomi ja ruotsi käännökset
 - [ ] Korvaa `support/android/apk/servoapp/src/main/res/values/strings.xml` siivotulla, täysin suomenkielisellä versiolla
 - [ ] Lisää `support/android/apk/servoapp/src/main/res/values-sv/strings.xml` (ruotsinkielinen)
 - [ ] Tarkista `idle`-merkkijonon näkyvyys (debug-label vai oikeasti käyttäjälle näkyvä?)

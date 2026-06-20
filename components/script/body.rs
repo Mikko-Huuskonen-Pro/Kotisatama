@@ -717,7 +717,7 @@ pub(crate) fn consume_body<T: BodyMixin + DomObject>(
 
     // If object is unusable, then return a promise rejected with a TypeError.
     if object.is_unusable() {
-        promise.reject_error_with_cx(
+        promise.reject_error(
             cx,
             Error::Type(c"The body's stream is disturbed or locked".to_owned()),
         );
@@ -753,7 +753,7 @@ pub(crate) fn consume_body<T: BodyMixin + DomObject>(
     if stream.is_errored() {
         rooted!(&in(cx) let mut stored_error = UndefinedValue());
         stream.get_stored_error(stored_error.handle_mut());
-        promise.reject_with_cx(cx, stored_error.handle());
+        promise.reject(cx, stored_error.handle());
         return promise;
     }
 
@@ -764,7 +764,7 @@ pub(crate) fn consume_body<T: BodyMixin + DomObject>(
     let reader = match stream.acquire_default_reader(cx) {
         Ok(r) => r,
         Err(e) => {
-            promise.reject_error_with_cx(cx, e);
+            promise.reject_error(cx, e);
             return promise;
         },
     };
@@ -794,7 +794,7 @@ pub(crate) fn consume_body<T: BodyMixin + DomObject>(
             );
         }),
         Rc::new(move |cx, v| {
-            error_promise.reject_with_cx(cx, v);
+            error_promise.reject(cx, v);
         }),
     );
 
@@ -821,12 +821,10 @@ fn resolve_result_promise(
                 FetchedData::FormData(f) => promise.resolve_native_with_cx(cx, &f),
                 FetchedData::Bytes(b) => promise.resolve_native_with_cx(cx, &b),
                 FetchedData::ArrayBuffer(a) => promise.resolve_native_with_cx(cx, &a),
-                FetchedData::JSException(e) => {
-                    promise.reject_native(&e.handle(), CanGc::from_cx(cx))
-                },
+                FetchedData::JSException(e) => promise.reject_native(cx, &e.handle()),
             };
         },
-        Err(err) => promise.reject_error_with_cx(cx, err),
+        Err(err) => promise.reject_error(cx, err),
     }
 }
 

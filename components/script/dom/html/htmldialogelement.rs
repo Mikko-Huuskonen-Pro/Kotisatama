@@ -8,6 +8,7 @@ use html5ever::{LocalName, Prefix, local_name, ns};
 use js::context::JSContext;
 use js::rust::HandleObject;
 use script_bindings::cell::DomRefCell;
+use script_bindings::codegen::GenericBindings::HTMLElementBinding::HTMLElementMethods;
 use script_bindings::error::{Error, ErrorResult};
 use stylo_dom::ElementState;
 
@@ -22,10 +23,9 @@ use crate::dom::event::{Event, EventBubbles, EventCancelable};
 use crate::dom::eventtarget::EventTarget;
 use crate::dom::html::htmlelement::HTMLElement;
 use crate::dom::htmlbuttonelement::{CommandState, HTMLButtonElement};
+use crate::dom::node::virtualmethods::VirtualMethods;
 use crate::dom::node::{Node, NodeTraits};
 use crate::dom::toggleevent::ToggleEvent;
-use crate::dom::virtualmethods::VirtualMethods;
-use crate::script_runtime::CanGc;
 
 #[dom_struct]
 pub(crate) struct HTMLDialogElement {
@@ -101,6 +101,7 @@ impl HTMLDialogElement {
 
         // Step 6. If the result of firing an event named beforetoggle, using ToggleEvent, with the cancelable attribute initialized to true, the oldState attribute initialized to "closed", the newState attribute initialized to "open", and the source attribute initialized to source at subject is false, then return.
         let event = ToggleEvent::new(
+            cx,
             &self.owner_window(),
             atom!("beforetoggle"),
             EventBubbles::DoesNotBubble,
@@ -108,7 +109,6 @@ impl HTMLDialogElement {
             DOMString::from("closed"),
             DOMString::from("open"),
             source.borrow().clone(),
-            CanGc::from_cx(cx),
         );
         let event = event.upcast::<Event>();
         if !event.fire(cx, self.upcast::<EventTarget>()) {
@@ -155,7 +155,8 @@ impl HTMLDialogElement {
 
         // TODO: Step 21. Run hide all popovers until given hideUntil, false, and true.
 
-        // TODO(Issue #32702): Step 22. Run the dialog focusing steps given subject.
+        // Step 22. Run the dialog focusing steps given subject.
+        self.run_dialog_focusing_steps(cx);
         Ok(())
     }
 
@@ -174,6 +175,7 @@ impl HTMLDialogElement {
 
         // Step 2. Fire an event named beforetoggle, using ToggleEvent, with the oldState attribute initialized to "open", the newState attribute initialized to "closed", and the source attribute initialized to source at subject.
         let event = ToggleEvent::new(
+            cx,
             &self.owner_window(),
             atom!("beforetoggle"),
             EventBubbles::DoesNotBubble,
@@ -181,7 +183,6 @@ impl HTMLDialogElement {
             DOMString::from("open"),
             DOMString::from("closed"),
             source.borrow().clone(),
-            CanGc::from_cx(cx),
         );
         let event = event.upcast::<Event>();
         event.fire(cx, self.upcast::<EventTarget>());
@@ -259,6 +260,7 @@ impl HTMLDialogElement {
 
                 // Step 2.1. Fire an event named toggle at element, using ToggleEvent, with the oldState attribute initialized to oldState, the newState attribute initialized to newState, and the source attribute initialized to source.
                 let event = ToggleEvent::new(
+                    cx,
                     &this.owner_window(),
                     atom!("toggle"),
                     EventBubbles::DoesNotBubble,
@@ -266,7 +268,6 @@ impl HTMLDialogElement {
                     DOMString::from(old_state),
                     DOMString::from(new_state),
                     source,
-                    CanGc::from_cx(cx),
                 );
                 let event = event.upcast::<Event>();
                 event.fire(cx, this.upcast::<EventTarget>());
@@ -274,6 +275,41 @@ impl HTMLDialogElement {
                 // TODO: Step 2.2. Set element's dialog toggle task tracker to null.
             }));
         // TODO: Step 3. Set element's dialog toggle task tracker to a struct with task set to the just-queued task and old state set to oldState.
+    }
+
+    /// <https://html.spec.whatwg.org/multipage/#dialog-focusing-steps>
+    fn run_dialog_focusing_steps(&self, cx: &mut JSContext) {
+        // TODO: Step 1. If the allow focus steps given subject's node document return false, then return.
+
+        // Step 2. Let control be null.
+        let mut control = None;
+
+        // Step 3. If subject has the autofocus attribute, then set control to subject.
+        if self.upcast::<HTMLElement>().Autofocus() {
+            control = self.upcast::<Node>().get_the_focusable_area();
+        }
+
+        // Step 4. If control is null, then set control to the focus delegate of subject.
+        if control.is_none() {
+            control = self.upcast::<Node>().focus_delegate();
+        }
+
+        // Step 5. If control is null, then set control to subject.
+        if control.is_none() {
+            control = self.upcast::<Node>().get_the_focusable_area();
+        }
+
+        // Step 6. Run the focusing steps for control.
+        // FIXME: Use the focusing step once they support a focusable area as an argument
+        if let Some(control) = control {
+            let document = self.owner_document();
+            document.focus_handler().focus(cx, control);
+        }
+
+        // TODO: Step 7. Let topDocument be control's node navigable's top-level traversable's active document.
+        // TODO: Step 8. If control's node document's origin is not the same as the origin of topDocument, then return.
+        // TODO: Step 9. Empty topDocument's autofocus candidates.
+        // TODO: Step 10. Set topDocument's autofocus processed flag to true.
     }
 }
 
@@ -314,6 +350,7 @@ impl HTMLDialogElementMethods<crate::DomTypeHolder> for HTMLDialogElement {
 
         // Step 3. If the result of firing an event named beforetoggle, using ToggleEvent, with the cancelable attribute initialized to true, the oldState attribute initialized to "closed", and the newState attribute initialized to "open" at this is false, then return.
         let event = ToggleEvent::new(
+            cx,
             &self.owner_window(),
             atom!("beforetoggle"),
             EventBubbles::DoesNotBubble,
@@ -321,7 +358,6 @@ impl HTMLDialogElementMethods<crate::DomTypeHolder> for HTMLDialogElement {
             DOMString::from("closed"),
             DOMString::from("open"),
             None,
-            CanGc::from_cx(cx),
         );
         let event = event.upcast::<Event>();
         if !event.fire(cx, self.upcast::<EventTarget>()) {
@@ -352,8 +388,8 @@ impl HTMLDialogElementMethods<crate::DomTypeHolder> for HTMLDialogElement {
 
         // TODO: Step 12. Run hide all popovers until given hideUntil, false, and true.
 
-        // TODO(Issue #32702): Step 13. Run the dialog focusing steps given this.
-
+        // Step 13. Run the dialog focusing steps given this.
+        self.run_dialog_focusing_steps(cx);
         Ok(())
     }
 

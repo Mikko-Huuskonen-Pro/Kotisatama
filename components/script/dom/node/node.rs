@@ -110,6 +110,7 @@ use crate::dom::node::iterators::{
     UnrootedSimpleNodeIterator, UnrootedTreeIterator,
 };
 use crate::dom::node::nodelist::NodeList;
+use crate::dom::node::virtualmethods::{VirtualMethods, vtable_for};
 use crate::dom::pointerevent::{PointerEvent, PointerId};
 use crate::dom::range::WeakRangeVec;
 use crate::dom::raredata::NodeRareData;
@@ -118,7 +119,6 @@ use crate::dom::servoparser::serialize_html_fragment;
 use crate::dom::shadowroot::{IsUserAgentWidget, ShadowRoot};
 use crate::dom::text::Text;
 use crate::dom::types::{CDATASection, KeyboardEvent, ProcessingInstruction};
-use crate::dom::virtualmethods::{VirtualMethods, vtable_for};
 use crate::dom::window::Window;
 use crate::layout_dom::{ServoDangerousStyleElement, ServoDangerousStyleNode};
 use crate::script_runtime::CanGc;
@@ -240,7 +240,7 @@ bitflags! {
 /// <https://dom.spec.whatwg.org/#concept-node-insert>
 /// <https://dom.spec.whatwg.org/#concept-node-remove>
 #[derive(Clone, Copy, MallocSizeOf)]
-pub(super) enum SuppressObserver {
+pub(crate) enum SuppressObserver {
     Suppressed,
     Unsuppressed,
 }
@@ -2487,7 +2487,7 @@ impl Node {
     }
 
     /// <https://dom.spec.whatwg.org/#concept-node-insert>
-    pub(super) fn insert(
+    pub(crate) fn insert(
         cx: &mut JSContext,
         node: &Node,
         parent: &Node,
@@ -2628,7 +2628,7 @@ impl Node {
                             );
                         }
                     } else {
-                        try_upgrade_element(&descendant);
+                        try_upgrade_element(cx, &descendant);
                     }
                 }
             }
@@ -2972,7 +2972,7 @@ impl Node {
                 // set registry to document’s effective global custom element registry.
                 let registry =
                     if CustomElementRegistry::is_a_global_element_registry(registry.as_deref()) {
-                        Some(document.custom_element_registry())
+                        Some(document.custom_element_registry(cx))
                     } else {
                         registry
                     };

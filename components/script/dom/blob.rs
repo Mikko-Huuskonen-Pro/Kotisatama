@@ -327,7 +327,7 @@ impl BlobMethods<crate::DomTypeHolder> for Blob {
                     promise.resolve_native_with_cx(cx, &text);
                 },
                 Err(e) => {
-                    promise.reject_error_with_cx(cx, e);
+                    promise.reject_error(cx, e);
                 },
             }),
         );
@@ -346,7 +346,7 @@ impl BlobMethods<crate::DomTypeHolder> for Blob {
         let reader = match stream.and_then(|s| s.acquire_default_reader(cx)) {
             Ok(reader) => reader,
             Err(error) => {
-                promise.reject_error_with_cx(cx, error);
+                promise.reject_error(cx, error);
                 return promise;
             },
         };
@@ -370,7 +370,7 @@ impl BlobMethods<crate::DomTypeHolder> for Blob {
                 success_promise.resolve_native_with_cx(cx, &array_buffer);
             }),
             Rc::new(move |cx, value| {
-                failure_promise.reject_with_cx(cx, value);
+                failure_promise.reject(cx, value);
             }),
         );
 
@@ -389,7 +389,7 @@ impl BlobMethods<crate::DomTypeHolder> for Blob {
         let reader = match stream.and_then(|s| s.acquire_default_reader(cx)) {
             Ok(r) => r,
             Err(e) => {
-                p.reject_error_with_cx(cx, e);
+                p.reject_error(cx, e);
                 return p;
             },
         };
@@ -411,7 +411,7 @@ impl BlobMethods<crate::DomTypeHolder> for Blob {
                 p_success.resolve_native_with_cx(cx, &arr);
             }),
             Rc::new(move |cx, v| {
-                p_failure.reject_with_cx(cx, v);
+                p_failure.reject(cx, v);
             }),
         );
         p

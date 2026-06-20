@@ -1643,7 +1643,7 @@ impl ReadableByteStreamController {
             let result = underlying_source
                 .call_pull_algorithm(cx, controller)
                 .unwrap_or_else(|| {
-                    let promise = Promise::new_resolved(&global, cx.into(), (), CanGc::from_cx(cx));
+                    let promise = Promise::new_resolved(cx, &global, ());
                     Ok(promise)
                 });
             let promise = result.unwrap_or_else(|error| {
@@ -1755,14 +1755,7 @@ impl ReadableByteStreamController {
                     cx,
                     Controller::ReadableByteStreamController(rooted_byte_controller.clone()),
                 )
-                .unwrap_or_else(|| {
-                    Ok(Promise::new_resolved(
-                        global,
-                        cx.into(),
-                        (),
-                        CanGc::from_cx(cx),
-                    ))
-                });
+                .unwrap_or_else(|| Ok(Promise::new_resolved(cx, global, ())));
 
             // Let startPromise be a promise resolved with startResult.
             let start_promise = start_result?;
@@ -1826,7 +1819,7 @@ impl ReadableByteStreamController {
         let result = underlying_source
             .call_cancel_algorithm(cx, global, reason)
             .unwrap_or_else(|| {
-                let promise = Promise::new2(cx, global);
+                let promise = Promise::new(cx, global);
                 promise.resolve_native_with_cx(cx, &());
                 Ok(promise)
             });
@@ -1834,8 +1827,8 @@ impl ReadableByteStreamController {
         let promise = result.unwrap_or_else(|error| {
             rooted!(&in(cx) let mut rval = UndefinedValue());
             error.to_jsval(cx, global, rval.handle_mut());
-            let promise = Promise::new2(cx, global);
-            promise.reject_native_with_cx(cx, &rval.handle());
+            let promise = Promise::new(cx, global);
+            promise.reject_native(cx, &rval.handle());
             promise
         });
 

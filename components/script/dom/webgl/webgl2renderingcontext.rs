@@ -1275,7 +1275,12 @@ impl WebGL2RenderingContextMethods<crate::DomTypeHolder> for WebGL2RenderingCont
     }
 
     /// <https://www.khronos.org/registry/webgl/specs/latest/1.0/#5.14.14>
-    fn GetExtension(&self, cx: JSContext, name: DOMString, return_value: MutableHandleObject) {
+    fn GetExtension(
+        &self,
+        cx: &mut js::context::JSContext,
+        name: DOMString,
+        return_value: MutableHandleObject,
+    ) {
         self.base.GetExtension(cx, name, return_value)
     }
 
@@ -4964,11 +4969,9 @@ impl WebGL2RenderingContextMethods<crate::DomTypeHolder> for WebGL2RenderingCont
 
     /// <https://immersive-web.github.io/webxr/#dom-webglrenderingcontextbase-makexrcompatible>
     #[cfg(feature = "webxr")]
-    fn MakeXRCompatible(&self, can_gc: CanGc) -> Rc<Promise> {
+    fn MakeXRCompatible(&self, cx: &mut js::context::JSContext) -> Rc<Promise> {
         // XXXManishearth Fill in with compatibility checks when rust-webxr supports this
-        let p = Promise::new(&self.global(), can_gc);
-        p.resolve_native(&(), can_gc);
-        p
+        Promise::new_resolved(cx, &self.global(), ())
     }
 }
 

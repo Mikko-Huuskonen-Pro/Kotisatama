@@ -35,11 +35,8 @@ use js::rust::wrappers2::{
     JS_NewStringCopyN, JS_SetPendingException, ModuleEvaluate, ModuleLink,
     ThrowOnModuleEvaluationFailure,
 };
-use js::rust::{
-    CompileOptionsWrapper, Handle, HandleValue, ToString, transform_str_to_source_text,
-};
+use js::rust::{Handle, HandleValue, ToString, transform_str_to_source_text};
 use mime::Mime;
-use net_traits::blob_url_store::UrlWithBlobClaim;
 use net_traits::http_status::HttpStatus;
 use net_traits::mime_classifier::MimeClassifier;
 use net_traits::policy_container::PolicyContainer;
@@ -49,7 +46,6 @@ use net_traits::request::{
 };
 use net_traits::{FetchMetadata, Metadata, NetworkError, ReferrerPolicy, ResourceFetchTiming};
 use script_bindings::cell::DomRefCell;
-use script_bindings::cformat;
 use script_bindings::domstring::BytesView;
 use script_bindings::error::Fallible;
 use script_bindings::reflector::DomObject;
@@ -71,12 +67,15 @@ use crate::dom::bindings::root::DomRoot;
 use crate::dom::bindings::str::DOMString;
 use crate::dom::bindings::trace::RootedTraceableBox;
 use crate::dom::csp::{GlobalCspReporting, Violation};
+use crate::dom::global_scope_script_execution::{ErrorReporting, fill_compile_options};
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::html::htmlscriptelement::{SCRIPT_JS_MIMES, substitute_with_local_script};
 use crate::dom::performance::performanceresourcetiming::InitiatorType;
 use crate::dom::promise::Promise;
 use crate::dom::promisenativehandler::{Callback, PromiseNativeHandler};
-use crate::dom::types::{Console, DedicatedWorkerGlobalScope, WorkerGlobalScope};
+use crate::dom::types::{
+    Console, DedicatedWorkerGlobalScope, SharedWorkerGlobalScope, WorkerGlobalScope,
+};
 use crate::dom::window::Window;
 use crate::module_loading::{
     LoadState, Payload, host_load_imported_module, load_requested_modules,
@@ -85,6 +84,7 @@ use crate::network_listener::{self, FetchResponseListener, ResourceTimingListene
 use crate::realms::enter_auto_realm;
 use crate::script_runtime::{CanGc, IntroductionType};
 use crate::task::NonSendTaskBox;
+use crate::url::ensure_blob_referenced_by_url_is_kept_alive;
 
 pub(crate) fn gen_type_error(
     cx: &mut JSContext,
@@ -312,7 +312,14 @@ impl ModuleTree {
             loaded_modules: DomRefCell::new(IndexMap::new()),
         };
 
-        let compile_options = fill_module_compile_options(cx, url, introduction_type, line_number);
+        let compile_options = fill_compile_options(
+            cx,
+            url.as_str(),
+            introduction_type,
+            ErrorReporting::Unmuted,
+            true, // noScriptRval
+            line_number,
+        );
 
         let mut module_source = ModuleSource {
             source,
@@ -391,7 +398,14 @@ impl ModuleTree {
         // Step 3. Set script's base URL and fetch options to null.
         // Note: We don't need to call `SetModulePrivate` for json scripts
 
-        let compile_options = fill_module_compile_options(cx, url, introduction_type, 1);
+        let compile_options = fill_compile_options(
+            cx,
+            url.as_str(),
+            introduction_type,
+            ErrorReporting::Unmuted,
+            true, // noScriptRval
+            1,    // lineno
+        );
 
         rooted!(&in(cx) let mut module_script: *mut JSObject = std::ptr::null_mut());
 
@@ -838,6 +852,8 @@ impl FetchResponseListener for ModuleContext {
     fn process_csp_violations(&mut self, _request_id: RequestId, violations: Vec<Violation>) {
         let global = self.owner.root();
         if let Some(scope) = global.downcast::<DedicatedWorkerGlobalScope>() {
+            scope.report_csp_violations(violations);
+        } else if let Some(scope) = global.downcast::<SharedWorkerGlobalScope>() {
             scope.report_csp_violations(violations);
         } else {
             global.report_csp_violations(violations, None, None);
@@ -1579,7 +1595,7 @@ pub(crate) fn fetch_a_single_module_script(
         // Step 12. Set up the module script request given request and options.
         let request = RequestBuilder::new(
             webview_id,
-            UrlWithBlobClaim::from_url_without_having_claimed_blob(url.clone()),
+            ensure_blob_referenced_by_url_is_kept_alive(global, url.clone()),
             referrer,
         )
         .destination(destination)
@@ -1610,27 +1626,6 @@ pub(crate) fn fetch_a_single_module_script(
         let task_source = global.task_manager().networking_task_source().to_sendable();
         global.fetch(request, context, task_source);
     })
-}
-
-fn fill_module_compile_options(
-    cx: &mut JSContext,
-    url: &ServoUrl,
-    introduction_type: Option<&'static CStr>,
-    line_number: u32,
-) -> CompileOptionsWrapper {
-    let mut options = CompileOptionsWrapper::new(cx, cformat!("{url}"), line_number);
-    if let Some(introduction_type) = introduction_type {
-        options.set_introduction_type(introduction_type);
-    }
-
-    // https://searchfox.org/firefox-main/rev/46fa95cd7f10222996ec267947ab94c5107b1475/js/public/CompileOptions.h#284
-    options.set_muted_errors(false);
-
-    // https://searchfox.org/firefox-main/rev/46fa95cd7f10222996ec267947ab94c5107b1475/js/public/CompileOptions.h#518
-    options.set_is_run_once(true);
-    options.set_no_script_rval(true);
-
-    options
 }
 
 pub(crate) type ModuleSpecifierMap = IndexMap<String, Option<ServoUrl>>;

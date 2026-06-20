@@ -131,6 +131,7 @@ use crate::dom::customelementregistry::{
 use crate::dom::customevent::CustomEvent;
 use crate::dom::document::accessibility_data::AccessibilityData;
 use crate::dom::document::focus::{DocumentFocusHandler, FocusableArea};
+use crate::dom::document::tree_ordered_index_map::TreeOrderedIndexMap;
 use crate::dom::document_embedder_controls::DocumentEmbedderControls;
 use crate::dom::document_event_handler::DocumentEventHandler;
 use crate::dom::documentfragment::DocumentFragment;
@@ -170,6 +171,8 @@ use crate::dom::largestcontentfulpaint::LargestContentfulPaint;
 use crate::dom::location::Location;
 use crate::dom::messageevent::MessageEvent;
 use crate::dom::mouseevent::MouseEvent;
+use crate::dom::node::treewalker::TreeWalker;
+use crate::dom::node::virtualmethods::vtable_for;
 use crate::dom::node::{Node, NodeDamage, NodeFlags, NodeTraits};
 use crate::dom::nodeiterator::NodeIterator;
 use crate::dom::nodelist::NodeList;
@@ -189,12 +192,9 @@ use crate::dom::storageevent::StorageEvent;
 use crate::dom::text::Text;
 use crate::dom::touchevent::TouchEvent as DomTouchEvent;
 use crate::dom::touchlist::TouchList;
-use crate::dom::tree_ordered_index_map::TreeOrderedIndexMap;
-use crate::dom::treewalker::TreeWalker;
 use crate::dom::trustedtypes::trustedhtml::TrustedHTML;
 use crate::dom::types::{HTMLCanvasElement, VisibilityStateEntry};
 use crate::dom::uievent::UIEvent;
-use crate::dom::virtualmethods::vtable_for;
 use crate::dom::websocket::WebSocket;
 use crate::dom::window::Window;
 use crate::dom::windowproxy::WindowProxy;
@@ -931,12 +931,12 @@ impl Document {
                 // Step 4.6.4 Fire a page transition event named pageshow at document's relevant
                 // global object with true.
                 let event = PageTransitionEvent::new(
+                    cx,
                     window,
                     atom!("pageshow"),
                     false, // bubbles
                     false, // cancelable
                     true, // persisted
-                    CanGc::from_cx(cx),
                 );
                 let event = event.upcast::<Event>();
                 event.set_trusted(true);
@@ -1929,13 +1929,13 @@ impl Document {
                 .queue(task!(hashchange_event: move |cx| {
                         let window = window.root();
                         HashChangeEvent::new(
+                            cx,
                             &window,
                             atom!("hashchange"),
                             false,
                             false,
                             old_url,
                             new_url,
-                            CanGc::from_cx(cx),
                         )
                         .upcast::<Event>()
                         .fire(cx, window.upcast());
@@ -2023,11 +2023,11 @@ impl Document {
         self.incr_ignore_opens_during_unload_counter();
         // Step 3-5.
         let beforeunload_event = BeforeUnloadEvent::new(
+            cx,
             &self.window,
             atom!("beforeunload"),
             EventBubbles::Bubbles,
             EventCancelable::Cancelable,
-            CanGc::from_cx(cx),
         );
         let event = beforeunload_event.upcast::<Event>();
         event.set_trusted(true);
@@ -2087,12 +2087,12 @@ impl Document {
             // Fire a page transition event named pagehide at oldDocument's relevant global object with oldDocument's
             // salvageable state.
             let event = PageTransitionEvent::new(
+                cx,
                 &self.window,
                 atom!("pagehide"),
                 false,                  // bubbles
                 false,                  // cancelable
                 self.salvageable.get(), // persisted
-                CanGc::from_cx(cx),
             );
             let event = event.upcast::<Event>();
             event.set_trusted(true);
@@ -2103,11 +2103,11 @@ impl Document {
         // Step 7
         if !self.fired_unload.get() {
             let event = Event::new(
+                cx,
                 self.window.upcast(),
                 atom!("unload"),
                 EventBubbles::Bubbles,
                 EventCancelable::Cancelable,
-                CanGc::from_cx(cx),
             );
             event.set_trusted(true);
             let event_target = self.window.upcast::<EventTarget>();
@@ -2247,11 +2247,11 @@ impl Document {
 
                 // Step 9.5. Fire an event named load at window, with legacy target override flag set.
                 let load_event = Event::new(
+                    cx,
                     window.upcast(),
                     atom!("load"),
                     EventBubbles::DoesNotBubble,
                     EventCancelable::NotCancelable,
-                    CanGc::from_cx(cx),
                 );
                 load_event.set_trusted(true);
                 debug!("About to dispatch load for {:?}", document.url());
@@ -2276,12 +2276,12 @@ impl Document {
 
                 // Step 9.11. Fire a page transition event named pageshow at window with false.
                 let page_show_event = PageTransitionEvent::new(
+                    cx,
                     window,
                     atom!("pageshow"),
                     false, // bubbles
                     false, // cancelable
                     false, // persisted
-                    CanGc::from_cx(cx),
                 );
                 let page_show_event = page_show_event.upcast::<Event>();
                 page_show_event.set_trusted(true);
@@ -2767,6 +2767,7 @@ impl Document {
     /// <https://html.spec.whatwg.org/multipage/#look-up-a-custom-element-definition>
     pub(crate) fn lookup_custom_element_definition(
         &self,
+        cx: &mut JSContext,
         namespace: &Namespace,
         local_name: &LocalName,
         is: Option<&LocalName>,
@@ -2782,14 +2783,17 @@ impl Document {
         }
 
         // Step 3
-        let registry = self.window.CustomElements();
+        let registry = self.window.CustomElements(cx);
 
         registry.lookup_definition(local_name, is)
     }
 
     /// <https://dom.spec.whatwg.org/#document-custom-element-registry>
-    pub(crate) fn custom_element_registry(&self) -> DomRoot<CustomElementRegistry> {
-        self.window.CustomElements()
+    pub(crate) fn custom_element_registry(
+        &self,
+        cx: &mut JSContext,
+    ) -> DomRoot<CustomElementRegistry> {
+        self.window.CustomElements(cx)
     }
 
     pub(crate) fn increment_throw_on_dynamic_markup_insertion_counter(&self) {
@@ -5383,17 +5387,26 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
                 // Step 5.1. Set subtree to the negation of options["selfOnly"].
                 let subtree = (!options.selfOnly).into();
                 // Step 5.2. If options["customElementRegistry"] exists, then set registry to it.
-                let registry = options.customElementRegistry;
-                // Step 5.3. If registry’s is scoped is false and registry
-                // is not this’s custom element registry, then throw a "NotSupportedError" DOMException.
-                // TODO
+                let registry = if let Some(registry) = options.customElementRegistry {
+                    // Step 5.3. If registry's is scoped is false and registry
+                    // is not this's custom element registry, then throw a "NotSupportedError" DOMException.
+                    let this_registry = self.custom_element_registry(cx);
+                    if !registry.is_scoped() && registry != this_registry {
+                        return Err(Error::NotSupported(Some(
+                            "Imported customElementRegistry is not scoped and does not match existing registry.".into()
+                        )));
+                    }
+                    Some(registry)
+                } else {
+                    None
+                };
                 (subtree, registry)
             },
         };
         // Step 6. If registry is null, then set registry to the
         // result of looking up a custom element registry given this.
         let registry = registry
-            .or_else(|| CustomElementRegistry::lookup_a_custom_element_registry(self.upcast()));
+            .or_else(|| CustomElementRegistry::lookup_a_custom_element_registry(cx, self.upcast()));
 
         // Step 7. Return the result of cloning a node given node with
         // document set to this, subtree set to subtree, and fallbackRegistry set to registry.
@@ -5428,57 +5441,62 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
         interface.make_ascii_lowercase();
         match &*interface.str() {
             "beforeunloadevent" => Ok(DomRoot::upcast(BeforeUnloadEvent::new_uninitialized(
+                cx,
                 &self.window,
-                CanGc::from_cx(cx),
             ))),
             "compositionevent" | "textevent" => Ok(DomRoot::upcast(
-                CompositionEvent::new_uninitialized(&self.window, CanGc::from_cx(cx)),
+                CompositionEvent::new_uninitialized(cx, &self.window),
             )),
             "customevent" => Ok(DomRoot::upcast(CustomEvent::new_uninitialized(
+                cx,
                 self.window.upcast(),
-                CanGc::from_cx(cx),
             ))),
             // FIXME(#25136): devicemotionevent, deviceorientationevent
             // FIXME(#7529): dragevent
-            "events" | "event" | "htmlevents" | "svgevents" => Ok(Event::new_uninitialized(
-                self.window.upcast(),
-                CanGc::from_cx(cx),
-            )),
+            "events" | "event" | "htmlevents" | "svgevents" => {
+                Ok(Event::new_uninitialized(cx, self.window.upcast()))
+            },
             "focusevent" => Ok(DomRoot::upcast(FocusEvent::new_uninitialized(
+                cx,
                 &self.window,
-                CanGc::from_cx(cx),
             ))),
             "hashchangeevent" => Ok(DomRoot::upcast(HashChangeEvent::new_uninitialized(
+                cx,
                 &self.window,
-                CanGc::from_cx(cx),
             ))),
             "keyboardevent" => Ok(DomRoot::upcast(KeyboardEvent::new_uninitialized(
                 cx,
                 &self.window,
             ))),
             "messageevent" => Ok(DomRoot::upcast(MessageEvent::new_uninitialized(
+                cx,
                 self.window.upcast(),
-                CanGc::from_cx(cx),
             ))),
             "mouseevent" | "mouseevents" => Ok(DomRoot::upcast(MouseEvent::new_uninitialized(
                 cx,
                 &self.window,
             ))),
             "storageevent" => Ok(DomRoot::upcast(StorageEvent::new_uninitialized(
+                cx,
                 &self.window,
                 "".into(),
-                CanGc::from_cx(cx),
             ))),
-            "touchevent" => Ok(DomRoot::upcast(DomTouchEvent::new_uninitialized(
-                &self.window,
-                &TouchList::new(&self.window, &[], CanGc::from_cx(cx)),
-                &TouchList::new(&self.window, &[], CanGc::from_cx(cx)),
-                &TouchList::new(&self.window, &[], CanGc::from_cx(cx)),
-                CanGc::from_cx(cx),
-            ))),
+            "touchevent" => {
+                let touches = TouchList::new(cx, &self.window, &[]);
+                let changed_touches = TouchList::new(cx, &self.window, &[]);
+                let target_touches = TouchList::new(cx, &self.window, &[]);
+
+                Ok(DomRoot::upcast(DomTouchEvent::new_uninitialized(
+                    cx,
+                    &self.window,
+                    &touches,
+                    &changed_touches,
+                    &target_touches,
+                )))
+            },
             "uievent" | "uievents" => Ok(DomRoot::upcast(UIEvent::new_uninitialized(
+                cx,
                 &self.window,
-                CanGc::from_cx(cx),
             ))),
             _ => Err(Error::NotSupported(None)),
         }
@@ -5498,7 +5516,7 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
 
     /// <https://dom.spec.whatwg.org/#dom-document-createrange>
     fn CreateRange(&self, cx: &mut JSContext) -> DomRoot<Range> {
-        Range::new_with_doc(self, None, CanGc::from_cx(cx))
+        Range::new_with_doc(cx, self, None)
     }
 
     /// <https://dom.spec.whatwg.org/#dom-document-createnodeiteratorroot-whattoshow-filter>

@@ -91,6 +91,7 @@ use crate::dom::mediaerror::MediaError;
 use crate::dom::mediafragmentparser::MediaFragmentParser;
 use crate::dom::medialist::MediaList;
 use crate::dom::mediastream::MediaStream;
+use crate::dom::node::virtualmethods::VirtualMethods;
 use crate::dom::node::{Node, NodeDamage, NodeTraits, UnbindContext};
 use crate::dom::performance::performanceresourcetiming::InitiatorType;
 use crate::dom::promise::Promise;
@@ -101,7 +102,6 @@ use crate::dom::trackevent::TrackEvent;
 use crate::dom::url::URL;
 use crate::dom::videotrack::VideoTrack;
 use crate::dom::videotracklist::VideoTrackList;
-use crate::dom::virtualmethods::VirtualMethods;
 use crate::fetch::{FetchCanceller, RequestWithGlobalScope, create_a_potential_cors_request};
 use crate::microtask::{Microtask, MicrotaskRunnable};
 use crate::network_listener::{self, FetchResponseListener, ResourceTimingListener};
@@ -1875,7 +1875,7 @@ impl HTMLMediaElement {
         for promise in &*promises {
             match result {
                 Ok(ref value) => promise.resolve_native_with_cx(cx, value),
-                Err(ref error) => promise.reject_error_with_cx(cx, error.clone()),
+                Err(ref error) => promise.reject_error(cx, error.clone()),
             }
         }
     }
@@ -3122,7 +3122,7 @@ impl HTMLMediaElementMethods<crate::DomTypeHolder> for HTMLMediaElement {
             .get()
             .is_some_and(|e| e.Code() == MEDIA_ERR_SRC_NOT_SUPPORTED)
         {
-            promise.reject_error_with_cx(cx, Error::NotSupported(None));
+            promise.reject_error(cx, Error::NotSupported(None));
             return promise;
         }
 

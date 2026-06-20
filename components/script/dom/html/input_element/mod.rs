@@ -69,6 +69,7 @@ use crate::dom::htmlinputelement::radio_input_type::{
 use crate::dom::input_element::input_type::{InputActivationType, InputType};
 use crate::dom::iterators::ShadowIncluding;
 use crate::dom::keyboardevent::KeyboardEvent;
+use crate::dom::node::virtualmethods::VirtualMethods;
 use crate::dom::node::{
     BindContext, CloneChildrenFlag, Node, NodeDamage, NodeTraits, UnbindContext,
 };
@@ -77,7 +78,6 @@ use crate::dom::textcontrol::{TextControlElement, TextControlSelection};
 use crate::dom::types::{FocusEvent, MouseEvent};
 use crate::dom::validation::{Validatable, is_barred_by_datalist_ancestor};
 use crate::dom::validitystate::{ValidationFlags, ValidityState};
-use crate::dom::virtualmethods::VirtualMethods;
 use crate::realms::enter_realm;
 use crate::script_runtime::{CanGc, JSContext as SafeJSContext};
 use crate::textinput::{ClipboardEventFlags, IsComposing, KeyReaction, Lines, TextInput};
@@ -945,7 +945,8 @@ impl HTMLInputElement {
                     // Step 1. Set target's has scheduled selectionchange event to false.
                     this.has_scheduled_selectionchange_event.set(false);
                     // Step 2. If target is an element, fire an event named selectionchange, which bubbles and not cancelable, at target.
-                    this.upcast::<EventTarget>().fire_event_with_params(cx,
+                    this.upcast::<EventTarget>().fire_event_with_params(
+                        cx,
                         atom!("selectionchange"),
                         EventBubbles::Bubbles,
                         EventCancelable::NotCancelable,

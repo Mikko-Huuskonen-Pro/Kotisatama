@@ -189,12 +189,12 @@ impl UnderlyingSourceContainer {
                 // Disentangle port.
                 self.global().disentangle_port(cx, port);
 
-                let promise = Promise::new2(cx, &self.global());
+                let promise = Promise::new(cx, &self.global());
 
                 // If result is an abrupt completion,
                 if let Err(error) = result {
                     // Return a promise rejected with result.[[Value]].
-                    promise.reject_error_with_cx(cx, error);
+                    promise.reject_error(cx, error);
                 } else {
                     // Otherwise, return a promise resolved with undefined.
                     promise.resolve_native_with_cx(cx, &());
@@ -245,8 +245,7 @@ impl UnderlyingSourceContainer {
                     .expect("Sending pull should not fail.");
 
                 // Return a promise resolved with undefined.
-                let promise =
-                    Promise::new_resolved(&self.global(), cx.into(), (), CanGc::from_cx(cx));
+                let promise = Promise::new_resolved(cx, &self.global(), ());
                 Some(Ok(promise))
             },
             UnderlyingSource::TeeByte(tee_underlyin_source) => {
@@ -256,9 +255,7 @@ impl UnderlyingSourceContainer {
             // Note: other source type have no pull steps for now.
             UnderlyingSource::Transform(stream, _) => {
                 // Return ! TransformStreamDefaultSourcePullAlgorithm(stream).
-                Some(
-                    stream.transform_stream_default_source_pull(&self.global(), CanGc::from_cx(cx)),
-                )
+                Some(stream.transform_stream_default_source_pull(cx, &self.global()))
             },
             _ => None,
         }
@@ -304,12 +301,7 @@ impl UnderlyingSourceContainer {
                     let promise = if is_promise {
                         Promise::new_with_js_promise(result_object.handle(), cx.into())
                     } else {
-                        Promise::new_resolved(
-                            &self.global(),
-                            cx.into(),
-                            result.get(),
-                            CanGc::from_cx(cx),
-                        )
+                        Promise::new_resolved(cx, &self.global(), result.get())
                     };
                     return Some(Ok(promise));
                 }

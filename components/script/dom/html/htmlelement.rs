@@ -62,13 +62,13 @@ use crate::dom::htmlformelement::FormControlElementHelpers;
 use crate::dom::input_element::input_type::InputType;
 use crate::dom::iterators::ShadowIncluding;
 use crate::dom::medialist::MediaList;
+use crate::dom::node::virtualmethods::VirtualMethods;
 use crate::dom::node::{
     BindContext, MoveContext, Node, NodeTraits, UnbindContext, from_untrusted_node_address,
 };
 use crate::dom::scrolling_box::{ScrollAxisState, ScrollRequirement};
 use crate::dom::shadowroot::ShadowRoot;
 use crate::dom::text::Text;
-use crate::dom::virtualmethods::VirtualMethods;
 use crate::script_runtime::CanGc;
 use crate::script_thread::ScriptThread;
 
@@ -708,7 +708,7 @@ impl HTMLElementMethods<crate::DomTypeHolder> for HTMLElement {
         // Note: the element can pass this check without yet being a custom
         // element, as long as there is a registered definition
         // that could upgrade it to one later.
-        let registry = self.owner_window().CustomElements();
+        let registry = self.owner_window().CustomElements(cx);
         let definition = registry.lookup_definition(self.as_element().local_name(), None);
 
         // Step 3: If definition is null, then throw an "NotSupportedError" DOMException

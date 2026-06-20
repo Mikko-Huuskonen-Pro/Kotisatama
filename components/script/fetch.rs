@@ -185,7 +185,7 @@ fn abort_fetch_call(
     cx: &mut js::context::JSContext,
 ) {
     // Step 1. Reject promise with error.
-    promise.reject_with_cx(cx, abort_reason);
+    promise.reject(cx, abort_reason);
     // Step 2. If request’s body is non-null and is readable, then cancel request’s body with error.
     if let Some(body) = request.body() &&
         body.is_readable()
@@ -226,7 +226,7 @@ pub(crate) fn Fetch(
     let request_object = match Request::Constructor(cx, global, None, input, init) {
         Err(e) => {
             response.error_stream(cx, e.clone());
-            promise.reject_error_with_cx(cx, e);
+            promise.reject_error(cx, e);
             return promise;
         },
         Ok(r) => r,
@@ -563,8 +563,7 @@ impl FetchResponseListener for FetchContext {
             // Step 12.3. If response is a network error, then reject
             // p with a TypeError and abort these steps.
             Err(error) => {
-                promise
-                    .reject_error_with_cx(cx, Error::Type(cformat!("Network error: {:?}", error)));
+                promise.reject_error(cx, Error::Type(cformat!("Network error: {:?}", error)));
                 self.fetch_promise = Some(TrustedPromise::new(promise));
                 let response = self.response_object.root();
                 response.set_type(cx, DOMResponseType::Error);

@@ -255,11 +255,11 @@ impl RTCPeerConnection {
             return;
         }
         let event = Event::new(
+            cx,
             &self.global(),
             atom!("negotiationneeded"),
             EventBubbles::DoesNotBubble,
             EventCancelable::NotCancelable,
-            CanGc::from_cx(cx),
         );
         event.upcast::<Event>().fire(cx, self.upcast());
     }
@@ -370,11 +370,11 @@ impl RTCPeerConnection {
 
         // step 5
         let event = Event::new(
+            cx,
             &self.global(),
             atom!("icegatheringstatechange"),
             EventBubbles::DoesNotBubble,
             EventCancelable::NotCancelable,
-            CanGc::from_cx(cx),
         );
         event.upcast::<Event>().fire(cx, self.upcast());
 
@@ -412,11 +412,11 @@ impl RTCPeerConnection {
 
         // step 5
         let event = Event::new(
+            cx,
             &self.global(),
             atom!("iceconnectionstatechange"),
             EventBubbles::DoesNotBubble,
             EventCancelable::NotCancelable,
-            CanGc::from_cx(cx),
         );
         event.upcast::<Event>().fire(cx, self.upcast());
     }
@@ -435,11 +435,11 @@ impl RTCPeerConnection {
         self.signaling_state.set(state);
 
         let event = Event::new(
+            cx,
             &self.global(),
             atom!("signalingstatechange"),
             EventBubbles::DoesNotBubble,
             EventCancelable::NotCancelable,
-            CanGc::from_cx(cx),
         );
         event.upcast::<Event>().fire(cx, self.upcast());
     }
@@ -559,7 +559,7 @@ impl RTCPeerConnectionMethods<crate::DomTypeHolder> for RTCPeerConnection {
     ) -> Rc<Promise> {
         let p = Promise::new_in_realm(current_realm);
         if candidate.sdpMid.is_none() && candidate.sdpMLineIndex.is_none() {
-            p.reject_error_with_cx(
+            p.reject_error(
                 current_realm,
                 Error::Type(c"one of sdpMid and sdpMLineIndex must be set".to_owned()),
             );
@@ -568,7 +568,7 @@ impl RTCPeerConnectionMethods<crate::DomTypeHolder> for RTCPeerConnection {
 
         // XXXManishearth add support for sdpMid
         if candidate.sdpMLineIndex.is_none() {
-            p.reject_error_with_cx(
+            p.reject_error(
                 current_realm,
                 Error::Type(c"servo only supports sdpMLineIndex right now".to_owned()),
             );
@@ -600,7 +600,7 @@ impl RTCPeerConnectionMethods<crate::DomTypeHolder> for RTCPeerConnection {
     ) -> Rc<Promise> {
         let p = Promise::new_in_realm(current_realm);
         if self.closed.get() {
-            p.reject_error_with_cx(current_realm, Error::InvalidState(None));
+            p.reject_error(current_realm, Error::InvalidState(None));
             return p;
         }
         self.offer_promises.borrow_mut().push(p.clone());
@@ -616,7 +616,7 @@ impl RTCPeerConnectionMethods<crate::DomTypeHolder> for RTCPeerConnection {
     ) -> Rc<Promise> {
         let p = Promise::new_in_realm(current_realm);
         if self.closed.get() {
-            p.reject_error_with_cx(current_realm, Error::InvalidState(None));
+            p.reject_error(current_realm, Error::InvalidState(None));
             return p;
         }
         self.answer_promises.borrow_mut().push(p.clone());

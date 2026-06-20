@@ -1026,8 +1026,8 @@ impl TestBindingMethods<crate::DomTypeHolder> for TestBinding {
         Record::new()
     }
 
-    fn ReturnResolvedPromise(&self, cx: SafeJSContext, v: HandleValue) -> Rc<Promise> {
-        Promise::new_resolved(&self.global(), cx, v, CanGc::deprecated_note())
+    fn ReturnResolvedPromise(&self, cx: &mut JSContext, v: HandleValue) -> Rc<Promise> {
+        Promise::new_resolved(cx, &self.global(), v)
     }
 
     fn ReturnRejectedPromise(&self, cx: &mut JSContext, v: HandleValue) -> Rc<Promise> {
@@ -1038,8 +1038,8 @@ impl TestBindingMethods<crate::DomTypeHolder> for TestBinding {
         p.resolve(cx, v, can_gc);
     }
 
-    fn PromiseRejectNative(&self, cx: SafeJSContext, p: &Promise, v: HandleValue, can_gc: CanGc) {
-        p.reject(cx, v, can_gc);
+    fn PromiseRejectNative(&self, cx: &mut JSContext, p: &Promise, v: HandleValue) {
+        p.reject(cx, v);
     }
 
     fn PromiseRejectWithTypeError(&self, cx: &mut JSContext, p: &Promise, s: USVString) {

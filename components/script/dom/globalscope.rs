@@ -25,17 +25,17 @@ use embedder_traits::{
 };
 use fonts::FontContext;
 use indexmap::IndexSet;
-use ipc_channel::ipc::{self};
 use ipc_channel::router::ROUTER;
 use js::jsapi::{
-    CurrentGlobalOrNull, GetNonCCWObjectGlobal, HandleObject, Heap, JSContext, JSObject, JSScript,
+    CurrentGlobalOrNull, GetNonCCWObjectGlobal, HandleObject, Heap, JSContext, JSObject,
 };
 use js::jsval::UndefinedValue;
 use js::panic::maybe_resume_unwind;
 use js::realm::CurrentRealm;
+use js::rust::wrappers2::Compile1;
 use js::rust::{
     CustomAutoRooter, CustomAutoRooterGuard, HandleValue, MutableHandleValue, ParentRuntime,
-    Runtime, get_object_class,
+    Runtime, get_object_class, transform_str_to_source_text,
 };
 use js::{JSCLASS_IS_DOMJSCLASS, JSCLASS_IS_GLOBAL};
 use net_traits::blob_url_store::BlobBuf;
@@ -120,7 +120,9 @@ use crate::dom::event::{Event, EventBubbles, EventCancelable};
 use crate::dom::eventsource::EventSource;
 use crate::dom::eventtarget::EventTarget;
 use crate::dom::file::File;
-use crate::dom::global_scope_script_execution::{ErrorReporting, compile_script, evaluate_script};
+use crate::dom::global_scope_script_execution::{
+    ErrorReporting, evaluate_script, fill_compile_options,
+};
 use crate::dom::idbfactory::IDBFactory;
 use crate::dom::messageport::MessagePort;
 use crate::dom::paintworkletglobalscope::PaintWorkletGlobalScope;
@@ -777,11 +779,14 @@ impl GlobalScope {
         if let Some(window) = self.downcast::<Window>() {
             return Some(window.webview_id());
         }
-        // If this is a worker only DedicatedWorkerGlobalScope will have a WebViewId, the other are
-        // ServiceWorkerGlobalScope, PaintWorklet, or DissimilarOriginWindow.
+        if let Some(worker) = self.downcast::<DedicatedWorkerGlobalScope>() {
+            return Some(worker.webview_id());
+        }
+        if let Some(worker) = self.downcast::<SharedWorkerGlobalScope>() {
+            return Some(worker.webview_id());
+        }
         // TODO: This should only return None for ServiceWorkerGlobalScope.
-        self.downcast::<DedicatedWorkerGlobalScope>()
-            .map(DedicatedWorkerGlobalScope::webview_id)
+        None
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1712,27 +1717,22 @@ impl GlobalScope {
         let mut current_state = self.broadcast_channel_state.borrow_mut();
 
         if let BroadcastChannelState::UnManaged = &*current_state {
-            // Setup a route for IPC, for broadcasts from the constellation to our channels.
-            let (broadcast_control_sender, broadcast_control_receiver) =
-                ipc::channel().expect("ipc channel failure");
             let context = Trusted::new(self);
             let listener = BroadcastListener {
                 task_source: self.task_manager().dom_manipulation_task_source().into(),
                 context,
             };
-            ROUTER.add_typed_route(
-                broadcast_control_receiver,
-                Box::new(move |message| match message {
-                    Ok(msg) => listener.handle(msg),
-                    Err(err) => warn!("Error receiving a BroadcastChannelMsg: {:?}", err),
-                }),
-            );
+            let broadcast_control_callback = GenericCallback::new(move |message| match message {
+                Ok(msg) => listener.handle(msg),
+                Err(err) => warn!("Error receiving a BroadcastChannelMsg: {:?}", err),
+            })
+            .expect("Could not generate callback");
             let router_id = BroadcastChannelRouterId::new();
             *current_state = BroadcastChannelState::Managed(router_id, HashMap::new());
             let _ = self.script_to_constellation_chan().send(
                 ScriptToConstellationMessage::NewBroadcastChannelRouter(
                     router_id,
-                    broadcast_control_sender,
+                    broadcast_control_callback,
                     self.origin().immutable().clone(),
                 ),
             );
@@ -2372,14 +2372,6 @@ impl GlobalScope {
         unsafe { global_scope_from_global_static(global) }
     }
 
-    /// Returns the global scope for the given JSContext
-    #[expect(unsafe_code)]
-    pub(crate) unsafe fn from_context(cx: *mut JSContext, _realm: InRealm) -> DomRoot<Self> {
-        let global = unsafe { CurrentGlobalOrNull(cx) };
-        assert!(!global.is_null());
-        unsafe { global_scope_from_global(global, cx) }
-    }
-
     /// Return global scope asociated with current realm
     ///
     /// Eventually we could return Handle here as global is already rooted by realm.
@@ -2387,12 +2379,6 @@ impl GlobalScope {
     pub(crate) fn from_current_realm(realm: &'_ CurrentRealm) -> DomRoot<Self> {
         let global = realm.global();
         unsafe { global_scope_from_global(global.get(), realm.raw_cx_no_gc()) }
-    }
-
-    /// Returns the global scope for the given SafeJSContext
-    #[expect(unsafe_code)]
-    pub(crate) fn from_safe_context(cx: SafeJSContext, realm: InRealm) -> DomRoot<Self> {
-        unsafe { Self::from_context(*cx, realm) }
     }
 
     pub(crate) fn add_uncaught_rejection(&self, rejection: HandleObject) {
@@ -2583,6 +2569,9 @@ impl GlobalScope {
             return window.image_cache();
         }
         if let Some(worker) = self.downcast::<DedicatedWorkerGlobalScope>() {
+            return worker.image_cache();
+        }
+        if let Some(worker) = self.downcast::<SharedWorkerGlobalScope>() {
             return worker.image_cache();
         }
         if let Some(worker) = self.downcast::<PaintWorkletGlobalScope>() {
@@ -2783,10 +2772,6 @@ impl GlobalScope {
 
     /// <https://html.spec.whatwg.org/multipage/#report-an-exception>
     pub(crate) fn report_an_exception(&self, cx: &mut js::context::JSContext, error: HandleValue) {
-        // Step 1. Let notHandled be true.
-        //
-        // Handled in `report_an_error`
-
         // Step 2. Let errorInfo be the result of extracting error information from exception.
         let error_info = ErrorInfo::from_value(cx, error);
 
@@ -2831,37 +2816,37 @@ impl GlobalScope {
             }
         });
 
-        // Step 6. Early return if global is in error reporting mode,
-        if self.in_error_reporting_mode.get() {
-            return;
+        // Step 1. Let notHandled be true.
+        let mut not_handled = true;
+
+        // Step 6. If global is not in error reporting mode:
+        if !self.in_error_reporting_mode.get() {
+            // Step 6.1. Set global's in error reporting mode to true.
+            self.in_error_reporting_mode.set(true);
+
+            // Step 6.2 If global implements EventTarget, then set notHandled to the result of
+            // firing an event named error at global, using ErrorEvent, with the cancelable
+            // attribute initialized to true, and additional attributes initialized according to
+            // errorInfo.
+            let event = ErrorEvent::new(
+                cx,
+                self,
+                atom!("error"),
+                EventBubbles::DoesNotBubble,
+                EventCancelable::Cancelable,
+                error_info.message.as_str().into(),
+                error_info.filename.as_str().into(),
+                error_info.lineno,
+                error_info.column,
+                value,
+            );
+            not_handled = event
+                .upcast::<Event>()
+                .fire(cx, self.upcast::<EventTarget>());
+
+            // Step 6.3. Set global's in error reporting mode to false.
+            self.in_error_reporting_mode.set(false);
         }
-
-        // Step 6.1. Set global's in error reporting mode to true.
-        self.in_error_reporting_mode.set(true);
-
-        // Step 6.2. Set notHandled to the result of firing an event named error at global,
-        // using ErrorEvent, with the cancelable attribute initialized to true,
-        // and additional attributes initialized according to errorInfo.
-
-        let event = ErrorEvent::new(
-            self,
-            atom!("error"),
-            EventBubbles::DoesNotBubble,
-            EventCancelable::Cancelable,
-            error_info.message.as_str().into(),
-            error_info.filename.as_str().into(),
-            error_info.lineno,
-            error_info.column,
-            value,
-            CanGc::from_cx(cx),
-        );
-
-        let not_handled = event
-            .upcast::<Event>()
-            .fire(cx, self.upcast::<EventTarget>());
-
-        // Step 6.3. Set global's in error reporting mode to false.
-        self.in_error_reporting_mode.set(false);
 
         // Step 7. If notHandled is true, then:
         if not_handled {
@@ -2940,6 +2925,7 @@ impl GlobalScope {
     }
 
     /// Evaluate JS code on this global scope.
+    #[expect(unsafe_code)]
     pub(crate) fn evaluate_js_on_global(
         &self,
         cx: &mut CurrentRealm,
@@ -2952,18 +2938,17 @@ impl GlobalScope {
             let url = self.api_base_url();
             let fetch_options = ScriptFetchOptions::default_classic_script();
 
-            let no_script_rval = rval.is_none();
-
-            rooted!(&in(cx) let mut compiled_script = std::ptr::null_mut::<JSScript>());
-            compiled_script.set(compile_script(
+            let options = fill_compile_options(
                 cx,
-                &code,
                 filename,
-                1,
                 introduction_type,
                 ErrorReporting::Unmuted,
-                no_script_rval,
-            ));
+                rval.is_none(), // noScriptRval
+                1,              // lineno
+            );
+
+            let mut source = transform_str_to_source_text(&code);
+            rooted!(&in(cx) let compiled_script = unsafe { Compile1(cx, options.ptr, &mut source) });
 
             let Some(script) = NonNull::new(*compiled_script) else {
                 debug!("error compiling Dom string");
@@ -3067,9 +3052,8 @@ impl GlobalScope {
     }
 
     /// Returns the idb factory for this global.
-    pub(crate) fn get_indexeddb(&self) -> DomRoot<IDBFactory> {
-        self.indexeddb
-            .or_init(|| IDBFactory::new(self, CanGc::deprecated_note()))
+    pub(crate) fn get_indexeddb(&self, cx: &mut js::context::JSContext) -> DomRoot<IDBFactory> {
+        self.indexeddb.or_init(|| IDBFactory::new(cx, self))
     }
 
     pub(crate) fn get_existing_indexeddb(&self) -> Option<DomRoot<IDBFactory>> {
@@ -3600,10 +3584,6 @@ unsafe fn global_scope_from_global_static(global: *mut JSObject) -> DomRoot<Glob
 
 #[expect(unsafe_code)]
 impl GlobalScopeHelpers<crate::DomTypeHolder> for GlobalScope {
-    unsafe fn from_context(cx: *mut JSContext, realm: InRealm) -> DomRoot<Self> {
-        unsafe { GlobalScope::from_context(cx, realm) }
-    }
-
     fn from_current_realm(realm: &'_ CurrentRealm) -> DomRoot<Self> {
         GlobalScope::from_current_realm(realm)
     }

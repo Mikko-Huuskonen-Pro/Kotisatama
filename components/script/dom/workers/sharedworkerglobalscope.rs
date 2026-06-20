@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::thread::{self, JoinHandle};
 
+use content_security_policy::Violation;
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use devtools_traits::DevtoolScriptControlMsg;
 use dom_struct::dom_struct;
@@ -15,6 +16,7 @@ use fonts::FontContext;
 use js::context::JSContext;
 use js::jsval::UndefinedValue;
 use net_traits::blob_url_store::UrlWithBlobClaim;
+use net_traits::image_cache::ImageCache;
 use net_traits::policy_container::{PolicyContainer, RequestPolicyContainer};
 use net_traits::request::{
     CredentialsMode, Destination, InsecureRequestsPolicy, Origin, PreloadedResources, Referrer,
@@ -23,7 +25,7 @@ use net_traits::request::{
 use script_bindings::cell::DomRefCell;
 use script_bindings::conversions::SafeToJSValConvertible;
 use servo_base::generic_channel::{GenericReceiver, RoutedReceiver};
-use servo_base::id::ScriptEventLoopId;
+use servo_base::id::{BrowsingContextId, ScriptEventLoopId, WebViewId};
 use servo_constellation_traits::{MessagePortImpl, WorkerGlobalScopeInit, WorkerScriptLoadOrigin};
 use servo_url::{ImmutableOrigin, ServoUrl};
 use style::thread_state::{self, ThreadState};
@@ -48,7 +50,7 @@ use crate::dom::eventtarget::EventTarget;
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::html::htmlscriptelement::Script;
 use crate::dom::messageport::MessagePort;
-use crate::dom::sharedworker::{SharedWorker, TrustedSharedWorkerAddress};
+use crate::dom::sharedworker::{SharedWorker, SharedWorkerStorageKey, TrustedSharedWorkerAddress};
 use crate::dom::types::DebuggerGlobalScope;
 #[cfg(feature = "webgpu")]
 use crate::dom::webgpu::identityhub::IdentityHub;
@@ -62,7 +64,6 @@ use crate::task_source::TaskSourceName;
 
 pub(crate) enum SharedWorkerScriptMsg {
     CommonWorker(WorkerScriptMsg),
-    #[allow(dead_code)]
     Connect(MessagePortImpl),
     WakeUp,
 }
@@ -156,11 +157,19 @@ unsafe_no_jsmanaged_fields!(TaskQueue<SharedWorkerScriptMsg>);
 #[dom_struct]
 pub(crate) struct SharedWorkerGlobalScope {
     workerglobalscope: WorkerGlobalScope,
+    /// The [`WebViewId`] of the `WebView` that this worker is associated with.
+    #[no_trace]
+    webview_id: WebViewId,
     #[ignore_malloc_size_of = "Defined in std"]
     task_queue: TaskQueue<SharedWorkerScriptMsg>,
     own_sender: Sender<SharedWorkerScriptMsg>,
     worker: DomRefCell<Option<TrustedSharedWorkerAddress>>,
     parent_event_loop_sender: ScriptEventLoopSender,
+    #[ignore_malloc_size_of = "ImageCache"]
+    #[no_trace]
+    image_cache: Arc<dyn ImageCache>,
+    #[no_trace]
+    browsing_context: Option<BrowsingContextId>,
     // Shared workers receive message ports through `connect` events on their `SharedWorkerGlobalScope` object for each connection.
     pending_connect: DomRefCell<VecDeque<Dom<MessagePort>>>,
     #[no_trace]
@@ -168,7 +177,7 @@ pub(crate) struct SharedWorkerGlobalScope {
     debugger_global: Dom<DebuggerGlobalScope>,
     // A `SharedWorkerGlobalScope` object has associated constructor origin (an origin), constructor URL (a URL record), and credentials (a credentials mode), and extended lifetime (a boolean).
     #[no_trace]
-    storage_key: ImmutableOrigin,
+    storage_key: SharedWorkerStorageKey,
     #[no_trace]
     constructor_origin: ImmutableOrigin,
     #[no_trace]
@@ -223,9 +232,9 @@ impl WorkerEventLoopMethods for SharedWorkerGlobalScope {
 
 impl SharedWorkerGlobalScope {
     #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code)]
     fn new_inherited(
         init: WorkerGlobalScopeInit,
+        webview_id: WebViewId,
         worker_name: DOMString,
         worker_type: WorkerType,
         worker_url: ServoUrl,
@@ -236,12 +245,14 @@ impl SharedWorkerGlobalScope {
         own_sender: Sender<SharedWorkerScriptMsg>,
         receiver: Receiver<SharedWorkerScriptMsg>,
         closing: Arc<AtomicBool>,
+        image_cache: Arc<dyn ImageCache>,
+        browsing_context: Option<BrowsingContextId>,
         #[cfg(feature = "webgpu")] gpu_id_hub: Arc<IdentityHub>,
         control_receiver: Receiver<SharedWorkerControlMsg>,
         insecure_requests_policy: InsecureRequestsPolicy,
         font_context: Option<Arc<FontContext>>,
         debugger_global: &DebuggerGlobalScope,
-        storage_key: ImmutableOrigin,
+        storage_key: SharedWorkerStorageKey,
         constructor_origin: ImmutableOrigin,
         constructor_url: ServoUrl,
         credentials: CredentialsMode,
@@ -262,10 +273,13 @@ impl SharedWorkerGlobalScope {
                 insecure_requests_policy,
                 font_context,
             ),
+            webview_id,
             task_queue: TaskQueue::new(receiver, own_sender.clone()),
             own_sender,
             worker: DomRefCell::new(Some(worker)),
             parent_event_loop_sender,
+            image_cache,
+            browsing_context,
             pending_connect: DomRefCell::new(VecDeque::new()),
             control_receiver,
             debugger_global: Dom::from_ref(debugger_global),
@@ -279,9 +293,9 @@ impl SharedWorkerGlobalScope {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code)]
     pub(crate) fn new(
         init: WorkerGlobalScopeInit,
+        webview_id: WebViewId,
         worker_name: DOMString,
         worker_type: WorkerType,
         worker_url: ServoUrl,
@@ -292,12 +306,14 @@ impl SharedWorkerGlobalScope {
         own_sender: Sender<SharedWorkerScriptMsg>,
         receiver: Receiver<SharedWorkerScriptMsg>,
         closing: Arc<AtomicBool>,
+        image_cache: Arc<dyn ImageCache>,
+        browsing_context: Option<BrowsingContextId>,
         #[cfg(feature = "webgpu")] gpu_id_hub: Arc<IdentityHub>,
         control_receiver: Receiver<SharedWorkerControlMsg>,
         insecure_requests_policy: InsecureRequestsPolicy,
         font_context: Option<Arc<FontContext>>,
         debugger_global: &DebuggerGlobalScope,
-        storage_key: ImmutableOrigin,
+        storage_key: SharedWorkerStorageKey,
         constructor_origin: ImmutableOrigin,
         constructor_url: ServoUrl,
         credentials: CredentialsMode,
@@ -307,6 +323,7 @@ impl SharedWorkerGlobalScope {
     ) -> DomRoot<SharedWorkerGlobalScope> {
         let scope = Box::new(SharedWorkerGlobalScope::new_inherited(
             init,
+            webview_id,
             worker_name,
             worker_type,
             worker_url,
@@ -317,6 +334,8 @@ impl SharedWorkerGlobalScope {
             own_sender,
             receiver,
             closing,
+            image_cache,
+            browsing_context,
             #[cfg(feature = "webgpu")]
             gpu_id_hub,
             control_receiver,
@@ -335,10 +354,11 @@ impl SharedWorkerGlobalScope {
 
     /// <https://html.spec.whatwg.org/multipage/#run-a-worker>
     #[expect(unsafe_code)]
-    #[allow(dead_code)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn run_shared_worker_scope(
         mut init: WorkerGlobalScopeInit,
+        webview_id: WebViewId,
+        browsing_context: Option<BrowsingContextId>,
         worker_name: DOMString,
         worker_type: WorkerType,
         worker_url: UrlWithBlobClaim,
@@ -349,6 +369,7 @@ impl SharedWorkerGlobalScope {
         receiver: Receiver<SharedWorkerScriptMsg>,
         worker_load_origin: WorkerScriptLoadOrigin,
         closing: Arc<AtomicBool>,
+        image_cache: Arc<dyn ImageCache>,
         #[cfg(feature = "webgpu")] gpu_id_hub: Arc<IdentityHub>,
         control_receiver: Receiver<SharedWorkerControlMsg>,
         setup_sender: Sender<bool>,
@@ -358,7 +379,7 @@ impl SharedWorkerGlobalScope {
         extended_lifetime: bool,
         constructor_origin: ImmutableOrigin,
         constructor_url: ServoUrl,
-        storage_key: ImmutableOrigin,
+        storage_key: SharedWorkerStorageKey,
         insecure_requests_policy: InsecureRequestsPolicy,
         policy_container: PolicyContainer,
         font_context: Option<Arc<FontContext>>,
@@ -371,7 +392,6 @@ impl SharedWorkerGlobalScope {
         let is_secure_context = current_global.is_secure_context();
         let current_global_ancestor_trustworthy = current_global.has_trustworthy_ancestor_origin();
         let is_nested_browsing_context = current_global.is_nested_browsing_context();
-        let webview_id = current_global.webview_id();
         let worker_name = worker_name.to_string();
 
         thread::Builder::new()
@@ -446,6 +466,7 @@ impl SharedWorkerGlobalScope {
                 // Step 10.3. Set worker global scope's type to options["type"].
                 let global = SharedWorkerGlobalScope::new(
                     init,
+                    webview_id,
                     worker_name.into(),
                     worker_type,
                     worker_url.url(),
@@ -456,6 +477,8 @@ impl SharedWorkerGlobalScope {
                     own_sender,
                     receiver,
                     closing,
+                    image_cache,
+                    browsing_context,
                     #[cfg(feature = "webgpu")]
                     gpu_id_hub,
                     control_receiver,
@@ -515,7 +538,7 @@ impl SharedWorkerGlobalScope {
                             worker_url,
                             fetch_client,
                             Destination::SharedWorker,
-                            webview_id,
+                            Some(webview_id),
                             referrer,
                         );
                     },
@@ -560,6 +583,18 @@ impl SharedWorkerGlobalScope {
         ScriptEventLoopSender::SharedWorker(self.own_sender.clone())
     }
 
+    pub(crate) fn webview_id(&self) -> WebViewId {
+        self.webview_id
+    }
+
+    pub(crate) fn image_cache(&self) -> Arc<dyn ImageCache> {
+        self.image_cache.clone()
+    }
+
+    pub(crate) fn browsing_context(&self) -> Option<BrowsingContextId> {
+        self.browsing_context
+    }
+
     pub(crate) fn new_script_pair(&self) -> (ScriptEventLoopSender, ScriptEventLoopReceiver) {
         let (sender, receiver) = unbounded();
         (
@@ -582,6 +617,18 @@ impl SharedWorkerGlobalScope {
                 TaskSourceName::DOMManipulation,
             ))
             .expect("Sending to parent failed");
+    }
+
+    pub(crate) fn report_csp_violations(&self, violations: Vec<Violation>) {
+        let pipeline_id = self.upcast::<GlobalScope>().pipeline_id();
+        self.parent_event_loop_sender
+            .send(CommonScriptMsg::ReportCspViolations(
+                pipeline_id,
+                violations,
+            ))
+            .unwrap_or_else(|error| {
+                log::warn!("Failed to send CSP violations to parent event loop: {error}");
+            });
     }
 
     /// Step 11 of onComplete of <https://html.spec.whatwg.org/multipage/#run-a-worker>
@@ -644,6 +691,7 @@ impl SharedWorkerGlobalScope {
                     inside_port.clone(),
                 );
                 let event = MessageEvent::new(
+                    cx,
                     worker_global.upcast::<GlobalScope>(),
                     Atom::from("connect"),
                     false,
@@ -653,7 +701,6 @@ impl SharedWorkerGlobalScope {
                     Some(&source),
                     DOMString::new(),
                     vec![inside_port],
-                    CanGc::from_cx(cx),
                 );
 
                 event

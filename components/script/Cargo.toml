@@ -67,7 +67,6 @@ ctr = { workspace = true }
 data-url = { workspace = true }
 deny_public_fields = { workspace = true }
 devtools_traits = { workspace = true }
-digest = { workspace = true }
 dom_struct = { workspace = true }
 ecdsa = { workspace = true }
 elliptic-curve = { workspace = true }
@@ -126,7 +125,6 @@ rsa = { workspace = true }
 rustc-hash = { workspace = true }
 script_bindings = { workspace = true }
 script_traits = { workspace = true }
-sec1 = { workspace = true }
 selectors = { workspace = true }
 seq-macro = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

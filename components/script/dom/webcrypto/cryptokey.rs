@@ -10,7 +10,7 @@ use js::jsapi::{Heap, JSObject, Value};
 use js::rust::MutableHandleObject;
 use malloc_size_of::MallocSizeOf;
 use rustc_hash::FxHashMap;
-use script_bindings::cell::DomRefCell;
+use script_bindings::cell::{DomRefCell, Ref};
 use script_bindings::conversions::SafeToJSValConvertible;
 use script_bindings::reflector::{Reflector, reflect_dom_object_with_cx};
 use servo_base::id::{CryptoKeyId, CryptoKeyIndex};
@@ -178,8 +178,8 @@ impl CryptoKey {
         &self.algorithm
     }
 
-    pub(crate) fn usages(&self) -> Vec<KeyUsage> {
-        self.usages.borrow().clone()
+    pub(crate) fn usages(&self) -> Ref<'_, Vec<KeyUsage>> {
+        self.usages.borrow()
     }
 
     pub(crate) fn handle(&self) -> &Handle {
@@ -363,13 +363,13 @@ impl TryFrom<SerializableCryptoKeyHandle> for Handle {
                     .map_err(|_| ())?,
             )),
             SerializableCryptoKeyHandle::P256PrivateKey(private_key) => Ok(Handle::P256PrivateKey(
-                p256::SecretKey::from_sec1_der(private_key).map_err(|_| ())?,
+                p256::SecretKey::from_slice(private_key).map_err(|_| ())?,
             )),
             SerializableCryptoKeyHandle::P384PrivateKey(private_key) => Ok(Handle::P384PrivateKey(
-                p384::SecretKey::from_sec1_der(private_key).map_err(|_| ())?,
+                p384::SecretKey::from_slice(private_key).map_err(|_| ())?,
             )),
             SerializableCryptoKeyHandle::P521PrivateKey(private_key) => Ok(Handle::P521PrivateKey(
-                p521::SecretKey::from_sec1_der(private_key).map_err(|_| ())?,
+                p521::SecretKey::from_slice(private_key).map_err(|_| ())?,
             )),
             SerializableCryptoKeyHandle::P256PublicKey(public_key) => Ok(Handle::P256PublicKey(
                 p256::PublicKey::from_sec1_bytes(public_key).map_err(|_| ())?,
@@ -498,13 +498,13 @@ impl TryFrom<&Handle> for SerializableCryptoKeyHandle {
                     .into_vec(),
             )),
             Handle::P256PrivateKey(private_key) => Ok(SerializableCryptoKeyHandle::P256PrivateKey(
-                private_key.to_sec1_der().map_err(|_| ())?.to_vec(),
+                private_key.to_bytes().as_slice().to_vec(),
             )),
             Handle::P384PrivateKey(private_key) => Ok(SerializableCryptoKeyHandle::P384PrivateKey(
-                private_key.to_sec1_der().map_err(|_| ())?.to_vec(),
+                private_key.to_bytes().as_slice().to_vec(),
             )),
             Handle::P521PrivateKey(private_key) => Ok(SerializableCryptoKeyHandle::P521PrivateKey(
-                private_key.to_sec1_der().map_err(|_| ())?.to_vec(),
+                private_key.to_bytes().as_slice().to_vec(),
             )),
             Handle::P256PublicKey(public_key) => Ok(SerializableCryptoKeyHandle::P256PublicKey(
                 public_key.to_sec1_bytes().to_vec(),

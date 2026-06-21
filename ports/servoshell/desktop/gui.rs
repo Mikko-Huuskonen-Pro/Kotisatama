@@ -32,6 +32,8 @@ use servo::{
     RenderingContext, WebView, WebViewId,
 };
 use url::Url;
+#[cfg(feature = "kotisatama")]
+use kotisatama_i18n::t;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 use winit::window::Window;
@@ -496,10 +498,10 @@ impl Gui {
                             // KOTISATAMA-PATCH: "Ilmoita"-painike työkalupalkissa.
                             #[cfg(feature = "kotisatama")]
                             if crate::kotisatama::should_show_report_button(location) {
-                                let report_button = ui.add(Gui::toolbar_button("Ilmoita"));
+                                let report_button = ui.add(Gui::toolbar_button(t("report_button")));
                                 report_button.widget_info(|| {
                                     let mut info = WidgetInfo::new(WidgetType::Button);
-                                    info.label = Some("Ilmoita ongelmasta".into());
+                                    info.label = Some(t("report_button_a11y").into());
                                     info
                                 });
                                 if report_button.clicked() {
@@ -595,12 +597,12 @@ impl Gui {
                         .frame(search_frame)
                         .show_inside(ctx, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label("Hae:");
+                                ui.label(t("search_label"));
                                 let search_id = Id::new("kotisatama_search_input");
                                 let search_field = ui.add(
                                     egui::TextEdit::singleline(&mut self.search_query)
                                         .id(search_id)
-                                        .hint_text("Hae kotisatamasta…"),
+                                        .hint_text(t("search_hint")),
                                 );
                                 if search_field.lost_focus() &&
                                     ui.input(|i| i.key_pressed(Key::Enter))
@@ -614,7 +616,7 @@ impl Gui {
                                     });
                                     window.set_needs_repaint();
                                 }
-                                if ui.button("Pulloposti").clicked() {
+                                if ui.button(t("pulloposti_button")).clicked() {
                                     if let Some(webview) = window.active_webview() {
                                         crate::kotisatama::open_pulloposti(&webview);
                                         window.set_needs_repaint();
@@ -735,12 +737,12 @@ impl Gui {
             // KOTISATAMA-PATCH: haun odotusikkuna (suomenkielinen teksti).
             #[cfg(feature = "kotisatama")]
             if self.search_pending.is_some() {
-                egui::Window::new("Kotisatama-haku")
+                egui::Window::new(t("search_window_title"))
                     .collapsible(false)
                     .resizable(false)
                     .default_width(320.0)
                     .show(ctx, |ui| {
-                        ui.label("Haetaan…");
+                        ui.label(t("search_loading"));
                     });
             }
 
@@ -751,13 +753,13 @@ impl Gui {
 
                 let mut close_panel = false;
                 let mut panel_open = true;
-                egui::Window::new("Kotisatama-haku")
+                egui::Window::new(t("search_window_title"))
                     .collapsible(false)
                     .resizable(true)
                     .default_width(520.0)
                     .open(&mut panel_open)
                     .show(ctx, |ui| {
-                        ui.label(format!("Haku: {}", panel.query));
+                        ui.label(format!("{} {}", t("search_query_prefix"), panel.query));
                         ui.separator();
                         match &panel.outcome {
                             SearchOutcome::Hits(hits) => {
@@ -775,8 +777,8 @@ impl Gui {
                                 }
                             },
                             SearchOutcome::NoResults => {
-                                ui.label("Ei löydy kotisatamasta — haluatko hakea avomereltä?");
-                                if ui.button("Hae avomereltä").clicked() {
+                                ui.label(t("search_no_results"));
+                                if ui.button(t("search_avomeri")).clicked() {
                                     if let Some(webview) = window.active_webview() {
                                         crate::kotisatama::load_url_or_blocked(
                                             &webview,
@@ -790,7 +792,7 @@ impl Gui {
                                 ui.colored_label(egui::Color32::RED, message);
                             },
                         }
-                        if ui.button("Sulje").clicked() {
+                        if ui.button(t("close")).clicked() {
                             close_panel = true;
                         }
                     });
@@ -805,33 +807,33 @@ impl Gui {
                 use kotisatama_report::ReportKind;
 
                 let mut close_dialog = false;
-                egui::Window::new("Ilmoita")
+                egui::Window::new(t("report_window_title"))
                     .collapsible(false)
                     .resizable(false)
                     .default_width(420.0)
                     .open(&mut self.report_dialog_open)
                     .show(ctx, |ui| {
-                        ui.label("Lähetä anonyymi raportti (ei käyttäjätunnistetta).");
+                        ui.label(t("report_intro"));
                         ui.separator();
 
                         ui.horizontal(|ui| {
                             ui.radio_value(
                                 &mut self.report_form.kind,
                                 ReportKind::SiteBroken,
-                                "Sivusto ei toimi",
+                                t("report_site_broken"),
                             );
                             ui.radio_value(
                                 &mut self.report_form.kind,
                                 ReportKind::SuggestSite,
-                                "Ehdota kotisatamaan",
+                                t("report_suggest_site"),
                             );
                         });
 
-                        ui.label("Domain:");
+                        ui.label(t("report_domain"));
                         ui.text_edit_singleline(&mut self.report_form.domain);
 
                         if self.report_form.kind == ReportKind::SiteBroken {
-                            ui.label("Kuvaus (valinnainen):");
+                            ui.label(t("report_description"));
                             ui.text_edit_multiline(&mut self.report_form.message);
                         }
 
@@ -840,7 +842,7 @@ impl Gui {
                                 Ok(()) => {
                                     ui.colored_label(
                                         egui::Color32::from_rgb(0, 128, 0),
-                                        "Raportti lähetetty.",
+                                        t("report_sent"),
                                     );
                                 },
                                 Err(message) => {
@@ -852,7 +854,7 @@ impl Gui {
                         ui.horizontal(|ui| {
                             let submitting = self.report_pending.is_some();
                             if ui
-                                .add_enabled(!submitting, egui::Button::new("Lähetä"))
+                                .add_enabled(!submitting, egui::Button::new(t("report_submit")))
                                 .clicked()
                             {
                                 let form = self.report_form.clone();
@@ -867,12 +869,12 @@ impl Gui {
                                 });
                                 window.set_needs_repaint();
                             }
-                            if ui.button("Sulje").clicked() {
+                            if ui.button(t("close")).clicked() {
                                 close_dialog = true;
                             }
                         });
                         if self.report_pending.is_some() {
-                            ui.label("Lähetetään…");
+                            ui.label(t("report_submitting"));
                         }
                     });
                 if close_dialog {

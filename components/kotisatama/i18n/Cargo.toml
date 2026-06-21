@@ -1,0 +1,12 @@
+[package]
+name = "kotisatama-i18n"
+version = "0.1.0"
+edition.workspace = true
+authors = ["Ilio / Kotisatama"]
+license = "MPL-2.0"
+publish = false
+description = "Kotisatama desktop UI translations (fi + sv)"
+
+[lib]
+name = "kotisatama_i18n"
+path = "src/lib.rs"

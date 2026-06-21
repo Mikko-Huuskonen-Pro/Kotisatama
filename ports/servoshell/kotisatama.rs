@@ -8,13 +8,13 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use kotisatama_pulloposti::PullopostiClient;
-use kotisatama_report::{note_blocked_url, Report, ReportError, ReportKind};
+use kotisatama_report::{Report, ReportError, ReportKind, note_blocked_url};
+pub use kotisatama_report::{domain_from_url, last_blocked_url};
 use kotisatama_search::SearchClient;
 pub use kotisatama_search::{SearchHit, SearchOutcome};
-pub use kotisatama_report::{domain_from_url, last_blocked_url};
 use kotisatama_whitelist::{
-    blocked_page_url, is_allowed, is_avomeri_gateway, note_avomeri_query, startpage_query,
-    startpage_search_url, Whitelist,
+    Whitelist, blocked_page_url, is_allowed, is_avomeri_gateway, note_avomeri_query,
+    startpage_query, startpage_search_url,
 };
 use log::{info, warn};
 use servo::WebView;
@@ -242,4 +242,99 @@ pub fn open_search_hit(webview: &WebView, hit: &SearchHit) {
     if let Ok(url) = Url::parse(&hit.url) {
         load_url_or_blocked(webview, url);
     }
+}
+
+// KOTISATAMA: UI-taustateema nykyisen selaustilan mukaan (ks. VAIHE7-TEEMAT.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum KotisatamaTheme {
+    Satama,
+    Avomeri,
+    Myrsky,
+}
+
+/// Resolve the active chrome theme from navigation and the latest search outcome.
+pub fn current_theme(location: &str, last_search: Option<&SearchOutcome>) -> KotisatamaTheme {
+    if matches!(last_search, Some(SearchOutcome::Error(_))) {
+        return KotisatamaTheme::Myrsky;
+    }
+    if is_blocked_page(location) {
+        return KotisatamaTheme::Avomeri;
+    }
+    if Url::parse(location)
+        .map(|url| is_avomeri_gateway(&url))
+        .unwrap_or(false)
+    {
+        return KotisatamaTheme::Avomeri;
+    }
+    KotisatamaTheme::Satama
+}
+
+fn theme_png_bytes(theme: KotisatamaTheme) -> &'static [u8] {
+    match theme {
+        KotisatamaTheme::Satama => {
+            include_bytes!("../../assets/themes/Satama/Screenshot_20260614-114204.Kuvat.png")
+        },
+        KotisatamaTheme::Avomeri => {
+            include_bytes!("../../assets/themes/Avomeri/Screenshot_20260613-231349.Kuvat.png")
+        },
+        KotisatamaTheme::Myrsky => {
+            include_bytes!("../../assets/themes/Myrsky/Screenshot_20260614-114006.Kuvat.png")
+        },
+    }
+}
+
+/// Toolbar tint matching the active theme (desktop egui chrome).
+#[cfg(not(any(target_os = "android", target_env = "ohos")))]
+pub fn theme_toolbar_fill(theme: KotisatamaTheme) -> egui::Color32 {
+    match theme {
+        KotisatamaTheme::Satama => egui::Color32::from_rgb(210, 235, 255),
+        KotisatamaTheme::Avomeri => egui::Color32::from_rgb(170, 215, 245),
+        KotisatamaTheme::Myrsky => egui::Color32::from_rgb(120, 150, 175),
+    }
+}
+
+#[cfg(not(any(target_os = "android", target_env = "ohos")))]
+fn theme_color_image(theme: KotisatamaTheme) -> egui::ColorImage {
+    let bytes = theme_png_bytes(theme);
+    let image = image::load_from_memory(bytes).expect("Kotisatama theme PNG");
+    let rgba = image.to_rgba8();
+    let [width, height] = [rgba.width() as usize, rgba.height() as usize];
+    egui::ColorImage::from_rgba_unmultiplied([width, height], rgba.as_raw())
+}
+
+/// Paint a full-bleed theme background behind egui and the webview viewport.
+#[cfg(not(any(target_os = "android", target_env = "ohos")))]
+pub fn paint_theme_background(
+    ctx: &egui::Context,
+    rect: egui::Rect,
+    theme: KotisatamaTheme,
+    cache: &mut std::collections::HashMap<KotisatamaTheme, egui::TextureHandle>,
+) {
+    let handle = cache.entry(theme).or_insert_with(|| {
+        let image = theme_color_image(theme);
+        ctx.load_texture(
+            format!("kotisatama_theme_{theme:?}"),
+            image,
+            egui::TextureOptions {
+                magnification: egui::TextureFilter::Linear,
+                minification: egui::TextureFilter::Linear,
+                ..Default::default()
+            },
+        )
+    });
+
+    let tex_size = handle.size_vec2();
+    if tex_size.x <= 0.0 || tex_size.y <= 0.0 {
+        return;
+    }
+
+    let scale = (rect.width() / tex_size.x).max(rect.height() / tex_size.y);
+    let image_rect = egui::Rect::from_center_size(rect.center(), tex_size * scale);
+    let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+    ctx.layer_painter(egui::LayerId::background()).image(
+        handle.id(),
+        image_rect,
+        uv,
+        egui::Color32::WHITE,
+    );
 }

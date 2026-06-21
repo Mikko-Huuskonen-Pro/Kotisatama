@@ -18,6 +18,10 @@
   <string name="settings_experimental_summary">Aktivera experimentella funktioner för webbplattformen</string>
   <string name="settings_animating_title">Indikator för vila/animering</string>
   <string name="settings_animating_summary">Visa visuell indikator för renderingsstatus</string>
+  <string name="settings_section_language">Språk</string>
+  <string name="settings_language_auto">Automatiskt (system)</string>
+  <string name="settings_language_fi">Finska</string>
+  <string name="settings_language_sv">Svenska</string>
   <string name="loop">UPPREPA</string>
 
   <!-- Historik -->

@@ -7,10 +7,30 @@
     <script src="resource:///kotisatama-i18n.js"></script>
 </head>
 <body>
+    <section class="language-section">
+        <h2 data-i18n="languageSection"></h2>
+        <label for="languageSelect" data-i18n="languageLabel"></label>
+        <select id="languageSelect" onchange="KotisatamaI18n.setLocaleChoice(this.value)">
+            <option value="auto" data-i18n="languageAuto"></option>
+            <option value="fi" data-i18n="languageFi"></option>
+            <option value="sv" data-i18n="languageSv"></option>
+        </select>
+    </section>
     <input class="search" type="text" data-i18n-placeholder="searchPlaceholder" data-i18n-aria-label="searchAriaLabel" oninput="populate(this.value)">
     <table></table>
     <script>
         const kotisatamaLocale = KotisatamaI18n.applyDocument("config");
+        const languageSelect = document.getElementById("languageSelect");
+        languageSelect.value = KotisatamaI18n.getLocaleChoice();
+        for (const option of languageSelect.options) {
+            if (option.dataset.i18n) {
+                option.textContent = KotisatamaI18n.t(
+                    "config",
+                    option.dataset.i18n,
+                    kotisatamaLocale,
+                );
+            }
+        }
 
         // Helper to create a TD with class and optional text
         function td(cls, text) {

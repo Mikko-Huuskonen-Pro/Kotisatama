@@ -4,10 +4,13 @@
 
 //! Kotisatama desktop UI strings (Finnish default, Swedish supported).
 //!
-//! Locale detection mirrors `kotisatama-i18n.js`: `KOTISATAMA_LOCALE` override,
-//! then `LANG`, then Finnish.
+//! Locale selection mirrors `kotisatama-i18n.js`: `KOTISATAMA_LOCALE` override,
+//! then saved choice (`auto` / `fi` / `sv`) in the user config dir, then `LANG`,
+//! then Finnish.
 
-use std::sync::OnceLock;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::RwLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Locale {
@@ -15,23 +18,59 @@ pub enum Locale {
     Sv,
 }
 
-static ACTIVE_LOCALE: OnceLock<Locale> = OnceLock::new();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LocaleChoice {
+    Auto,
+    Fi,
+    Sv,
+}
 
-/// Detect locale once per process (same priority as HTML i18n).
-pub fn detect_locale() -> Locale {
-    if let Ok(value) = std::env::var("KOTISATAMA_LOCALE") {
-        if let Some(locale) = parse_locale_tag(&value) {
-            return locale;
-        }
+static RESOLVED_LOCALE: RwLock<Option<Locale>> = RwLock::new(None);
+
+/// Path to the persisted locale choice file.
+pub fn locale_config_path() -> Option<PathBuf> {
+    Some(dirs::config_dir()?.join("Kotisatama").join("locale"))
+}
+
+/// Parse a stored locale choice tag.
+pub fn parse_locale_choice(value: &str) -> Option<LocaleChoice> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some(LocaleChoice::Auto),
+        "fi" => Some(LocaleChoice::Fi),
+        "sv" => Some(LocaleChoice::Sv),
+        _ => None,
     }
+}
 
-    if let Ok(lang) = std::env::var("LANG") {
-        if let Some(locale) = parse_locale_tag(&lang) {
-            return locale;
-        }
+/// Load the saved locale choice, if any.
+pub fn load_locale_choice() -> Option<LocaleChoice> {
+    let path = locale_config_path()?;
+    let contents = fs::read_to_string(path).ok()?;
+    parse_locale_choice(&contents)
+}
+
+/// Persist locale choice for the next servoshell launch.
+pub fn save_locale_choice(choice: LocaleChoice) -> std::io::Result<()> {
+    let path = locale_config_path()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "no config dir"))?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
     }
+    let value = match choice {
+        LocaleChoice::Auto => "auto",
+        LocaleChoice::Fi => "fi",
+        LocaleChoice::Sv => "sv",
+    };
+    fs::write(path, value)
+}
 
-    Locale::Fi
+/// Save choice and refresh the in-process locale cache.
+pub fn set_locale_choice(choice: LocaleChoice) -> std::io::Result<()> {
+    save_locale_choice(choice)?;
+    if let Ok(mut guard) = RESOLVED_LOCALE.write() {
+        *guard = Some(resolve_locale(choice));
+    }
+    Ok(())
 }
 
 fn parse_locale_tag(value: &str) -> Option<Locale> {
@@ -43,9 +82,48 @@ fn parse_locale_tag(value: &str) -> Option<Locale> {
     }
 }
 
+fn system_locale() -> Option<Locale> {
+    std::env::var("LANG")
+        .ok()
+        .and_then(|lang| parse_locale_tag(&lang))
+}
+
+fn resolve_locale(choice: LocaleChoice) -> Locale {
+    match choice {
+        LocaleChoice::Fi => Locale::Fi,
+        LocaleChoice::Sv => Locale::Sv,
+        LocaleChoice::Auto => system_locale().unwrap_or(Locale::Fi),
+    }
+}
+
+/// Detect locale choice and resolved language for first use.
+pub fn detect_locale() -> Locale {
+    if let Ok(value) = std::env::var("KOTISATAMA_LOCALE") {
+        if let Some(locale) = parse_locale_tag(&value) {
+            return locale;
+        }
+    }
+
+    if let Some(choice) = load_locale_choice() {
+        return resolve_locale(choice);
+    }
+
+    system_locale().unwrap_or(Locale::Fi)
+}
+
 /// Active locale for this process.
 pub fn locale() -> Locale {
-    *ACTIVE_LOCALE.get_or_init(detect_locale)
+    if let Ok(guard) = RESOLVED_LOCALE.read() {
+        if let Some(locale) = *guard {
+            return locale;
+        }
+    }
+
+    let locale = detect_locale();
+    if let Ok(mut guard) = RESOLVED_LOCALE.write() {
+        *guard = Some(locale);
+    }
+    locale
 }
 
 /// Translate a desktop UI string key for the active locale.
@@ -80,9 +158,7 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "search_query_prefix") => "Haku:",
         (Locale::Sv, "search_query_prefix") => "Sök:",
 
-        (Locale::Fi, "search_no_results") => {
-            "Ei löydy kotisatamasta — haluatko hakea avomereltä?"
-        },
+        (Locale::Fi, "search_no_results") => "Ei löydy kotisatamasta — haluatko hakea avomereltä?",
         (Locale::Sv, "search_no_results") => {
             "Finns inte i hemmahamnen — vill du söka på öppet hav?"
         },
@@ -96,12 +172,8 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "report_window_title") => "Ilmoita",
         (Locale::Sv, "report_window_title") => "Anmäl",
 
-        (Locale::Fi, "report_intro") => {
-            "Lähetä anonyymi raportti (ei käyttäjätunnistetta)."
-        },
-        (Locale::Sv, "report_intro") => {
-            "Skicka en anonym rapport (ingen användaridentifiering)."
-        },
+        (Locale::Fi, "report_intro") => "Lähetä anonyymi raportti (ei käyttäjätunnistetta).",
+        (Locale::Sv, "report_intro") => "Skicka en anonym rapport (ingen användaridentifiering).",
 
         (Locale::Fi, "report_site_broken") => "Sivusto ei toimi",
         (Locale::Sv, "report_site_broken") => "Webbplatsen fungerar inte",
@@ -147,5 +219,11 @@ mod tests {
         assert_eq!(parse_locale_tag("sv_SE.UTF-8"), Some(Locale::Sv));
         assert_eq!(parse_locale_tag("fi"), Some(Locale::Fi));
         assert_eq!(parse_locale_tag("en_US"), None);
+    }
+
+    #[test]
+    fn parse_locale_choices() {
+        assert_eq!(parse_locale_choice("auto"), Some(LocaleChoice::Auto));
+        assert_eq!(parse_locale_choice("sv"), Some(LocaleChoice::Sv));
     }
 }

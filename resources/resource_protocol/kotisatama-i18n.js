@@ -63,6 +63,11 @@
         fi: "Anna kelvollinen kokonaisluku.",
         sv: "Ange ett giltigt heltal.",
       },
+      languageSection: { fi: "Kieli", sv: "Språk" },
+      languageLabel: { fi: "Kieliasetus", sv: "Språkinställning" },
+      languageAuto: { fi: "Automaattinen (järjestelmä)", sv: "Automatiskt (system)" },
+      languageFi: { fi: "Suomi", sv: "Finska" },
+      languageSv: { fi: "Ruotsi", sv: "Svenska" },
     },
     license: {
       title: { fi: "Kolmannen osapuolen lisenssit", sv: "Tredjepartslicenser" },
@@ -89,16 +94,23 @@
     },
   };
 
-  function detectLocale() {
-    try {
-      const stored = localStorage.getItem("kotisatama.locale");
-      if (stored === "fi" || stored === "sv") {
-        return stored;
-      }
-    } catch (_) {
-      /* private mode */
-    }
+  const LOCALE_STORAGE_KEY = "kotisatama.locale";
 
+  function readStoredChoice() {
+    try {
+      return localStorage.getItem(LOCALE_STORAGE_KEY);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function resolveLocaleCode(choice) {
+    if (choice === "sv") {
+      return "sv";
+    }
+    if (choice === "fi") {
+      return "fi";
+    }
     const langs = navigator.languages?.length
       ? navigator.languages
       : [navigator.language || DEFAULT_LOCALE];
@@ -112,6 +124,32 @@
       }
     }
     return DEFAULT_LOCALE;
+  }
+
+  function detectLocale() {
+    const stored = readStoredChoice();
+    if (stored === "fi" || stored === "sv") {
+      return stored;
+    }
+    return resolveLocaleCode(stored || "auto");
+  }
+
+  function getLocaleChoice() {
+    const stored = readStoredChoice();
+    if (stored === "fi" || stored === "sv" || stored === "auto") {
+      return stored;
+    }
+    return "auto";
+  }
+
+  function setLocaleChoice(choice) {
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, choice);
+    } catch (_) {
+      /* private mode */
+    }
+    location.href =
+      "servo:locale?set=" + encodeURIComponent(choice);
   }
 
   function t(page, key, locale) {
@@ -157,8 +195,11 @@
 
   global.KotisatamaI18n = {
     DEFAULT_LOCALE,
+    LOCALE_STORAGE_KEY,
     STRINGS,
     detectLocale,
+    getLocaleChoice,
+    setLocaleChoice,
     t,
     applyDocument,
   };

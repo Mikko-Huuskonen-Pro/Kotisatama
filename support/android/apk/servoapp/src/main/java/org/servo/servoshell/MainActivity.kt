@@ -7,6 +7,7 @@ package org.servo.servoshell
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
@@ -48,6 +49,10 @@ class MainActivity : Activity(), Servo.Client {
     }
 
     private lateinit var settings: Settings
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
 
     private val actionClickListener = View.OnClickListener { v -> dispatchAction(v.id) }
 

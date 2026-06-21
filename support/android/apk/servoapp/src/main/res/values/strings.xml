@@ -18,6 +18,10 @@
   <string name="settings_experimental_summary">Ota käyttöön kokeelliset web-alustan ominaisuudet</string>
   <string name="settings_animating_title">Lepotila/animaatio-ilmaisin</string>
   <string name="settings_animating_summary">Näytä visuaalinen ilmaisin renderöinnin tilasta</string>
+  <string name="settings_section_language">Kieli</string>
+  <string name="settings_language_auto">Automaattinen (järjestelmä)</string>
+  <string name="settings_language_fi">Suomi</string>
+  <string name="settings_language_sv">Ruotsi</string>
   <string name="loop">TOISTO</string>
 
   <!-- Historia -->

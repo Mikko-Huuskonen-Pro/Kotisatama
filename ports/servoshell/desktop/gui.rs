@@ -24,6 +24,8 @@ use egui::{FontData, FontFamily};
 use egui_glow::{CallbackFn, EguiGlow};
 use egui_winit::EventResponse;
 use euclid::{Length, Point2D, Rect, Scale, Size2D};
+#[cfg(feature = "kotisatama")]
+use kotisatama_i18n::t;
 #[cfg(any(target_os = "windows", target_os = "linux", target_os = "freebsd"))]
 use log::info;
 use log::warn;
@@ -32,8 +34,6 @@ use servo::{
     RenderingContext, WebView, WebViewId,
 };
 use url::Url;
-#[cfg(feature = "kotisatama")]
-use kotisatama_i18n::t;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 use winit::window::Window;
@@ -98,6 +98,10 @@ pub struct Gui {
     report_status: Option<Result<(), String>>,
     #[cfg(feature = "kotisatama")]
     report_pending: Option<Receiver<Result<(), String>>>,
+
+    /// Cached Kotisatama theme background textures (desktop chrome).
+    #[cfg(feature = "kotisatama")]
+    theme_textures: HashMap<crate::kotisatama::KotisatamaTheme, egui::TextureHandle>,
 }
 
 fn truncate_with_ellipsis(input: &str, max_length: usize) -> String {
@@ -275,6 +279,8 @@ impl Gui {
             report_status: None,
             #[cfg(feature = "kotisatama")]
             report_pending: None,
+            #[cfg(feature = "kotisatama")]
+            theme_textures: HashMap::new(),
         }
     }
 
@@ -431,11 +437,39 @@ impl Gui {
         context.run(winit_window, |ctx| {
             load_pending_favicons(ctx, window, favicon_textures);
 
+            // KOTISATAMA-PATCH: Satama/Avomeri/Myrsky-tausta työkalupalkin takana (ks. VAIHE7-TEEMAT.md).
+            #[cfg(feature = "kotisatama")]
+            let kotisatama_theme = {
+                let current_location = window
+                    .active_webview()
+                    .and_then(|webview| webview.url())
+                    .map(|url| url.to_string())
+                    .unwrap_or_else(|| location.clone());
+                let last_search = self.search_panel.as_ref().map(|panel| &panel.outcome);
+                let theme = crate::kotisatama::current_theme(&current_location, last_search);
+                crate::kotisatama::paint_theme_background(
+                    ctx,
+                    ctx.screen_rect(),
+                    theme,
+                    &mut self.theme_textures,
+                );
+                theme
+            };
+
             // TODO: While in fullscreen add some way to mitigate the increased phishing risk
             // when not displaying the URL bar: https://github.com/servo/servo/issues/32443
             if winit_window.fullscreen().is_none() {
                 let frame = egui::Frame::default()
-                    .fill(ctx.style().visuals.window_fill)
+                    .fill({
+                        #[cfg(feature = "kotisatama")]
+                        {
+                            crate::kotisatama::theme_toolbar_fill(kotisatama_theme)
+                        }
+                        #[cfg(not(feature = "kotisatama"))]
+                        {
+                            ctx.style().visuals.window_fill
+                        }
+                    })
                     .inner_margin(4.0);
                 Panel::top("toolbar").frame(frame).show_inside(ctx, |ui| {
                     ui.allocate_ui_with_layout(
@@ -554,16 +588,16 @@ impl Gui {
                                         if cfg!(target_os = "macos") {
                                             i.clone().consume_key(Modifiers::COMMAND, Key::L)
                                         } else {
-                                            i.clone().consume_key(Modifiers::COMMAND, Key::L) ||
-                                                i.clone().consume_key(Modifiers::ALT, Key::D)
+                                            i.clone().consume_key(Modifiers::COMMAND, Key::L)
+                                                || i.clone().consume_key(Modifiers::ALT, Key::D)
                                         }
                                     }) {
                                         // The focus request immediately makes gained_focus return true.
                                         location_field.request_focus();
                                     }
                                     // Select address bar text when it's focused (click or shortcut).
-                                    if location_field.gained_focus() &&
-                                        let Some(mut state) =
+                                    if location_field.gained_focus()
+                                        && let Some(mut state) =
                                             TextEditState::load(ui.ctx(), location_id)
                                     {
                                         // Select the whole input.
@@ -574,8 +608,8 @@ impl Gui {
                                         state.store(ui.ctx(), location_id);
                                     }
                                     // Navigate to address when enter is pressed in the address bar.
-                                    if location_field.lost_focus() &&
-                                        ui.input(|i| i.clone().key_pressed(Key::Enter))
+                                    if location_field.lost_focus()
+                                        && ui.input(|i| i.clone().key_pressed(Key::Enter))
                                     {
                                         window.queue_user_interface_command(
                                             UserInterfaceCommand::Go(location.clone()),
@@ -591,7 +625,7 @@ impl Gui {
                 #[cfg(feature = "kotisatama")]
                 {
                     let search_frame = egui::Frame::default()
-                        .fill(ctx.style().visuals.window_fill)
+                        .fill(crate::kotisatama::theme_toolbar_fill(kotisatama_theme))
                         .inner_margin(4.0);
                     Panel::top("kotisatama_search_bar")
                         .frame(search_frame)
@@ -604,8 +638,8 @@ impl Gui {
                                         .id(search_id)
                                         .hint_text(t("search_hint")),
                                 );
-                                if search_field.lost_focus() &&
-                                    ui.input(|i| i.key_pressed(Key::Enter))
+                                if search_field.lost_focus()
+                                    && ui.input(|i| i.key_pressed(Key::Enter))
                                 {
                                     let query = self.search_query.clone();
                                     let (tx, rx) = mpsc::channel();
@@ -696,8 +730,8 @@ impl Gui {
                 }
             }
             let size = Size2D::new(available_rect.width(), available_rect.height()) * scale;
-            if let Some(webview) = window.active_webview() &&
-                size != webview.size()
+            if let Some(webview) = window.active_webview()
+                && size != webview.size()
             {
                 // `rect` is sized to just the WebView viewport, which is required by
                 // `OffscreenRenderingContext` See:
@@ -863,8 +897,9 @@ impl Gui {
                                 self.report_pending = Some(rx);
                                 self.report_status = None;
                                 std::thread::spawn(move || {
-                                    let status = crate::kotisatama::submit_report(&form, context_url)
-                                        .map_err(|error| error.to_string());
+                                    let status =
+                                        crate::kotisatama::submit_report(&form, context_url)
+                                            .map_err(|error| error.to_string());
                                     let _ = tx.send(status);
                                 });
                                 window.set_needs_repaint();
@@ -993,10 +1028,10 @@ impl Gui {
         //       because logical OR would short-circuit if any of the functions return true.
         //       We want to ensure that all functions are called. The "bitwise OR" operator
         //       does not short-circuit.
-        self.update_load_status(window) |
-            self.update_location_in_toolbar(window) |
-            self.update_status_text(window) |
-            self.update_can_go_back_and_forward(window)
+        self.update_load_status(window)
+            | self.update_location_in_toolbar(window)
+            | self.update_status_text(window)
+            | self.update_can_go_back_and_forward(window)
     }
 
     /// Returns true if a redraw is required after handling the provided event.

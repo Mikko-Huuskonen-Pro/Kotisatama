@@ -17,6 +17,28 @@ input {
     padding: 4px;
 }
 
+.language-section {
+    margin: 12px 6px 0 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.language-section h2 {
+    margin: 0 0 8px 0;
+    font-size: 1rem;
+}
+
+.language-section label {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.language-section select {
+    width: 100%;
+    max-width: 320px;
+    padding: 4px;
+}
+
 table {
     border-collapse: collapse;
 }

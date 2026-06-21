@@ -10,3 +10,6 @@ description = "Kotisatama desktop UI translations (fi + sv)"
 [lib]
 name = "kotisatama_i18n"
 path = "src/lib.rs"
+
+[dependencies]
+dirs = { workspace = true }

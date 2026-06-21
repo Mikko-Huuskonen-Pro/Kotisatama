@@ -11,6 +11,7 @@
 //! - servo:avomeri
 //! - servo:pulloposti
 //! - servo:blocked
+//! - servo:locale
 //! - servo:preferences
 
 use std::future::Future;
@@ -22,6 +23,9 @@ use servo::protocol_handler::{
     DoneChannel, FetchContext, NetworkError, ProtocolHandler, Request, ResourceFetchTiming,
     Response, ResponseBody,
 };
+
+#[cfg(feature = "kotisatama")]
+use kotisatama_i18n::parse_locale_choice;
 
 use crate::desktop::protocols::resource::ResourceProtocolHandler;
 use crate::prefs::EXPERIMENTAL_PREFS;
@@ -82,6 +86,26 @@ impl ProtocolHandler for ServoProtocolHandler {
                 "/blocked.html",
             ),
 
+            // KOTISATAMA-PATCH: tallenna kielivalinta desktop-UI:lle ja ohjaa takaisin configiin.
+            #[cfg(feature = "kotisatama")]
+            "locale" => {
+                if let Some(set) = url
+                    .query_pairs()
+                    .find(|(key, _)| key == "set")
+                    .map(|(_, value)| value.into_owned())
+                {
+                    if let Some(choice) = parse_locale_choice(&set) {
+                        let _ = kotisatama_i18n::set_locale_choice(choice);
+                    }
+                }
+                html_response(
+                    request,
+                    "<!DOCTYPE html><html><head><meta charset=\"utf-8\">\
+                     <script>location.replace('servo:config');</script></head><body></body></html>"
+                        .to_owned(),
+                )
+            },
+
             "preferences" => ResourceProtocolHandler::response_for_path(
                 request,
                 done_chan,
@@ -126,6 +150,21 @@ fn json_response(
         ResourceFetchTiming::new(request.timing_type()),
     );
     response.headers.typed_insert(ContentType::json());
+    *response.body.lock() = ResponseBody::Done(body.into_bytes());
+    Box::pin(std::future::ready(response))
+}
+
+fn html_response(
+    request: &Request,
+    body: String,
+) -> Pin<Box<dyn Future<Output = Response> + Send>> {
+    let mut response = Response::new(
+        request.current_url(),
+        ResourceFetchTiming::new(request.timing_type()),
+    );
+    response.headers.typed_insert(ContentType::from(
+        mime_guess::from_path("index.html").first_or_octet_stream(),
+    ));
     *response.body.lock() = ResponseBody::Done(body.into_bytes());
     Box::pin(std::future::ready(response))
 }

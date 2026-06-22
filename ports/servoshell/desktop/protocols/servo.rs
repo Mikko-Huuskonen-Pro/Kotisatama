@@ -110,8 +110,8 @@ impl ProtocolHandler for ServoProtocolHandler {
             "whitelist/add" => {
                 use kotisatama_whitelist::normalize_domain;
 
-                let domain = query_param(&url, "domain");
-                let return_url = query_param(&url, "return");
+                let domain = query_param(url.as_url(), "domain");
+                let return_url = query_param(url.as_url(), "return");
                 let domain = match domain.and_then(|domain| normalize_domain(&domain).ok()) {
                     Some(domain) => domain,
                     None => return redirect_response(request, "servo:whitelist?error=invalid"),
@@ -125,8 +125,8 @@ impl ProtocolHandler for ServoProtocolHandler {
                 use kotisatama_whitelist::{add_user_domain, is_navigation_allowed};
                 use url::Url;
 
-                let domain = query_param(&url, "domain");
-                let token = query_param(&url, "token");
+                let domain = query_param(url.as_url(), "domain");
+                let token = query_param(url.as_url(), "token");
                 let pending = match (domain, token) {
                     (Some(domain), Some(token)) => {
                         take_pending_whitelist_change("add", &domain, &token)
@@ -152,7 +152,7 @@ impl ProtocolHandler for ServoProtocolHandler {
             "whitelist/remove" => {
                 use kotisatama_whitelist::normalize_domain;
 
-                let domain = query_param(&url, "domain");
+                let domain = query_param(url.as_url(), "domain");
                 let domain = match domain.and_then(|domain| normalize_domain(&domain).ok()) {
                     Some(domain) => domain,
                     None => return redirect_response(request, "servo:whitelist?error=invalid"),
@@ -165,8 +165,8 @@ impl ProtocolHandler for ServoProtocolHandler {
             "whitelist/commit-remove" => {
                 use kotisatama_whitelist::remove_user_domain;
 
-                let domain = query_param(&url, "domain");
-                let token = query_param(&url, "token");
+                let domain = query_param(url.as_url(), "domain");
+                let token = query_param(url.as_url(), "token");
                 let pending = match (domain, token) {
                     (Some(domain), Some(token)) => {
                         take_pending_whitelist_change("remove", &domain, &token)
@@ -201,6 +201,7 @@ impl ProtocolHandler for ServoProtocolHandler {
             #[cfg(feature = "kotisatama")]
             "locale" => {
                 if let Some(set) = url
+                    .as_url()
                     .query_pairs()
                     .find(|(key, _)| key == "set")
                     .map(|(_, value)| value.into_owned())

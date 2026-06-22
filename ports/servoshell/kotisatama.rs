@@ -13,8 +13,9 @@ pub use kotisatama_report::{domain_from_url, last_blocked_url};
 use kotisatama_search::SearchClient;
 pub use kotisatama_search::{SearchHit, SearchOutcome};
 use kotisatama_whitelist::{
-    blocked_page_url, init, init_empty, is_avomeri_gateway, is_navigation_allowed,
-    note_avomeri_query, startpage_query, startpage_search_url, WhitelistProfile,
+    blocked_page_url, init as init_whitelist, init_empty, is_avomeri_gateway,
+    is_navigation_allowed, note_avomeri_query, startpage_query, startpage_search_url,
+    WhitelistProfile,
 };
 use log::{info, warn};
 use servo::WebView;
@@ -61,7 +62,7 @@ pub fn init() {
         })
         .unwrap_or_else(|| PathBuf::from("config/whitelist.json"));
     let profile = WhitelistProfile::current();
-    if let Err(error) = init(&base_path, profile.clone()) {
+    if let Err(error) = init_whitelist(&base_path, profile.clone()) {
         warn!(
             "Kotisatama: could not load whitelist from {}: {error}. Using empty base list.",
             base_path.display()

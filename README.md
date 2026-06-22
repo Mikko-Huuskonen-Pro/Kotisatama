@@ -36,8 +36,6 @@ Ei omaa palvelinta. Ei VPN-infraa. Haku tapahtuu laitteelle esiladatusta indeksi
 
 ## Kotisataman nimimaailma
 
-
-
 Kotisatama rakentuu yhtenäisen meriteeman ympärille. Käyttöliittymä käyttää samoja käsitteitä kaikkialla, jolloin kokonaisuus tuntuu omalta tuotteelta eikä kokoelmalta irrallisia ominaisuuksia.
 
 Käsite| Merkitys

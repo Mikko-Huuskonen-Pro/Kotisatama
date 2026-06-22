@@ -206,9 +206,9 @@ cargo build  # Pitää myös toimia ilman featurea
 Upstream-synkronointi (`git merge upstream/main`) tehdään **Agentilla**,
 ei manuaalisesti, jotta ei tuhota kaikki puhdistuksessa muutettuja tiedostoja.
 
-### Ennen muutoksia: tarkista Puhdistukset.md
+### Ennen muutoksia: tarkista suljetun repon Docs/Puhdistukset.md
 
-`Puhdistukset.md` on rekisteri kaikista tehdyistä Servo-siivousmuutoksista.
+Suljetun repon `Docs/Puhdistukset.md` on rekisteri kaikista tehdyistä Servo-siivousmuutoksista.
 Ennen kuin muutat tiedostoa joka sisältää Servo-viittauksen, tarkista:
 onko tämä tiedosto jo käsitelty ja onko muutos tarkoituksellinen?
 
@@ -221,7 +221,7 @@ näyttäisi upstream:ista poikkeavalta — se on todennäköisesti tarkoituksell
 |---|---|---|
 | Kotisatama-omat | `components/kotisatama/`, `tauri/`, `crawler/` | Ei koskaan |
 | Patchattu upstream | `ports/servoshell/`, `resources/resource_protocol/newtab.html` | Voi — katso KOTISATAMA-PATCH-kommentit |
-| Puhdistettu upstream | ks. Puhdistukset.md | Voi — Cursor ratkaisee konfliktin |
+| Puhdistettu upstream | ks. suljetun repon `Docs/Puhdistukset.md` | Voi — Cursor ratkaisee konfliktin |
 | Koskematon upstream | `components/script/`, `tests/wpt/` | Kyllä, tarkoituksella |
 
 ---
@@ -253,7 +253,7 @@ näyttäisi upstream:ista poikkeavalta — se on todennäköisesti tarkoituksell
 
 ---
 
-## Toteutusjärjestys (suositus — vastaa `ROADMAP-1.md`)
+## Toteutusjärjestys (suositus — vastaa suljetun repon `Docs/ROADMAP-1.md`)
 
 1. `components/kotisatama/whitelist` + `request_navigation`-hook servoshellissa
 2. Hakukenttä servoshell-UI:ssa + Meilisearch subprocess + `kotisatama-search` (testi-indeksi manuaalisesti)

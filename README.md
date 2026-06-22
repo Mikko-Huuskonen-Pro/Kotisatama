@@ -154,7 +154,7 @@ git checkout main
 git merge upstream/main
 ```
 
-Kotisatama-spesifiset hakemistot (`components/kotisatama/`, `tauri/`, `crawler/`) eivät tule upstream-merge-konflikteja — ne ovat vain tässä forkissa. Konfliktit syntyvät **KOTISATAMA-PATCH**-kohdissa upstream-tiedostoissa, tyypillisesti `ports/servoshell/`. Katso `Puhdistukset.md` aiemmista siivouskierroksista.
+Kotisatama-spesifiset hakemistot (`components/kotisatama/`, `tauri/`, `crawler/`) eivät tule upstream-merge-konflikteja — ne ovat vain tässä forkissa. Konfliktit syntyvät **KOTISATAMA-PATCH**-kohdissa upstream-tiedostoissa, tyypillisesti `ports/servoshell/`. Katso suljetun repon `Docs/Puhdistukset.md` aiemmista siivouskierroksista.
 
 ---
 

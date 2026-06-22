@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-// KOTISATAMA-PATCH: taustahaku ja raportointi käyttävät mpsc-kanavaa (ks. KIELIROADMAP.md Vaihe 0).
+// KOTISATAMA-PATCH: taustahaku ja raportointi käyttävät mpsc-kanavaa (ks. suljetun repon Docs/KIELIROADMAP.md Vaihe 0).
 use std::sync::mpsc::{self, Receiver};
 
 use dpi::PhysicalSize;
@@ -76,7 +76,7 @@ pub struct Gui {
     /// This allows us to ensure that graft nodes are sent before the subtrees they graft.
     pending_accesskit_updates: Vec<accesskit::TreeUpdate>,
 
-    // KOTISATAMA-PATCH: desktop-haku, raportointi ja suomenkielinen UI (ks. KIELIROADMAP.md).
+    // KOTISATAMA-PATCH: desktop-haku, raportointi ja suomenkielinen UI (ks. suljetun repon Docs/KIELIROADMAP.md).
     /// Kotisatama local search query (desktop toolbar).
     #[cfg(feature = "kotisatama")]
     search_query: String,
@@ -264,7 +264,7 @@ impl Gui {
             can_go_forward: false,
             favicon_textures: Default::default(),
             pending_accesskit_updates: vec![],
-            // KOTISATAMA-PATCH: alusta haku- ja raportointitila (ks. KIELIROADMAP.md).
+            // KOTISATAMA-PATCH: alusta haku- ja raportointitila (ks. suljetun repon Docs/KIELIROADMAP.md).
             #[cfg(feature = "kotisatama")]
             search_query: String::new(),
             #[cfg(feature = "kotisatama")]
@@ -437,7 +437,7 @@ impl Gui {
         context.run(winit_window, |ctx| {
             load_pending_favicons(ctx, window, favicon_textures);
 
-            // KOTISATAMA-PATCH: Satama/Avomeri/Myrsky-tausta työkalupalkin takana (ks. VAIHE7-TEEMAT.md).
+            // KOTISATAMA-PATCH: Satama/Avomeri/Myrsky-tausta työkalupalkin takana (ks. suljetun repon Docs/VAIHE7-TEEMAT.md).
             #[cfg(feature = "kotisatama")]
             let kotisatama_theme = {
                 let current_location = window

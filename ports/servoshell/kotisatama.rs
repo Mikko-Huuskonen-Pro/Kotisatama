@@ -238,7 +238,7 @@ pub fn open_search_hit(webview: &WebView, hit: &SearchHit) {
     }
 }
 
-// KOTISATAMA: UI-taustateema nykyisen selaustilan mukaan (ks. VAIHE7-TEEMAT.md).
+// KOTISATAMA: UI-taustateema nykyisen selaustilan mukaan (ks. suljetun repon Docs/VAIHE7-TEEMAT.md).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KotisatamaTheme {
     Satama,

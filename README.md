@@ -34,14 +34,39 @@ Ei omaa palvelinta. Ei VPN-infraa. Haku tapahtuu laitteelle esiladatusta indeksi
 
 ---
 
-## Tuoteversiot
+## Kotisataman nimimaailma
 
-| Versio | Whitelist | Indeksi |
-|---|---|---|
-| Kotisatama | Geneerinen, perhe hallinnoi | Yleinen |
-| Kotisatama Hopeakettu | Kuratoitu: Kela, terveys, uutiset, virastot | Suomenkielinen, selkeä rakenne |
-| Kotisatama Lapsi | Kuratoitu: oppiminen, pelit, ikäluokitettu sisältö | Kuvat, videot, ikäluokitus |
 
+
+Kotisatama rakentuu yhtenäisen meriteeman ympärille. Käyttöliittymä käyttää samoja käsitteitä kaikkialla, jolloin kokonaisuus tuntuu omalta tuotteelta eikä kokoelmalta irrallisia ominaisuuksia.
+
+Käsite| Merkitys
+🏠 Kotisatama| Sovelluksen turvallinen etusivu
+⚓ Satama| Luotettujen (whitelist) verkkosivujen alue
+🌐 Avomeri| Avoin internet
+🌊 Myrsky| Ei verkkoyhteyttä tai palvelu ei vastaa
+🧰 Varustamo| Luotettu sovellusvarasto
+📦 Ruuma| Asennetut sovellukset ja paikallinen sisältö
+🛟 Majakka| Ohjeet, opastus ja tuki
+📜 Lokikirja| Tapahtumat, ilmoitukset ja diagnostiikka
+
+Filosofia
+
+Kotisatama ei pyri jäljittelemään perinteistä käyttöjärjestelmää.
+
+Sen sijaan koko käyttöliittymä rakentuu yhden selkeän metaforan ympärille:
+
+Käyttäjä on omassa Kotisatamassaan.
+
+Sieltä voi:
+
+- purjehtia Avomerelle
+- käyttää turvallista Satamaa
+- varustaa ympäristöään Varustamossa
+- tarkastella Lokikirjaa
+- hakea apua Majakasta
+
+Yhtenäinen sanasto tekee tuotteesta helposti tunnistettavan ja tukee Kotisataman tavoitetta tarjota turvallinen, helposti ymmärrettävä ja luotettava käyttökokemus kaikenikäisille käyttäjille.
 ---
 
 ## Kehitysympäristö

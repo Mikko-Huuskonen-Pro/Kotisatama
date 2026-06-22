@@ -8,10 +8,12 @@ mod cdn;
 
 use std::fs;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::process::{Command, Stdio};
 
+use kotisatama_subprocess_app::{
+    find_binary, find_on_path, is_healthy, wait_for_health, HealthCheckConfig, ManagedSubprocess,
+    SubprocessError,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -19,8 +21,11 @@ pub use cdn::{cached_whitelist_path, sync_from_cdn, CdnSyncReport};
 
 const DEFAULT_BASE_URL: &str = "http://127.0.0.1:7700";
 const INDEX_UID: &str = "documents";
-const HEALTH_POLL_MS: u64 = 100;
-const HEALTH_TIMEOUT_SECS: u64 = 30;
+const HEALTH_CONFIG: HealthCheckConfig = HealthCheckConfig {
+    health_path: "/health",
+    poll_ms: 100,
+    timeout_secs: 30,
+};
 
 fn data_dir() -> PathBuf {
     std::env::var("KOTISATAMA_DATA_DIR")
@@ -47,7 +52,8 @@ pub enum SearchOutcome {
 /// Meilisearch HTTP client; optionally owns a spawned subprocess.
 pub struct SearchClient {
     base_url: String,
-    process: Option<Child>,
+    #[allow(dead_code)]
+    process: ManagedSubprocess,
 }
 
 impl SearchClient {
@@ -56,10 +62,10 @@ impl SearchClient {
         let base_url = std::env::var("KOTISATAMA_MEILISEARCH_URL")
             .unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
 
-        if is_healthy(&base_url)? {
+        if is_healthy(&base_url, HEALTH_CONFIG.health_path).map_err(map_subprocess_error)? {
             let client = Self {
                 base_url,
-                process: None,
+                process: ManagedSubprocess::detached(),
             };
             client.ensure_index()?;
             return Ok(client);
@@ -93,18 +99,18 @@ impl SearchClient {
             args.push("--ignore-missing-dump".to_string());
         }
 
-        let process = Command::new(&binary)
+        let child = Command::new(&binary)
             .args(&args)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
             .map_err(SearchError::Spawn)?;
 
-        wait_for_health(&base_url)?;
+        wait_for_health(&base_url, HEALTH_CONFIG).map_err(map_subprocess_error)?;
 
         let client = Self {
             base_url,
-            process: Some(process),
+            process: ManagedSubprocess::from_child(child),
         };
         client.ensure_index()?;
         Ok(client)
@@ -189,15 +195,6 @@ impl SearchClient {
     }
 }
 
-impl Drop for SearchClient {
-    fn drop(&mut self) {
-        if let Some(mut child) = self.process.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-    }
-}
-
 #[derive(Debug, Deserialize)]
 struct SearchResponse {
     hits: Vec<SearchHit>,
@@ -243,54 +240,21 @@ impl std::fmt::Display for SearchError {
 
 impl std::error::Error for SearchError {}
 
-fn is_healthy(base_url: &str) -> Result<bool, SearchError> {
-    let url = format!("{}/health", base_url);
-    match ureq::get(&url).call() {
-        Ok(resp) => Ok(resp.status() == 200),
-        Err(ureq::Error::Status(404, _)) => Ok(false),
-        Err(_) => Ok(false),
-    }
-}
-
-fn wait_for_health(base_url: &str) -> Result<(), SearchError> {
-    let deadline = Instant::now() + Duration::from_secs(HEALTH_TIMEOUT_SECS);
-    while Instant::now() < deadline {
-        if is_healthy(base_url)? {
-            return Ok(());
-        }
-        thread::sleep(Duration::from_millis(HEALTH_POLL_MS));
-    }
-    Err(SearchError::Timeout)
-}
-
 fn find_meilisearch_binary() -> Result<PathBuf, SearchError> {
-    if let Ok(path) = std::env::var("KOTISATAMA_MEILISEARCH_BIN") {
-        let path = PathBuf::from(path);
-        if path.is_file() {
-            return Ok(path);
-        }
-    }
-
-    if let Ok(path) = which_meilisearch_on_path() {
+    if let Ok(path) = find_binary("KOTISATAMA_MEILISEARCH_BIN", &[]) {
         return Ok(path);
     }
 
-    Err(SearchError::BinaryNotFound)
+    find_on_path(&["meilisearch.exe", "meilisearch"]).ok_or(SearchError::BinaryNotFound)
 }
 
-fn which_meilisearch_on_path() -> Result<PathBuf, SearchError> {
-    let path_var = std::env::var_os("PATH").unwrap_or_default();
-    for dir in std::env::split_paths(&path_var) {
-        let candidate = dir.join(if cfg!(windows) {
-            "meilisearch.exe"
-        } else {
-            "meilisearch"
-        });
-        if candidate.is_file() {
-            return Ok(candidate);
-        }
+fn map_subprocess_error(error: SubprocessError) -> SearchError {
+    match error {
+        SubprocessError::Io(error) => SearchError::Io(error),
+        SubprocessError::BinaryNotFound => SearchError::BinaryNotFound,
+        SubprocessError::Timeout => SearchError::Timeout,
+        SubprocessError::Http(message) => SearchError::Http(message),
     }
-    Err(SearchError::BinaryNotFound)
 }
 
 fn should_import_dump(dump_path: &str, db_path: &str) -> bool {

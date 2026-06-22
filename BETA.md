@@ -10,17 +10,19 @@ Tavoite: ensimmäiset ulkopuoliset käyttäjät, fallback-data whitelist-kehityk
    export KOTISATAMA_FALLBACK_LOG_URL=https://<worker>/fallback
    ```
 2. **CDN** — julkaise `output/cdn/free/` (whitelist + index.dump) R2/Bunnyhin; aseta `KOTISATAMA_CDN_BASE`
-3. **Whitelist** — tarkista `config/whitelist.json` (50–100 domainia suositus)
+3. **Whitelist** — synkkaa suljetusta reposta paikalliseen `index-data/cache/whitelist.json` -tiedostoon (`scripts/sync-whitelist.ps1`)
 4. **Crawler** — varmista viikoittainen `.github/workflows/kotisatama-crawl.yml` tai manuaalinen crawl
 
 ## Desktop-beta
 
-Paikallinen Win11-testipaketti (vaihtoehto hitaalle GitHub CI:lle):
+Paikallinen Win11-testipaketti:
 
 ```powershell
-.\scripts\build-win11-test.ps1
-# uudelleenrakennus: .\scripts\build-win11-test.ps1 -SkipBootstrap -Run
+.\scripts\build-win11.ps1
+# uudelleenrakennus: .\scripts\build-win11.ps1 -SkipBootstrap -Run
 ```
+
+(Vanha nimi `build-win11-test.ps1` toimii edelleen.)
 
 Lyhyt polku ilman paketointia:
 
@@ -47,10 +49,16 @@ Paikallinen fallback-loki: `index-data/fallback-searches.jsonl` (tai Android: ap
 
 Katso [support/android/README.md](support/android/README.md).
 
+```powershell
+# Windows (PowerShell)
+.\scripts\build-android.ps1
+.\scripts\build-android.ps1 -SkipBootstrap -Install -Usb
+```
+
 ```bash
-./mach build --target aarch64-linux-android --profile checked-release
-./support/android/fetch-meilisearch.sh
-cd support/android/apk && ./gradlew :servoapp:assembleArm64Release
+# Linux / macOS
+./scripts/build-android.sh
+./scripts/build-android.sh --skip-bootstrap --install --usb
 ```
 
 APK: `target/aarch64-linux-android/checked-release/servoapp.apk`

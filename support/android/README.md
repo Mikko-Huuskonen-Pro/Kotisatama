@@ -11,11 +11,21 @@ Kotisatama uses Servo's servoshell EGL path (`ports/servoshell/egl/android/`).
 
 From repo root:
 
-```bash
-./mach build --target aarch64-linux-android --profile checked-release
+```powershell
+# Windows — suositus
+.\scripts\build-android.ps1
+
+# Tai manuaalisesti
+.\mach build --target aarch64-linux-android --profile checked-release
+.\mach package --android --target aarch64-linux-android --profile checked-release
 ```
 
-APK output (after Gradle assemble):
+```bash
+# Linux / macOS
+./scripts/build-android.sh
+```
+
+APK output:
 
 ```
 target/aarch64-linux-android/checked-release/servoapp.apk
@@ -23,7 +33,9 @@ target/aarch64-linux-android/checked-release/servoapp.apk
 
 ## Kotisatama assets in APK
 
-Gradle copies `config/whitelist.json` and search seed documents into APK assets.
+Gradle copies the local curated whitelist from `index-data/cache/whitelist.json`
+when present, otherwise it falls back to `config/whitelist.json`. Search seed
+documents are copied from `config/search-index/documents.json`.
 Optional: bundle Meilisearch + index dump for offline search.
 
 ```bash

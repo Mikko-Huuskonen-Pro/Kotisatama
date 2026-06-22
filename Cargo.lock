@@ -4732,7 +4732,10 @@ dependencies = [
 name = "kotisatama-pulloposti"
 version = "0.1.0"
 dependencies = [
+ "kotisatama-subprocess-app",
  "log",
+ "serde",
+ "serde_json",
  "ureq",
  "url",
 ]
@@ -4752,6 +4755,7 @@ dependencies = [
 name = "kotisatama-search"
 version = "0.1.0"
 dependencies = [
+ "kotisatama-subprocess-app",
  "log",
  "serde",
  "serde_json",
@@ -4759,9 +4763,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kotisatama-subprocess-app"
+version = "0.1.0"
+dependencies = [
+ "ureq",
+]
+
+[[package]]
 name = "kotisatama-whitelist"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "log",
  "serde",
  "serde_json",

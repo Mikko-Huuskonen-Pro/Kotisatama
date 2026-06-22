@@ -12,6 +12,7 @@ name = "kotisatama_search"
 path = "src/lib.rs"
 
 [dependencies]
+kotisatama-subprocess-app = { path = "../subprocess-app" }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

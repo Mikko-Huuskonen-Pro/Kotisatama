@@ -13,14 +13,13 @@ pub use kotisatama_report::{domain_from_url, last_blocked_url};
 use kotisatama_search::SearchClient;
 pub use kotisatama_search::{SearchHit, SearchOutcome};
 use kotisatama_whitelist::{
-    Whitelist, blocked_page_url, is_allowed, is_avomeri_gateway, note_avomeri_query,
-    startpage_query, startpage_search_url,
+    blocked_page_url, init, init_empty, is_avomeri_gateway, is_navigation_allowed,
+    note_avomeri_query, startpage_query, startpage_search_url, WhitelistProfile,
 };
 use log::{info, warn};
 use servo::WebView;
 use url::Url;
 
-static WHITELIST: OnceLock<Whitelist> = OnceLock::new();
 static SEARCH: OnceLock<Option<SearchClient>> = OnceLock::new();
 static PULLOPOSTI: OnceLock<Option<PullopostiClient>> = OnceLock::new();
 
@@ -54,33 +53,28 @@ pub fn init() {
         }
     }
 
-    WHITELIST.get_or_init(|| {
-        let path = kotisatama_search::cached_whitelist_path()
-            .or_else(|| {
-                std::env::var("KOTISATAMA_WHITELIST_PATH")
-                    .ok()
-                    .map(PathBuf::from)
-            })
-            .unwrap_or_else(|| PathBuf::from("config/whitelist.json"));
-        Whitelist::load_from_path(&path).unwrap_or_else(|error| {
-            warn!(
-                "Kotisatama: could not load whitelist from {}: {error}. Using empty whitelist.",
-                path.display()
-            );
-            Whitelist::empty()
+    let base_path = kotisatama_search::cached_whitelist_path()
+        .or_else(|| {
+            std::env::var("KOTISATAMA_WHITELIST_PATH")
+                .ok()
+                .map(PathBuf::from)
         })
-    });
+        .unwrap_or_else(|| PathBuf::from("config/whitelist.json"));
+    let profile = WhitelistProfile::current();
+    if let Err(error) = init(&base_path, profile.clone()) {
+        warn!(
+            "Kotisatama: could not load whitelist from {}: {error}. Using empty base list.",
+            base_path.display()
+        );
+        let _ = init_empty(profile);
+    }
 
     // Meilisearch and Pulloposti start lazily on first use (avoid blocking startup).
 }
 
-fn whitelist() -> &'static Whitelist {
-    WHITELIST.get().expect("kotisatama::init() not called")
-}
-
 /// Whether navigation to `url` is allowed.
 pub fn check_url(url: &Url) -> bool {
-    is_allowed(url, whitelist())
+    is_navigation_allowed(url)
 }
 
 /// Track allowed navigations (Startpage query for blocked-page fallback).

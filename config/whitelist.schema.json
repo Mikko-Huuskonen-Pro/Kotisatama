@@ -3,16 +3,53 @@
   "title": "Kotisatama whitelist",
   "type": "object",
   "required": ["domains"],
-  "additionalProperties": false,
   "properties": {
+    "version": {
+      "type": "string",
+      "description": "Document version (2.0 for tagged entries)."
+    },
+    "updated": {
+      "type": "string",
+      "description": "ISO date when the list was last updated."
+    },
+    "description": {
+      "type": "string"
+    },
     "domains": {
       "type": "array",
-      "description": "Allowed registrable domains. Subdomains are allowed automatically.",
+      "description": "Curated whitelist entries. v1: plain domain strings. v2: objects with tags.",
+      "minItems": 1,
       "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "minItems": 1
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "object",
+            "required": ["domain"],
+            "additionalProperties": false,
+            "properties": {
+              "domain": {
+                "type": "string",
+                "minLength": 1
+              },
+              "label": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "type": {
+                "type": "string",
+                "enum": ["white"]
+              }
+            }
+          }
+        ]
+      }
     }
-  }
+  },
+  "additionalProperties": false
 }

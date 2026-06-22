@@ -309,6 +309,7 @@ kotisatama-whitelist = { package = "kotisatama-whitelist", version = "0.1.0", pa
 kotisatama-search = { package = "kotisatama-search", version = "0.1.0", path = "components/kotisatama/search" }
 kotisatama-report = { package = "kotisatama-report", version = "0.1.0", path = "components/kotisatama/report" }
 kotisatama-pulloposti = { package = "kotisatama-pulloposti", version = "0.1.0", path = "components/kotisatama/pulloposti" }
+kotisatama-subprocess-app = { package = "kotisatama-subprocess-app", version = "0.1.0", path = "components/kotisatama/subprocess-app" }
 kotisatama-i18n = { package = "kotisatama-i18n", version = "0.1.0", path = "components/kotisatama/i18n" }
 layout = { package = "servo-layout", version = "=0.3.0", path = "components/layout" }
 layout_api = { package = "servo-layout-api", version = "=0.3.0", path = "components/shared/layout" }

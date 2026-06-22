@@ -1,11 +1,19 @@
 {
+  "version": "2.0",
+  "updated": "2026-06-18",
+  "description": "Esimerkki — ei oikeita kuratoituja listoja",
   "domains": [
-    "kela.fi",
-    "yle.fi",
-    "wikipedia.org",
-    "fi.wikipedia.org",
-    "terveystalo.com",
-    "hsl.fi",
-    "suomi.fi"
+    {
+      "domain": "kela.fi",
+      "label": "Kela",
+      "tags": ["virastot", "hopeakettu"],
+      "type": "white"
+    },
+    {
+      "domain": "yle.fi",
+      "label": "Yle",
+      "tags": ["uutiset", "hopeakettu"],
+      "type": "white"
+    }
   ]
 }

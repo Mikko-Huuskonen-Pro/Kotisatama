@@ -12,6 +12,62 @@ param(
 $ErrorActionPreference = "Stop"
 $daemonDir = Join-Path $ClosedRepoRoot "Pulloposti\daemon"
 
+function Get-FileSha256 {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return $null }
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+}
+
+function Stop-PullopostiDaemonIfRunning {
+    $procs = Get-Process -Name "pulloposti-daemon" -ErrorAction SilentlyContinue
+    foreach ($proc in $procs) {
+        Write-Host "Stopping pulloposti-daemon (PID $($proc.Id))..."
+        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    }
+    if ($procs) {
+        Start-Sleep -Milliseconds 500
+    }
+}
+
+function Install-BuiltDaemon {
+    param(
+        [string]$Source,
+        [string]$Dest
+    )
+    if ((Test-Path $Dest) -and ((Get-FileSha256 $Source) -eq (Get-FileSha256 $Dest))) {
+        Write-Host "pulloposti-daemon.exe already up to date: $Dest"
+        return
+    }
+
+    $lastError = $null
+    for ($attempt = 0; $attempt -lt 3; $attempt++) {
+        try {
+            Copy-Item -LiteralPath $Source -Destination $Dest -Force
+            Write-Host "Synced -> $Dest"
+            return
+        } catch {
+            $lastError = $_
+            if ($attempt -eq 0) {
+                Write-Host "pulloposti-daemon.exe is in use; stopping running instance..."
+                Stop-PullopostiDaemonIfRunning
+            } else {
+                Start-Sleep -Milliseconds 500
+            }
+        }
+    }
+
+    $staging = "$Dest.new"
+    Copy-Item -LiteralPath $Source -Destination $staging -Force
+    Write-Warning @"
+Could not replace locked file: $Dest
+New binary saved as: $staging
+Stop Kotisatama / pulloposti-daemon and re-run sync, or rename .new -> .exe manually.
+"@
+    if ($lastError) {
+        Write-Warning $lastError.Exception.Message
+    }
+}
+
 if (-not (Test-Path $daemonDir)) {
     Write-Error "Pulloposti daemon not found: $daemonDir"
 }
@@ -28,8 +84,7 @@ try {
     if (-not (Test-Path $built)) {
         $built = Join-Path $localTarget "release\pulloposti-daemon"
     }
-    Copy-Item $built (Join-Path $OutputDir "pulloposti-daemon.exe") -Force
-    Write-Host "Synced -> $(Join-Path $OutputDir 'pulloposti-daemon.exe')"
+    Install-BuiltDaemon -Source $built -Dest (Join-Path $OutputDir "pulloposti-daemon.exe")
 } finally {
     if ($null -eq $previousCargoTargetDir) {
         Remove-Item Env:CARGO_TARGET_DIR -ErrorAction SilentlyContinue

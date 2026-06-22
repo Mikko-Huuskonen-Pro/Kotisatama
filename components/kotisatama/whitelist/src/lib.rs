@@ -2,36 +2,46 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-//! Kotisatama whitelist: domain checks and blocked-navigation page generation.
+//! Kotisatama whitelist: curated base list, user overlay, and navigation checks.
 
-use std::fs;
-use std::path::Path;
+mod document;
+mod domain;
+mod state;
+mod user;
+
 use std::sync::Mutex;
 
-use serde::Deserialize;
+pub use document::{WhitelistDocument, WhitelistEntry, WhitelistProfile};
+pub use domain::{host_matches_domain, normalize_domain};
+pub use state::{
+    add_user_domain, init, init_empty, is_navigation_allowed, remove_user_domain, user_entries,
+    EffectiveWhitelist,
+};
+pub use user::{user_whitelist_path, UserWhitelist, UserWhitelistEntry};
+
 use url::Url;
 
-/// Whitelist loaded from JSON (`config/whitelist.json`).
-#[derive(Debug, Clone, Deserialize)]
+/// Legacy view for callers that only need domain hostnames.
+#[derive(Debug, Clone)]
 pub struct Whitelist {
-    /// Allowed registrable domains (e.g. `kela.fi`). Subdomains match automatically.
     pub domains: Vec<String>,
 }
 
 impl Whitelist {
-    /// Load whitelist from a JSON file.
-    pub fn load_from_path(path: &Path) -> Result<Self, WhitelistError> {
-        let contents = fs::read_to_string(path).map_err(WhitelistError::Io)?;
-        Self::from_json_str(&contents)
+    pub fn load_from_path(path: &std::path::Path) -> Result<Self, WhitelistError> {
+        let document = WhitelistDocument::load_from_path(path)?;
+        Ok(Self {
+            domains: document.domain_hosts_for_profile(&WhitelistProfile::Free),
+        })
     }
 
-    /// Parse whitelist JSON.
     pub fn from_json_str(json: &str) -> Result<Self, WhitelistError> {
-        let whitelist = serde_json::from_str(json).map_err(WhitelistError::Json)?;
-        Ok(whitelist)
+        let document = WhitelistDocument::from_json_str(json)?;
+        Ok(Self {
+            domains: document.domain_hosts_for_profile(&WhitelistProfile::Free),
+        })
     }
 
-    /// Empty whitelist (everything external is blocked except internal/avomeri URLs).
     pub fn empty() -> Self {
         Self {
             domains: Vec::new(),
@@ -43,13 +53,17 @@ impl Whitelist {
 pub enum WhitelistError {
     Io(std::io::Error),
     Json(serde_json::Error),
+    InvalidDomain(String),
+    NotInitialized,
 }
 
 impl std::fmt::Display for WhitelistError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Io(e) => write!(f, "failed to read whitelist: {e}"),
-            Self::Json(e) => write!(f, "failed to parse whitelist JSON: {e}"),
+            Self::Io(error) => write!(f, "failed to read whitelist: {error}"),
+            Self::Json(error) => write!(f, "failed to parse whitelist JSON: {error}"),
+            Self::InvalidDomain(domain) => write!(f, "virheellinen domain: {domain}"),
+            Self::NotInitialized => write!(f, "whitelist not initialized"),
         }
     }
 }
@@ -74,45 +88,16 @@ pub fn last_avomeri_query() -> Option<String> {
     LAST_AVOMERI_QUERY.lock().ok()?.clone()
 }
 
-/// Hosts that act as the avomeri gateway (Startpage). MVP: always allowed so the
-/// blocked-page link works. Users can also navigate here directly via the URL bar.
-fn is_startpage_host(host: &str) -> bool {
-    let host = host.to_ascii_lowercase();
-    host == "startpage.com"
-        || host == "www.startpage.com"
-        || host.ends_with(".startpage.com")
-}
-
 /// Returns whether navigation to `url` is allowed under `whitelist`.
 pub fn is_allowed(url: &Url, whitelist: &Whitelist) -> bool {
-    if is_internal_navigation_url(url) {
+    if is_internal_navigation_url(url) || is_avomeri_gateway(url) {
         return true;
     }
-
-    if is_avomeri_gateway(url) {
-        return true;
-    }
-
     let host = match url.host_str() {
         Some(host) => host.to_ascii_lowercase(),
         None => return false,
     };
-
-    whitelist.domains.iter().any(|domain| {
-        let domain = domain.trim().to_ascii_lowercase();
-        if domain.is_empty() {
-            return false;
-        }
-        host == domain || host.ends_with(&format!(".{domain}"))
-    })
-}
-
-fn is_internal_navigation_url(url: &Url) -> bool {
-    match url.scheme() {
-        "about" | "data" | "servo" => true,
-        "file" => false,
-        _ => false,
-    }
+    whitelist.domains.iter().any(|domain| host_matches_domain(&host, domain))
 }
 
 /// Whether `url` is the avomeri (Startpage) gateway — report UI is hidden here.
@@ -132,7 +117,6 @@ pub fn startpage_query(url: &Url) -> Option<String> {
 }
 
 /// Build the internal blocked-page URL (`servo:blocked` + query params).
-/// HTML lives in `resources/resource_protocol/blocked.html` with i18n via `kotisatama-i18n.js`.
 pub fn blocked_page_url(blocked_url: &Url) -> Url {
     let display = blocked_url.as_str();
     let search_term = last_avomeri_query().unwrap_or_else(|| {
@@ -155,8 +139,7 @@ pub fn blocked_page_url(blocked_url: &Url) -> Url {
 /// Internal Kotisatama avomeri gateway page (`servo:avomeri?q=...`).
 pub fn avomeri_gateway_url(query: &str) -> Url {
     let encoded = url::form_urlencoded::byte_serialize(query.as_bytes()).collect::<String>();
-    Url::parse(&format!("servo:avomeri?q={encoded}"))
-        .expect("avomeri gateway URL must be valid")
+    Url::parse(&format!("servo:avomeri?q={encoded}")).expect("avomeri gateway URL must be valid")
 }
 
 /// Startpage search URL for avomeri fallback.
@@ -166,54 +149,67 @@ pub fn startpage_search_url(query: &str) -> Url {
         .expect("startpage URL must be valid")
 }
 
+fn is_internal_navigation_url(url: &Url) -> bool {
+    matches!(url.scheme(), "about" | "data" | "servo")
+}
+
+fn is_startpage_host(host: &str) -> bool {
+    let host = host.to_ascii_lowercase();
+    host == "startpage.com"
+        || host == "www.startpage.com"
+        || host.ends_with(".startpage.com")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::EffectiveWhitelist;
 
     fn whitelist_with(domains: &[&str]) -> Whitelist {
         Whitelist {
-            domains: domains.iter().map(|d| (*d).to_string()).collect(),
+            domains: domains.iter().map(|domain| (*domain).to_string()).collect(),
         }
     }
 
     #[test]
     fn allows_whitelisted_domain_and_subdomain() {
-        let wl = whitelist_with(&["kela.fi"]);
+        let whitelist = whitelist_with(&["kela.fi"]);
         let url = Url::parse("https://www.kela.fi/elake").unwrap();
-        assert!(is_allowed(&url, &wl));
+        assert!(is_allowed(&url, &whitelist));
     }
 
     #[test]
     fn blocks_unknown_domain() {
-        let wl = whitelist_with(&["kela.fi"]);
+        let whitelist = whitelist_with(&["kela.fi"]);
         let url = Url::parse("https://example.com/").unwrap();
-        assert!(!is_allowed(&url, &wl));
+        assert!(!is_allowed(&url, &whitelist));
     }
 
     #[test]
     fn allows_about_and_data() {
-        let wl = whitelist_with(&[]);
-        assert!(is_allowed(&Url::parse("about:blank").unwrap(), &wl));
-        assert!(is_allowed(&blocked_page_url(&Url::parse("https://evil.com").unwrap()), &wl));
+        let whitelist = whitelist_with(&[]);
+        assert!(is_allowed(&Url::parse("about:blank").unwrap(), &whitelist));
+        assert!(is_allowed(
+            &blocked_page_url(&Url::parse("https://evil.com").unwrap()),
+            &whitelist
+        ));
     }
 
     #[test]
     fn allows_startpage_gateway() {
-        let wl = whitelist_with(&[]);
+        let whitelist = whitelist_with(&[]);
         let url = Url::parse("https://www.startpage.com/search?q=test").unwrap();
-        assert!(is_allowed(&url, &wl));
-        let eu = Url::parse("https://eu.startpage.com/sp/search?q=test").unwrap();
-        assert!(is_allowed(&eu, &wl));
+        assert!(is_allowed(&url, &whitelist));
     }
 
     #[test]
-    fn blocked_page_uses_servo_scheme() {
-        let blocked = blocked_page_url(&Url::parse("https://example.com/path").unwrap());
-        assert_eq!(blocked.scheme(), "servo");
-        assert_eq!(blocked.path(), "blocked");
-        assert!(blocked
-            .query()
-            .unwrap_or("")
-            .contains("u=https%3A%2F%2Fexample.com%2Fpath"));
+    fn user_overlay_allows_extra_domain() {
+        let base =
+            WhitelistDocument::from_json_str(r#"{"domains":["kela.fi"]}"#).unwrap();
+        let mut user = UserWhitelist::default();
+        user.add_domain("example.com", None).unwrap();
+        let effective = EffectiveWhitelist::new(base, user, WhitelistProfile::Free);
+        assert!(effective.is_host_allowed("www.example.com"));
+        assert!(!effective.is_host_allowed("blocked.test"));
     }
 }

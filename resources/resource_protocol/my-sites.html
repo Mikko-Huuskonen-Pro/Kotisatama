@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta data-i18n-title="title" />
+    <style>
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        line-height: 1.5;
+        color: #1a1a1a;
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-position: center;
+        background-image:
+          linear-gradient(rgba(250, 250, 250, 0.92), rgba(250, 250, 250, 0.92)),
+          url("resource:///themes/kotisatama.svg");
+      }
+      main {
+        max-width: 52rem;
+        margin: 2.5rem;
+        padding: 1.25rem;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.65);
+        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.15);
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
+      }
+      .intro {
+        color: #555;
+        margin-bottom: 1.25rem;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.65rem 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      }
+      .domain {
+        font-weight: 600;
+      }
+      .meta {
+        color: #666;
+        font-size: 0.9rem;
+      }
+      .remove {
+        color: #8b1c1c;
+        text-decoration: none;
+        font-size: 0.95rem;
+        white-space: nowrap;
+      }
+      .empty {
+        color: #666;
+        font-style: italic;
+      }
+      .error {
+        color: #8b1c1c;
+        margin-bottom: 1rem;
+      }
+      form {
+        margin-top: 1.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      input {
+        flex: 1 1 14rem;
+        padding: 0.5rem 0.65rem;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font: inherit;
+      }
+      button {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 8px;
+        background: #1f6b4a;
+        color: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+      .back {
+        display: inline-block;
+        margin-top: 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 data-i18n="heading"></h1>
+      <p class="intro" data-i18n="intro"></p>
+      <p id="errorBox" class="error" hidden></p>
+      <ul id="siteList"></ul>
+      <p id="emptyState" class="empty" data-i18n="empty" hidden></p>
+
+      <form id="addForm">
+        <input
+          id="domainInput"
+          name="domain"
+          type="text"
+          required
+          data-i18n-placeholder="domainPlaceholder"
+        />
+        <button type="submit" data-i18n="addButton"></button>
+      </form>
+
+      <a class="back" href="servo:config" data-i18n="backLink"></a>
+    </main>
+
+    <script src="resource:///kotisatama-i18n.js"></script>
+    <script>
+      (function () {
+        const locale = KotisatamaI18n.applyDocument("mySites");
+        const siteList = document.getElementById("siteList");
+        const emptyState = document.getElementById("emptyState");
+        const errorBox = document.getElementById("errorBox");
+        const addForm = document.getElementById("addForm");
+        const domainInput = document.getElementById("domainInput");
+
+        const errors = {
+          invalid: KotisatamaI18n.t("mySites", "errorInvalid", locale),
+          failed: KotisatamaI18n.t("mySites", "errorFailed", locale),
+        };
+
+        const params = new URLSearchParams(location.search);
+        const error = params.get("error");
+        if (error && errors[error]) {
+          errorBox.textContent = errors[error];
+          errorBox.hidden = false;
+        }
+
+        function render(entries) {
+          siteList.replaceChildren();
+          if (!entries.length) {
+            emptyState.hidden = false;
+            return;
+          }
+          emptyState.hidden = true;
+          for (const entry of entries) {
+            const li = document.createElement("li");
+            const info = document.createElement("div");
+            const domain = document.createElement("div");
+            domain.className = "domain";
+            domain.textContent = entry.domain;
+            info.appendChild(domain);
+            if (entry.added) {
+              const meta = document.createElement("div");
+              meta.className = "meta";
+              meta.textContent = KotisatamaI18n.t("mySites", "addedOn", locale) + " " + entry.added;
+              info.appendChild(meta);
+            }
+            const remove = document.createElement("a");
+            remove.className = "remove";
+            remove.href =
+              "servo:whitelist/remove?domain=" + encodeURIComponent(entry.domain);
+            remove.textContent = KotisatamaI18n.t("mySites", "removeLink", locale);
+            li.appendChild(info);
+            li.appendChild(remove);
+            siteList.appendChild(li);
+          }
+        }
+
+        async function loadSites() {
+          const response = await fetch("servo:whitelist/list");
+          const entries = await response.json();
+          render(Array.isArray(entries) ? entries : []);
+        }
+
+        addForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const domain = domainInput.value.trim();
+          if (!domain) {
+            return;
+          }
+          const target =
+            "servo:whitelist/add?domain=" +
+            encodeURIComponent(domain) +
+            "&return=" +
+            encodeURIComponent("servo:whitelist");
+          location.href = target;
+        });
+
+        loadSites().catch(() => {
+          errorBox.textContent = errors.failed;
+          errorBox.hidden = false;
+        });
+      })();
+    </script>
+  </body>
+</html>

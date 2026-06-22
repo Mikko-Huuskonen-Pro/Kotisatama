@@ -141,8 +141,12 @@ val repoRoot = rootProject.projectDir.parentFile.parentFile.parentFile
 
 tasks.register<Copy>("copyKotisatamaAssets") {
     description = "Copy Kotisatama config into APK assets"
-    from("$repoRoot/config/whitelist.json") {
+    val localWhitelist = File("$repoRoot/index-data/cache/whitelist.json")
+    val trackedWhitelist = File("$repoRoot/config/whitelist.json")
+    val whitelist = if (localWhitelist.exists()) localWhitelist else trackedWhitelist
+    from(whitelist) {
         into("kotisatama")
+        rename { "whitelist.json" }
     }
     from("$repoRoot/config/search-index/documents.json") {
         into("kotisatama")

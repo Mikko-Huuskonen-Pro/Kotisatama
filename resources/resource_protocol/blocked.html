@@ -49,13 +49,35 @@
         color: #666;
         font-size: 0.9rem;
       }
+      .actions {
+        margin-top: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .add-site {
+        display: inline-block;
+        padding: 0.55rem 1rem;
+        border-radius: 8px;
+        background: #1f6b4a;
+        color: #fff;
+        text-decoration: none;
+        width: fit-content;
+      }
+      .manage-link {
+        font-size: 0.95rem;
+      }
     </style>
   </head>
   <body>
     <main>
       <h1 data-i18n="heading"></h1>
       <p id="blockedUrl" class="url"></p>
-      <p><a id="continueLink" data-i18n="continueLink"></a></p>
+      <div class="actions">
+        <a id="addSiteLink" class="add-site" data-i18n="addSiteLink"></a>
+        <a id="continueLink" data-i18n="continueLink"></a>
+        <a class="manage-link" href="servo:whitelist" data-i18n="manageSitesLink"></a>
+      </div>
       <p class="report-hint" data-i18n-html="reportHint"></p>
     </main>
 
@@ -71,6 +93,27 @@
         document.getElementById("blockedUrl").textContent = blockedUrl;
         const continueLink = document.getElementById("continueLink");
         continueLink.href = continueHref;
+
+        const addSiteLink = document.getElementById("addSiteLink");
+        if (blockedUrl) {
+          try {
+            const host = new URL(blockedUrl).hostname.replace(/^www\./i, "");
+            if (host) {
+              const returnParam = encodeURIComponent(blockedUrl);
+              addSiteLink.href =
+                "servo:whitelist/add?domain=" +
+                encodeURIComponent(host) +
+                "&return=" +
+                returnParam;
+            } else {
+              addSiteLink.hidden = true;
+            }
+          } catch (_) {
+            addSiteLink.hidden = true;
+          }
+        } else {
+          addSiteLink.hidden = true;
+        }
       })();
     </script>
   </body>

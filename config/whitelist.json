@@ -1,11 +1,18 @@
 {
+  "version": "2.0",
+  "description": "Paikallinen kehitys — aja scripts/sync-whitelist.ps1 suljetusta reposta",
   "domains": [
-    "kela.fi",
-    "yle.fi",
-    "wikipedia.org",
-    "fi.wikipedia.org",
-    "terveystalo.com",
-    "hsl.fi",
-    "suomi.fi"
+    {
+      "domain": "kela.fi",
+      "label": "Kela",
+      "tags": ["virastot"],
+      "type": "white"
+    },
+    {
+      "domain": "yle.fi",
+      "label": "Yle",
+      "tags": ["uutiset"],
+      "type": "white"
+    }
   ]
 }

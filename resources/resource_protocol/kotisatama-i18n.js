@@ -49,6 +49,50 @@
         sv: "Flaskpost-processen startar i bakgrunden (som den lokala sökningen). Krypteringslogiken stannar på enheten — inget moln, inga konton.",
       },
     },
+    pullopostiApp: {
+      title: { fi: "Pulloposti", sv: "Flaskpost" },
+      heading: { fi: "Pulloposti", sv: "Flaskpost" },
+      intro: {
+        fi: "Lähetä ja vastaanota salattuja kirjeitä lähilaitteiden kautta. Kirjeet synkronoidaan taustalla.",
+        sv: "Skicka och ta emot krypterade brev via närliggande enheter. Brev synkas i bakgrunden.",
+      },
+      statusReady: {
+        fi: "Yhteys Pullopostiin toimii.",
+        sv: "Anslutningen till Flaskpost fungerar.",
+      },
+      statusError: {
+        fi: "Pulloposti ei vastaa. Tarkista että daemon on käynnissä.",
+        sv: "Flaskpost svarar inte. Kontrollera att daemonen körs.",
+      },
+      lettersHeading: { fi: "Kirjeet", sv: "Brev" },
+      lettersEmpty: { fi: "Ei kirjeitä vielä.", sv: "Inga brev ännu." },
+      composeHeading: { fi: "Uusi kirje", sv: "Nytt brev" },
+      toPeerLabel: { fi: "Vastaanottajan tunniste", sv: "Mottagarens ID" },
+      bodyLabel: { fi: "Viesti", sv: "Meddelande" },
+      sendButton: { fi: "Lähetä", sv: "Skicka" },
+      sendSuccess: {
+        fi: "Kirje lähetetty.",
+        sv: "Brevet skickades.",
+      },
+      pairHeading: { fi: "Pariutuminen", sv: "Parkoppling" },
+      pairIntro: {
+        fi: "Syötä kuusi emojia, jotka olette sopineet etukäteen lähilaitteen kanssa.",
+        sv: "Ange sex emojis som ni kommit överens om i förväg med en närliggande enhet.",
+      },
+      emojiLabel: { fi: "Emoji-koodi", sv: "Emoji-kod" },
+      pairButton: { fi: "Aloita pariutuminen", sv: "Starta parkoppling" },
+      refreshPeers: { fi: "Päivitä laitteet", sv: "Uppdatera enheter" },
+      peerPaired: { fi: "Paritettu", sv: "Parkopplad" },
+      peerUnpaired: { fi: "Ei paritettu", sv: "Inte parkopplad" },
+      openLetter: { fi: "Avaa", sv: "Öppna" },
+      deleteLetter: { fi: "Poista", sv: "Ta bort" },
+      letterEmpty: { fi: "(tyhjä kirje)", sv: "(tomt brev)" },
+      pairStarted: {
+        fi: "Pariutuminen käynnistetty.",
+        sv: "Parkoppling startad.",
+      },
+      backGateway: { fi: "Takaisin alkuun", sv: "Tillbaka till start" },
+    },
     newtab: {
       title: { fi: "Kotisatama – uusi välilehti", sv: "Kotisatama – ny flik" },
       heading: { fi: "Kotisatama", sv: "Kotisatama" },
@@ -68,6 +112,11 @@
       languageAuto: { fi: "Automaattinen (järjestelmä)", sv: "Automatiskt (system)" },
       languageFi: { fi: "Suomi", sv: "Finska" },
       languageSv: { fi: "Ruotsi", sv: "Svenska" },
+      mySitesSection: { fi: "Omat sivut", sv: "Egna sidor" },
+      mySitesLink: {
+        fi: "Hallitse omia kotisataman sivuja",
+        sv: "Hantera egna sidor i hemmahamnen",
+      },
     },
     license: {
       title: { fi: "Kolmannen osapuolen lisenssit", sv: "Tredjepartslicenser" },
@@ -87,9 +136,33 @@
         sv: "Den här sidan finns inte i hemmahamnen.",
       },
       continueLink: { fi: "Jatka avomerelle", sv: "Fortsätt till öppet hav" },
+      addSiteLink: { fi: "Lisää kotisatamaan", sv: "Lägg till i hemmahamnen" },
+      manageSitesLink: { fi: "Omat sivut", sv: "Egna sidor" },
       reportHint: {
         fi: 'Voit ilmoittaa ongelmasta tai ehdottaa sivustoa selaimen <strong>Ilmoita</strong>-napilla.',
         sv: 'Du kan anmäla ett problem eller föreslå en webbplats med webbläsarens knapp <strong>Anmäl</strong>.',
+      },
+    },
+    mySites: {
+      title: { fi: "Omat sivut", sv: "Egna sidor" },
+      heading: { fi: "Omat kotisataman sivut", sv: "Egna sidor i hemmahamnen" },
+      intro: {
+        fi: "Nämä sivut ovat vain tässä laitteessa. Ne eivät korvaa kuratoitua listaa eivätkä näy haussa ennen kuin ne on indeksoitu erikseen.",
+        sv: "Dessa sidor finns bara på den här enheten. De ersätter inte den kurerade listan och syns inte i sökningen förrän de indexeras separat.",
+      },
+      empty: { fi: "Et ole vielä lisännyt omia sivuja.", sv: "Du har inte lagt till egna sidor än." },
+      domainPlaceholder: { fi: "esim. oma-pizzeria.fi", sv: "t.ex. min-pizzeria.fi" },
+      addButton: { fi: "Lisää sivu", sv: "Lägg till sida" },
+      removeLink: { fi: "Poista", sv: "Ta bort" },
+      addedOn: { fi: "Lisätty", sv: "Tillagd" },
+      backLink: { fi: "Takaisin asetuksiin", sv: "Tillbaka till inställningar" },
+      errorInvalid: {
+        fi: "Domain ei kelpaa. Käytä muotoa esim. esimerkki.fi",
+        sv: "Domänen är ogiltig. Använd t.ex. exempel.fi",
+      },
+      errorFailed: {
+        fi: "Sivun lisääminen tai poistaminen epäonnistui.",
+        sv: "Det gick inte att lägga till eller ta bort sidan.",
       },
     },
   };

@@ -65,13 +65,41 @@ Options:
 `);
 }
 
-function loadWhitelist(path) {
+function loadWhitelist(path, profile = "free") {
   const raw = readFileSync(resolve(path), "utf8");
   const data = JSON.parse(raw);
   if (!Array.isArray(data.domains)) {
     throw new Error("whitelist JSON must contain a domains array");
   }
-  return data.domains.map((d) => d.trim().toLowerCase()).filter(Boolean);
+  const hosts = data.domains
+    .map((item) => {
+      if (typeof item === "string") {
+        return item.trim().toLowerCase();
+      }
+      if (item && typeof item.domain === "string") {
+        return item.domain.trim().toLowerCase();
+      }
+      return "";
+    })
+    .filter(Boolean);
+  if (profile === "free") {
+    return hosts;
+  }
+  return data.domains
+    .filter((item) => {
+      if (typeof item === "string") {
+        return true;
+      }
+      const tags = Array.isArray(item.tags) ? item.tags : [];
+      return tags.some((tag) => String(tag).toLowerCase() === profile);
+    })
+    .map((item) => {
+      if (typeof item === "string") {
+        return item.trim().toLowerCase();
+      }
+      return item.domain.trim().toLowerCase();
+    })
+    .filter(Boolean);
 }
 
 function registrableDomain(hostname) {

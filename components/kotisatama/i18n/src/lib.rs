@@ -134,23 +134,26 @@ pub fn t(key: &str) -> &str {
 /// Translate for a specific locale (tests and callers that cache locale).
 pub fn t_for(locale: Locale, key: &str) -> &str {
     match (locale, key) {
-        (Locale::Fi, "report_button") => "Ilmoita",
-        (Locale::Sv, "report_button") => "Anmäl",
+        (Locale::Fi, "report_button") => "Lokikirja",
+        (Locale::Sv, "report_button") => "Loggbok",
 
-        (Locale::Fi, "report_button_a11y") => "Ilmoita ongelmasta",
-        (Locale::Sv, "report_button_a11y") => "Anmäl om ett problem",
+        (Locale::Fi, "report_button_a11y") => "Lokikirja — ilmoita ongelmasta",
+        (Locale::Sv, "report_button_a11y") => "Loggbok — anmäl om ett problem",
 
         (Locale::Fi, "search_label") => "Hae:",
         (Locale::Sv, "search_label") => "Sök:",
 
-        (Locale::Fi, "search_hint") => "Hae kotisatamasta…",
-        (Locale::Sv, "search_hint") => "Sök i hemmahamnen…",
+        (Locale::Fi, "search_hint") => "Hae satamasta…",
+        (Locale::Sv, "search_hint") => "Sök i hamnen…",
 
         (Locale::Fi, "pulloposti_button") => "Pulloposti",
         (Locale::Sv, "pulloposti_button") => "Flaskpost",
 
-        (Locale::Fi, "search_window_title") => "Kotisatama-haku",
-        (Locale::Sv, "search_window_title") => "Kotisatama-sökning",
+        (Locale::Fi, "varustamo_button") => "Varustamo",
+        (Locale::Sv, "varustamo_button") => "Varustamo",
+
+        (Locale::Fi, "search_window_title") => "Satama-haku",
+        (Locale::Sv, "search_window_title") => "Hamn-sökning",
 
         (Locale::Fi, "search_loading") => "Haetaan…",
         (Locale::Sv, "search_loading") => "Söker…",
@@ -158,9 +161,9 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "search_query_prefix") => "Haku:",
         (Locale::Sv, "search_query_prefix") => "Sök:",
 
-        (Locale::Fi, "search_no_results") => "Ei löydy kotisatamasta — haluatko hakea avomereltä?",
+        (Locale::Fi, "search_no_results") => "Ei löydy satamasta — haluatko hakea avomereltä?",
         (Locale::Sv, "search_no_results") => {
-            "Finns inte i hemmahamnen — vill du söka på öppet hav?"
+            "Finns inte i hamnen — vill du söka på öppet hav?"
         },
 
         (Locale::Fi, "search_avomeri") => "Hae avomereltä",
@@ -169,17 +172,17 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "close") => "Sulje",
         (Locale::Sv, "close") => "Stäng",
 
-        (Locale::Fi, "report_window_title") => "Ilmoita",
-        (Locale::Sv, "report_window_title") => "Anmäl",
+        (Locale::Fi, "report_window_title") => "Lokikirja",
+        (Locale::Sv, "report_window_title") => "Loggbok",
 
-        (Locale::Fi, "report_intro") => "Lähetä anonyymi raportti (ei käyttäjätunnistetta).",
-        (Locale::Sv, "report_intro") => "Skicka en anonym rapport (ingen användaridentifiering).",
+        (Locale::Fi, "report_intro") => "Lähetä anonyymi merkintä lokikirjaan (ei käyttäjätunnistetta).",
+        (Locale::Sv, "report_intro") => "Skicka en anonym anteckning till loggboken (ingen användaridentifiering).",
 
         (Locale::Fi, "report_site_broken") => "Sivusto ei toimi",
         (Locale::Sv, "report_site_broken") => "Webbplatsen fungerar inte",
 
-        (Locale::Fi, "report_suggest_site") => "Ehdota kotisatamaan",
-        (Locale::Sv, "report_suggest_site") => "Föreslå till hemmahamnen",
+        (Locale::Fi, "report_suggest_site") => "Ehdota satamaan",
+        (Locale::Sv, "report_suggest_site") => "Föreslå till hamnen",
 
         (Locale::Fi, "report_domain") => "Verkkotunnus:",
         (Locale::Sv, "report_domain") => "Domän:",
@@ -187,8 +190,8 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "report_description") => "Kuvaus (valinnainen):",
         (Locale::Sv, "report_description") => "Beskrivning (valfritt):",
 
-        (Locale::Fi, "report_sent") => "Raportti lähetetty.",
-        (Locale::Sv, "report_sent") => "Rapporten har skickats.",
+        (Locale::Fi, "report_sent") => "Merkintä tallennettu lokikirjaan.",
+        (Locale::Sv, "report_sent") => "Anteckningen har sparats i loggboken.",
 
         (Locale::Fi, "report_submit") => "Lähetä",
         (Locale::Sv, "report_submit") => "Skicka",
@@ -206,7 +209,7 @@ mod tests {
 
     #[test]
     fn swedish_report_button() {
-        assert_eq!(t_for(Locale::Sv, "report_button"), "Anmäl");
+        assert_eq!(t_for(Locale::Sv, "report_button"), "Loggbok");
     }
 
     #[test]

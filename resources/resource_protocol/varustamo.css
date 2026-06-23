@@ -1,0 +1,79 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+html,
+body {
+  height: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  background: linear-gradient(160deg, #e8f4fc 0%, #f5f0e6 55%, #dce9f5 100%);
+  color: #1a2a33;
+}
+
+main.card {
+  max-width: 52rem;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.12);
+}
+
+.muted {
+  color: #4a5c66;
+}
+
+.app-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.app-card {
+  display: block;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 107, 74, 0.25);
+  background: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.app-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(31, 107, 74, 0.15);
+}
+
+.app-card h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+
+.app-card .status {
+  font-size: 0.85rem;
+  color: #1f6b4a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.app-card .perms {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #5a6b75;
+}
+
+.error {
+  color: #9b2c2c;
+}
+
+.back-link {
+  display: inline-block;
+  margin-top: 1.5rem;
+}

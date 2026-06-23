@@ -86,3 +86,6 @@ justfile
 # Local Win11 desktop test package (build-win11-test.ps1)
 /dist/
 /kotisatama-win11-*.zip
+
+# Varustamo registry synced from closed repo (example stays in git)
+/config/varustamo/registry.json

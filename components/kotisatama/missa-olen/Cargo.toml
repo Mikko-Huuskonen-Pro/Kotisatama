@@ -1,0 +1,20 @@
+[package]
+name = "kotisatama-missa-olen"
+version = "0.1.0"
+edition.workspace = true
+authors = ["Ilio / Kotisatama"]
+license = "MPL-2.0"
+publish = false
+description = "Kotisatama Missä olen subprocess client (Varustamo-sovellus)"
+
+[lib]
+name = "kotisatama_missa_olen"
+path = "src/lib.rs"
+
+[dependencies]
+kotisatama-subprocess-app = { path = "../subprocess-app" }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+ureq = { version = "2.12", features = ["json"] }
+url = { workspace = true }

@@ -67,7 +67,7 @@ public final class KotisatamaUi {
                     labels[i] = hit.getString("title") + " — " + urls[i];
                 }
                 new AlertDialog.Builder(activity)
-                        .setTitle("Kotisatama-haku: " + query)
+                        .setTitle("Satama-haku: " + query)
                         .setItems(labels, (dialog, which) -> servoView.loadUri(urls[which]))
                         .setNegativeButton("Sulje", null)
                         .show();
@@ -84,7 +84,7 @@ public final class KotisatamaUi {
 
     private static void offerAvomeri(Activity activity, ServoView servoView, String query) {
         new AlertDialog.Builder(activity)
-                .setTitle("Ei löydy kotisatamasta")
+                .setTitle("Ei löydy satamasta")
                 .setMessage("Haluatko hakea avomereltä?")
                 .setPositiveButton("Hae avomereltä", (dialog, which) -> {
                     String encoded = android.net.Uri.encode(query);
@@ -110,7 +110,7 @@ public final class KotisatamaUi {
         int brokenId = View.generateViewId();
         broken.setId(brokenId);
         RadioButton suggest = new RadioButton(activity);
-        suggest.setText("Ehdota kotisatamaan");
+        suggest.setText("Ehdota satamaan");
         int suggestId = View.generateViewId();
         suggest.setId(suggestId);
         kindGroup.addView(broken);
@@ -138,8 +138,8 @@ public final class KotisatamaUi {
         layout.addView(messageField);
 
         new AlertDialog.Builder(activity)
-                .setTitle("Ilmoita")
-                .setMessage("Anonyymi raportti — ei käyttäjätunnistetta.")
+                .setTitle("Lokikirja")
+                .setMessage("Anonyymi merkintä lokikirjaan — ei käyttäjätunnistetta.")
                 .setView(layout)
                 .setPositiveButton("Lähetä", (dialog, which) -> {
                     String kind = kindGroup.getCheckedRadioButtonId() == suggestId
@@ -150,7 +150,7 @@ public final class KotisatamaUi {
                     String contextUrl = currentUrl != null ? currentUrl : "";
                     String error = servoView.kotisatamaSubmitReport(kind, domain, message, contextUrl);
                     if (error == null || error.isEmpty()) {
-                        Toast.makeText(activity, "Raportti lähetetty", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(activity, "Merkintä tallennettu lokikirjaan", Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
                     }

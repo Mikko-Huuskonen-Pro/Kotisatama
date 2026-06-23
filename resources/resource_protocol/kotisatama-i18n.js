@@ -8,8 +8,8 @@
       title: { fi: "Avomeri", sv: "Öppet hav" },
       heading: { fi: "Avomeri", sv: "Öppet hav" },
       intro: {
-        fi: "Olet siirtymässä avomerelle. Kotisataman ulkopuolelle mennään vain käyttäjän omasta valinnasta.",
-        sv: "Du håller på att gå ut på öppet hav. Utanför hemmahamnen sker det endast på användarens eget val.",
+        fi: "Olet siirtymässä avomerelle. Sataman ulkopuolelle mennään vain käyttäjän omasta valinnasta.",
+        sv: "Du håller på att gå ut på öppet hav. Utanför hamnen sker det endast på användarens eget val.",
       },
       searchLabel: { fi: "Hae avomereltä", sv: "Sök på öppet hav" },
       searchPlaceholder: { fi: "Kirjoita hakusana…", sv: "Skriv sökord…" },
@@ -99,6 +99,64 @@
       searchPlaceholder: { fi: "Hae avomereltä…", sv: "Sök på öppet hav…" },
       searchButton: { fi: "Hae", sv: "Sök" },
     },
+    varustamo: {
+      title: { fi: "Varustamo", sv: "Varustamo" },
+      heading: { fi: "Varustamo", sv: "Varustamo" },
+      intro: {
+        fi: "Luotettu sovellusvarasto Kotisatamassa. Valitse sovellus alla.",
+        sv: "Betrodd appbutik i Kotisatama. Välj en app nedan.",
+      },
+      loading: { fi: "Ladataan sovellusluetteloa…", sv: "Laddar applista…" },
+      empty: { fi: "Ei asennettavia sovelluksia.", sv: "Inga appar att installera." },
+      loadError: {
+        fi: "Rekisteriä ei voitu ladata. Synkkaa suljetusta reposta.",
+        sv: "Registret kunde inte laddas. Synka från det stängda repot.",
+      },
+      permAllowed: { fi: "Sallii:", sv: "Tillåter:" },
+      permDenied: { fi: "Ei salli:", sv: "Tillåter inte:" },
+      backLink: { fi: "Takaisin Kotisatamaan", sv: "Tillbaka till Kotisatama" },
+    },
+    missaOlen: {
+      title: { fi: "Missä olen", sv: "Var är jag" },
+      heading: { fi: "Missä olen", sv: "Var är jag" },
+      intro: {
+        fi: "Selvitä sijaintisi turvallisesti paikallisen daemonin kautta.",
+        sv: "Ta reda på var du är via den lokala daemonen.",
+      },
+      statusChecking: {
+        fi: "Tarkistetaan Missä olen -palvelua…",
+        sv: "Kontrollerar Var är jag-tjänsten…",
+      },
+      statusReady: {
+        fi: "Missä olen on valmiina.",
+        sv: "Var är jag är redo.",
+      },
+      statusError: {
+        fi: "Missä olen ei ole käynnissä. Käynnistä daemon Varustamosta tai synkkaa buildiin.",
+        sv: "Var är jag körs inte. Starta daemonen från Varustamo eller synka till builden.",
+      },
+      locateButton: { fi: "Paikanna minut", sv: "Lokalisera mig" },
+      locating: { fi: "Haetaan sijaintia…", sv: "Hämtar position…" },
+      located: { fi: "Sijainti löytyi:", sv: "Position hittad:" },
+      geoUnsupported: {
+        fi: "Selaimesi ei tue paikannusta.",
+        sv: "Din webbläsare stöder inte positionering.",
+      },
+      geoDenied: {
+        fi: "Paikannus estettiin. Salli sijainti laitteen asetuksista.",
+        sv: "Positionering nekades. Tillåt plats i enhetens inställningar.",
+      },
+      reverseError: {
+        fi: "Osoitteen haku epäonnistui.",
+        sv: "Adressökningen misslyckades.",
+      },
+      retry: { fi: "Yritä uudelleen", sv: "Försök igen" },
+      backVarustamo: { fi: "Takaisin Varustamoon", sv: "Tillbaka till Varustamo" },
+      attribution: {
+        fi: "Osoitetiedot: OpenStreetMap / Nominatim.",
+        sv: "Adressdata: OpenStreetMap / Nominatim.",
+      },
+    },
     config: {
       title: { fi: "Lisäasetukset", sv: "Avancerade inställningar" },
       searchPlaceholder: { fi: "Etsi asetusta…", sv: "Sök efter en inställning…" },
@@ -112,10 +170,10 @@
       languageAuto: { fi: "Automaattinen (järjestelmä)", sv: "Automatiskt (system)" },
       languageFi: { fi: "Suomi", sv: "Finska" },
       languageSv: { fi: "Ruotsi", sv: "Svenska" },
-      mySitesSection: { fi: "Omat sivut", sv: "Egna sidor" },
+      mySitesSection: { fi: "Sataman sivut", sv: "Hamnens sidor" },
       mySitesLink: {
-        fi: "Hallitse omia kotisataman sivuja",
-        sv: "Hantera egna sidor i hemmahamnen",
+        fi: "Hallitse omia sataman sivuja",
+        sv: "Hantera egna sidor i hamnen",
       },
     },
     license: {
@@ -130,22 +188,22 @@
       },
     },
     blocked: {
-      title: { fi: "Ei löydy kotisatamasta", sv: "Finns inte i hemmahamnen" },
+      title: { fi: "Ei löydy satamasta", sv: "Finns inte i hamnen" },
       heading: {
-        fi: "Tätä sivua ei löydy kotisatamassa.",
-        sv: "Den här sidan finns inte i hemmahamnen.",
+        fi: "Tätä sivua ei löydy satamassa.",
+        sv: "Den här sidan finns inte i hamnen.",
       },
       continueLink: { fi: "Jatka avomerelle", sv: "Fortsätt till öppet hav" },
-      addSiteLink: { fi: "Lisää kotisatamaan", sv: "Lägg till i hemmahamnen" },
-      manageSitesLink: { fi: "Omat sivut", sv: "Egna sidor" },
+      addSiteLink: { fi: "Lisää satamaan", sv: "Lägg till i hamnen" },
+      manageSitesLink: { fi: "Omat sataman sivut", sv: "Egna sidor i hamnen" },
       reportHint: {
-        fi: 'Voit ilmoittaa ongelmasta tai ehdottaa sivustoa selaimen <strong>Ilmoita</strong>-napilla.',
-        sv: 'Du kan anmäla ett problem eller föreslå en webbplats med webbläsarens knapp <strong>Anmäl</strong>.',
+        fi: 'Voit kirjata havainnon lokikirjaan selaimen <strong>Lokikirja</strong>-napilla.',
+        sv: 'Du kan anteckna i loggboken med webbläsarens knapp <strong>Loggbok</strong>.',
       },
     },
     mySites: {
-      title: { fi: "Omat sivut", sv: "Egna sidor" },
-      heading: { fi: "Omat kotisataman sivut", sv: "Egna sidor i hemmahamnen" },
+      title: { fi: "Omat sataman sivut", sv: "Egna sidor i hamnen" },
+      heading: { fi: "Omat sataman sivut", sv: "Egna sidor i hamnen" },
       intro: {
         fi: "Nämä sivut ovat vain tässä laitteessa. Ne eivät korvaa kuratoitua listaa eivätkä näy haussa ennen kuin ne on indeksoitu erikseen.",
         sv: "Dessa sidor finns bara på den här enheten. De ersätter inte den kurerade listan och syns inte i sökningen förrän de indexeras separat.",

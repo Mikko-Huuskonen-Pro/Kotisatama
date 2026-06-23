@@ -10,6 +10,8 @@
 //! - servo:newtab
 //! - servo:avomeri
 //! - servo:pulloposti
+//! - servo:varustamo
+//! - servo:missa-olen
 //! - servo:whitelist
 //! - servo:whitelist/add
 //! - servo:whitelist/commit-add
@@ -95,6 +97,44 @@ impl ProtocolHandler for ServoProtocolHandler {
                 done_chan,
                 context,
                 "/pulloposti-app.html",
+            ),
+
+            #[cfg(feature = "kotisatama")]
+            "varustamo/registry" => {
+                let body = kotisatama_varustamo::load_registry_json()
+                    .unwrap_or_else(|error| format!(r#"{{"error":"{error}"}}"#));
+                json_response(request, body)
+            },
+
+            #[cfg(feature = "kotisatama")]
+            "varustamo/app" => {
+                let app_id = query_param(url.as_url(), "id").unwrap_or_default();
+                let target = match app_id.as_str() {
+                    "pulloposti" => {
+                        std::thread::spawn(crate::kotisatama::ensure_pulloposti);
+                        "servo:pulloposti"
+                    },
+                    "missa-olen" => {
+                        std::thread::spawn(crate::kotisatama::ensure_missa_olen);
+                        "servo:missa-olen"
+                    },
+                    _ => "servo:varustamo",
+                };
+                return redirect_response(request, target);
+            },
+
+            "varustamo" => ResourceProtocolHandler::response_for_path(
+                request,
+                done_chan,
+                context,
+                "/varustamo.html",
+            ),
+
+            "missa-olen" => ResourceProtocolHandler::response_for_path(
+                request,
+                done_chan,
+                context,
+                "/missa-olen.html",
             ),
 
             // KOTISATAMA-PATCH: whitelist-blokkaussivu (i18n: blocked.html + kotisatama-i18n.js).
@@ -376,7 +416,7 @@ fn whitelist_confirm_response(
         encode_query_value(domain),
         encode_query_value(token)
     );
-    let title = format!("{verb} {domain} kotisatamaan?");
+    let title = format!("{verb} {domain} satamaan?");
     html_response(
         request,
         format!(

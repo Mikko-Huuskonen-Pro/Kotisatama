@@ -4729,6 +4729,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kotisatama-missa-olen"
+version = "0.1.0"
+dependencies = [
+ "kotisatama-subprocess-app",
+ "log",
+ "serde",
+ "serde_json",
+ "ureq",
+ "url",
+]
+
+[[package]]
 name = "kotisatama-pulloposti"
 version = "0.1.0"
 dependencies = [
@@ -4767,6 +4779,16 @@ name = "kotisatama-subprocess-app"
 version = "0.1.0"
 dependencies = [
  "ureq",
+]
+
+[[package]]
+name = "kotisatama-varustamo"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -9211,9 +9233,11 @@ dependencies = [
  "jni 0.22.4",
  "keyboard-types",
  "kotisatama-i18n",
+ "kotisatama-missa-olen",
  "kotisatama-pulloposti",
  "kotisatama-report",
  "kotisatama-search",
+ "kotisatama-varustamo",
  "kotisatama-whitelist",
  "libc",
  "log",

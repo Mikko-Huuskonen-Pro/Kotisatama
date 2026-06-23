@@ -106,6 +106,16 @@ if (-not $env:KOTISATAMA_PULLOPOSTI_BIN) {
     if (Test-Path $pp) { $env:KOTISATAMA_PULLOPOSTI_BIN = $pp }
 }
 
+if (-not $env:KOTISATAMA_MISSA_OLEN_BIN) {
+    $mo = Join-Path $Root "bin\missa-olen-daemon.exe"
+    if (Test-Path $mo) { $env:KOTISATAMA_MISSA_OLEN_BIN = $mo }
+}
+
+if (-not $env:KOTISATAMA_VARUSTAMO_REGISTRY) {
+    $vr = Join-Path $Root "config\varustamo\registry.json"
+    if (Test-Path $vr) { $env:KOTISATAMA_VARUSTAMO_REGISTRY = $vr }
+}
+
 if (-not $env:KOTISATAMA_SEARCH_DOCUMENTS) {
     $docs = Join-Path $Root "config\search-index\documents.json"
     if (Test-Path $docs) { $env:KOTISATAMA_SEARCH_DOCUMENTS = $docs }
@@ -203,6 +213,12 @@ if (-not $SkipPulloposti) {
     Write-Step "Pulloposti daemon (valinnainen)"
     Sync-PullopostiDaemon -RepoRoot $RepoRoot
 }
+
+Write-Step "Varustamo registry (valinnainen)"
+Sync-VarustamoRegistry -RepoRoot $RepoRoot
+
+Write-Step "Missä olen daemon (valinnainen)"
+Sync-MissaOlenDaemon -RepoRoot $RepoRoot
 
 Write-Step "mach build --release"
 & .\mach build --release

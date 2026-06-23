@@ -5,8 +5,8 @@
   <string name="history_back">Takaisin</string>
   <string name="history_forward">Eteenpäin</string>
   <string name="options">Asetukset</string>
-  <string name="url_or_search">Hae kotisatamasta tai syötä osoite</string>
-  <string name="report">Ilmoita</string>
+  <string name="url_or_search">Hae satamasta tai syötä osoite</string>
+  <string name="report">Lokikirja</string>
   <string name="refresh">Päivitä</string>
   <string name="idle">lepotila</string>
   <string name="cancel">Peruuta</string>

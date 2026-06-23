@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "name": "Varustamo",
+  "description": "Kotisataman luotettujen sovellusten rekisteri (esimerkki)",
+  "apps": [
+    {
+      "id": "pulloposti",
+      "name": "Pulloposti",
+      "status": "testable",
+      "path": "Pulloposti",
+      "tauriConfig": "Pulloposti/src-tauri/tauri.conf.json",
+      "daemon": "Pulloposti/daemon",
+      "permissions": ["bluetooth", "app-storage"],
+      "noPermissions": ["internet", "contacts", "camera"]
+    },
+    {
+      "id": "missa-olen",
+      "name": "Missä olen",
+      "status": "testable",
+      "path": "Missa-olen",
+      "daemon": "Missa-olen/daemon",
+      "permissions": ["location", "internet"],
+      "noPermissions": ["bluetooth", "contacts", "camera", "storage"],
+      "internetScope": ["nominatim.openstreetmap.org"]
+    }
+  ]
+}

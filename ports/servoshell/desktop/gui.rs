@@ -621,7 +621,7 @@ impl Gui {
                     );
                 });
 
-                // KOTISATAMA-PATCH: kotisatama-hakupalkki ja Pulloposti-linkki.
+                // KOTISATAMA-PATCH: kotisatama-hakupalkki ja Varustamo-linkki.
                 #[cfg(feature = "kotisatama")]
                 {
                     let search_frame = egui::Frame::default()
@@ -650,9 +650,9 @@ impl Gui {
                                     });
                                     window.set_needs_repaint();
                                 }
-                                if ui.button(t("pulloposti_button")).clicked() {
+                                if ui.button(t("varustamo_button")).clicked() {
                                     if let Some(webview) = window.active_webview() {
-                                        crate::kotisatama::open_pulloposti(&webview);
+                                        crate::kotisatama::open_varustamo(&webview);
                                         window.set_needs_repaint();
                                     }
                                 }

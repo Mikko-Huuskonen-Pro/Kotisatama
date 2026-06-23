@@ -51,12 +51,26 @@ function Ensure-Uv {
 
 function Invoke-KotisatamaTests {
     Write-Step "Kotisatama unit tests"
-    cargo test -p kotisatama-pulloposti -p kotisatama-whitelist -p kotisatama-search -p kotisatama-report
+    cargo test -p kotisatama-pulloposti -p kotisatama-missa-olen -p kotisatama-varustamo -p kotisatama-whitelist -p kotisatama-search -p kotisatama-report
+}
+
+function Get-ClosedRepoRoot {
+    param([string]$RepoRoot)
+    $candidates = @(
+        (Join-Path $RepoRoot "..\Varustamo"),
+        (Join-Path $RepoRoot "..\Kotisataman-suljetut-osat")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path (Join-Path $candidate "varustamo\registry.json")) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    return $candidates[1]
 }
 
 function Sync-Whitelist {
     param([string]$RepoRoot)
-    $closed = Join-Path $RepoRoot "..\Kotisataman-suljetut-osat"
+    $closed = Get-ClosedRepoRoot -RepoRoot $RepoRoot
     $source = Join-Path $closed "valkoiset-sivut\whitelist-unified.json"
     $dest = Join-Path $RepoRoot "index-data\cache\whitelist.json"
     if (-not (Test-Path $source)) {
@@ -71,12 +85,32 @@ function Sync-Whitelist {
 
 function Sync-PullopostiDaemon {
     param([string]$RepoRoot)
-    $closed = Join-Path $RepoRoot "..\Kotisataman-suljetut-osat"
+    $closed = Get-ClosedRepoRoot -RepoRoot $RepoRoot
     if (-not (Test-Path (Join-Path $closed "Pulloposti\daemon\Cargo.toml"))) {
         Write-Warning "Suljettu repo ei loydy - Pulloposti daemon ohitetaan."
         return
     }
     & (Join-Path $RepoRoot "scripts\sync-pulloposti-daemon.ps1") -ClosedRepoRoot $closed
+}
+
+function Sync-VarustamoRegistry {
+    param([string]$RepoRoot)
+    $closed = Get-ClosedRepoRoot -RepoRoot $RepoRoot
+    if (-not (Test-Path (Join-Path $closed "varustamo\registry.json"))) {
+        Write-Warning "Varustamo registry ei loydy - kaytetaan registry.example.json."
+        return
+    }
+    & (Join-Path $RepoRoot "scripts\sync-varustamo-registry.ps1") -ClosedRepoRoot $closed
+}
+
+function Sync-MissaOlenDaemon {
+    param([string]$RepoRoot)
+    $closed = Get-ClosedRepoRoot -RepoRoot $RepoRoot
+    if (-not (Test-Path (Join-Path $closed "Missa-olen\daemon\Cargo.toml"))) {
+        Write-Warning "Suljettu repo ei loydy - Missa olen daemon ohitetaan."
+        return
+    }
+    & (Join-Path $RepoRoot "scripts\sync-missa-olen-daemon.ps1") -ClosedRepoRoot $closed
 }
 
 function Set-CargoTargetDir {

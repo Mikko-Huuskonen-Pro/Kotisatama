@@ -5,8 +5,8 @@
   <string name="history_back">Bakåt</string>
   <string name="history_forward">Framåt</string>
   <string name="options">Inställningar</string>
-  <string name="url_or_search">Sök i hemmahamnen eller ange en adress</string>
-  <string name="report">Anmäl</string>
+  <string name="url_or_search">Sök i hamnen eller ange en adress</string>
+  <string name="report">Loggbok</string>
   <string name="refresh">Uppdatera</string>
   <string name="idle">vila</string>
   <string name="cancel">Avbryt</string>

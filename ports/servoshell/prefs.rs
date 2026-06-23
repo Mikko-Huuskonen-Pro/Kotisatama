@@ -52,6 +52,11 @@ pub(crate) static EXPERIMENTAL_PREFS: &[&str] = &[
     "layout_variable_fonts_enabled",
 ];
 
+// KOTISATAMA-PATCH: Kotisatama ships with experimental web platform prefs
+// enabled so app surfaces such as Varustamo work without a manual CLI flag
+// or menu toggle.
+const KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED: bool = true;
+
 #[cfg_attr(any(target_os = "android", target_env = "ohos"), expect(dead_code))]
 #[derive(Clone)]
 pub(crate) struct ServoShellPreferences {
@@ -132,7 +137,7 @@ impl Default for ServoShellPreferences {
             log_filter: None,
             #[cfg(target_env = "ohos")]
             log_to_file: false,
-            experimental_preferences_enabled: false,
+            experimental_preferences_enabled: KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED,
         }
     }
 }
@@ -592,7 +597,13 @@ fn update_preferences_from_command_line_arguments(
         preferences.devtools_server_listen_address = listen_address.clone();
     }
 
-    if cmd_args.enable_experimental_web_platform_features {
+    // KOTISATAMA-PATCH: keep experimental web platform prefs enabled by default
+    // in Kotisatama. The upstream CLI flag still maps to the same state, but it
+    // is no longer required for Kotisatama builds.
+    let experimental_preferences_enabled = KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED ||
+        cmd_args.enable_experimental_web_platform_features;
+
+    if experimental_preferences_enabled {
         for pref in EXPERIMENTAL_PREFS {
             preferences.set_value(pref, PrefValue::Bool(true));
         }
@@ -723,7 +734,8 @@ fn parse_arguments_helper(args_without_binary: Args) -> ArgumentParsingResult {
         exit_after_stable_image: cmd_args.exit,
         userscripts_directory: cmd_args.userscripts,
         user_stylesheets: cmd_args.user_stylesheet,
-        experimental_preferences_enabled: cmd_args.enable_experimental_web_platform_features,
+        experimental_preferences_enabled: KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED ||
+            cmd_args.enable_experimental_web_platform_features,
         #[cfg(target_env = "ohos")]
         log_filter: cmd_args.log_filter.or_else(|| {
             (!preferences.log_filter.is_empty()).then(|| preferences.log_filter.clone())

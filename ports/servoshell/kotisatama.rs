@@ -7,11 +7,14 @@
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+use kotisatama_missa_olen::MissaOlenClient;
 use kotisatama_pulloposti::PullopostiClient;
 use kotisatama_report::{Report, ReportError, ReportKind, note_blocked_url};
 pub use kotisatama_report::{domain_from_url, last_blocked_url};
 use kotisatama_search::SearchClient;
 pub use kotisatama_search::{SearchHit, SearchOutcome};
+pub use kotisatama_varustamo::{app_gateway_url, load_registry, VarustamoRegistry};
+use kotisatama_varustamo::gateway_url as varustamo_gateway_url;
 use kotisatama_whitelist::{
     blocked_page_url, init as init_whitelist, init_empty, is_avomeri_gateway,
     is_navigation_allowed, note_avomeri_query, startpage_query, startpage_search_url,
@@ -23,6 +26,7 @@ use url::Url;
 
 static SEARCH: OnceLock<Option<SearchClient>> = OnceLock::new();
 static PULLOPOSTI: OnceLock<Option<PullopostiClient>> = OnceLock::new();
+static MISSA_OLEN: OnceLock<Option<MissaOlenClient>> = OnceLock::new();
 
 /// Active Kotisatama search panel state for the servoshell UI.
 #[derive(Debug, Clone)]
@@ -70,7 +74,14 @@ pub fn init() {
         let _ = init_empty(profile);
     }
 
-    // Meilisearch and Pulloposti start lazily on first use (avoid blocking startup).
+    // Meilisearch, Pulloposti and Varustamo apps start lazily on first use.
+    match load_registry() {
+        Ok(registry) => info!(
+            "Varustamo: {} apps loaded from registry",
+            registry.displayable_apps().len()
+        ),
+        Err(error) => warn!("Varustamo registry not loaded: {error}"),
+    }
 }
 
 /// Whether navigation to `url` is allowed.
@@ -178,7 +189,7 @@ pub fn avomeri_search_url(query: &str) -> Url {
     startpage_search_url(query)
 }
 
-fn ensure_pulloposti() {
+pub fn ensure_pulloposti() {
     PULLOPOSTI.get_or_init(|| match PullopostiClient::start() {
         Ok(client) => {
             info!("Pulloposti subprocess valmiina");
@@ -195,6 +206,58 @@ fn ensure_pulloposti() {
 pub fn open_pulloposti(webview: &WebView) {
     std::thread::spawn(|| ensure_pulloposti());
     webview.load(PullopostiClient::gateway_url());
+}
+
+/// Varustamo hub page (`servo:varustamo`).
+pub fn open_varustamo(webview: &WebView) {
+    webview.load(varustamo_gateway_url());
+}
+
+/// Open a Varustamo app by registry id (starts daemon when needed).
+pub fn open_varustamo_app(webview: &WebView, app_id: &str) {
+    match app_id {
+        "pulloposti" => open_pulloposti(webview),
+        "missa-olen" => open_missa_olen(webview),
+        _ => {
+            if let Ok(url) = app_gateway_url(app_id) {
+                webview.load(url);
+            } else {
+                warn!("Varustamo: unknown app id {app_id}");
+            }
+        },
+    }
+}
+
+/// Loaded Varustamo registry, if available.
+pub fn varustamo_registry() -> Option<VarustamoRegistry> {
+    load_registry().ok()
+}
+
+/// Missä olen gateway (`servo:missa-olen`).
+pub fn open_missa_olen(webview: &WebView) {
+    std::thread::spawn(|| ensure_missa_olen());
+    webview.load(MissaOlenClient::gateway_url());
+}
+
+/// Whether Missä olen daemon responds to health checks.
+pub fn missa_olen_available() -> bool {
+    match MISSA_OLEN.get() {
+        Some(Some(client)) => client.is_available(),
+        _ => false,
+    }
+}
+
+pub fn ensure_missa_olen() {
+    MISSA_OLEN.get_or_init(|| match MissaOlenClient::start() {
+        Ok(client) => {
+            info!("Missä olen subprocess valmiina");
+            Some(client)
+        },
+        Err(error) => {
+            warn!("Missä olen unavailable: {error}");
+            None
+        },
+    });
 }
 
 /// Search the local Kotisatama index.

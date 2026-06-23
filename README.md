@@ -65,6 +65,8 @@ Sieltä voi:
 - hakea apua Majakasta
 
 Yhtenäinen sanasto tekee tuotteesta helposti tunnistettavan ja tukee Kotisataman tavoitetta tarjota turvallinen, helposti ymmärrettävä ja luotettava käyttökokemus kaikenikäisille käyttäjille.
+
+Tuote- ja kehitysfilosofia (Servo, whitelist, Kela, Telakka): [Docs/FILOSOFIA.md](Docs/FILOSOFIA.md).
 ---
 
 ## Kehitysympäristö

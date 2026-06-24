@@ -80,6 +80,7 @@ Kun käyttäjä poistuu Avomereltä:
 
 Avomeri ei jätä jälkiä.
 
+---
 Laituri
 
 Laituri on käyttäjän oma alue Sataman ja Avomeren välissä.

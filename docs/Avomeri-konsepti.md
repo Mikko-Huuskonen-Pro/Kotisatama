@@ -89,7 +89,6 @@ Se on tarkoitettu sivustoille, joita käyttäjä käyttää säännöllisesti, m
 
 Laituri toimii kokeilu- ja siirtymäalueena.
 
----
 
 Tarkoitus
 
@@ -104,7 +103,6 @@ Esimerkkejä:
 - Pankki tai palvelu, jota Kotisatama ei vielä tue
 - Käyttäjän omat verkkopalvelut
 
----
 
 Ominaisuudet
 
@@ -118,23 +116,21 @@ Niille voidaan sallia:
 
 Mutta ne eivät ole osa Kotisataman kuratoitua ydinsisältöä.
 
----
 
 Sivuston lisääminen
 
 Käyttäjä voi valita:
 
-«Lisää Laiturille»
+«Lisää kotisataman laiturille» (24.6.2026 kohta"Lisää kotisatamaan") 
 
 Tämän jälkeen sivusto ilmestyy Kotisataman hakuihin ja pikavalintoihin.
 
 Sivustoa voidaan käyttää lähes samalla tavalla kuin Sataman sivustoja.
 
----
 
 Suhde Satamaan
 
-Satama sisältää Ilion hyväksymät ja ylläpitämät kohteet.
+Satama sisältää kehittäjän hyväksymät kohteet. 
 
 Laituri sisältää käyttäjän itse hyväksymät kohteet.
 
@@ -167,11 +163,9 @@ Avomeri on maailma kotisataman ulkopuolella.
 
 ---
 
-Ei URL-vartijaa
+Ei URL-vartijaa, vaan eri tilassa eri säännöt
 
-Kotisatama ei seuraa tai tarkista jokaisen URL:n whitelist-statusta.
-
-Sivustojen hallinta tapahtuu Sataman ja Avomeren tasolla. Jos olet satamassa, meilisearch löytyy valkoisista sivuista oikean palvelun. Avomeren hakuja ei sotketa kotisatamaan ja whitelistiin, vaan pelaa normaalin selaimen tavoin
+Sivustojen hallinta tapahtuu Sataman ja Avomeren tasolla. Jos olet satamassa, meilisearch löytyy valkoisista sivuista oikean palvelun. Avomeren hakuja ei sotketa kotisatamaan ja whitelistiin, vaan pelaa normaalin selaimen tavoin. 
 
 Arkkitehtuuri:
 
@@ -193,13 +187,15 @@ Avomeri = pois käytöstä
 
 Junior näkee vain Sataman.
 
+Omainen voi lisätä sivuja kotisataman laiturille
+
 ---
 
 Senior
 
 Avomeri = pois käytöstä oletuksena
 
-Avomeri voidaan ottaa käyttöön asetuksista tai ylläpitäjän toimesta.
+Avomeri voidaan ottaa käyttöön asetuksista tai omaisen toimesta. Laiturille sivujen lisäys omaisen toimesta onnistuu
 
 ---
 
@@ -243,4 +239,4 @@ Satama on koti.
 
 Avomeri on tutkimusmatka.
 
-Käyttäjä tietää aina kummassa maailmassa hän on.
+Käyttäjä tietää aina kummassa maailmassa hän on ja luottamus muokkautaa sen tiedon mukana

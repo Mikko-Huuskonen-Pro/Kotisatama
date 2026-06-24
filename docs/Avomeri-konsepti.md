@@ -58,27 +58,6 @@ Ominaisuudet:
 
 Kun Avomeri suljetaan, kaikki Avomeren data poistetaan.
 
----
-
-Käyttöliittymä
-
-Kotisataman pääkäyttöliittymä ei perustu URL-osoitteisiin.
-
-Käyttäjä käyttää:
-
-- Hakua
-- Sataman sivuja
-- Varustamon sovelluksia
-
-URL on tekninen yksityiskohta.
-
-Kotisatama kysyy:
-
-«"Mitä haluat tehdä?"»
-
-eikä
-
-«"Minkä osoitteen haluat avata?"»
 
 ---
 

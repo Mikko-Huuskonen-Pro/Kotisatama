@@ -8,6 +8,8 @@ Kotisatama ei ole vain käyttöliittymä selaimen päällä. Kotisatama on turva
 
 Tavoite ei ole tehdä koko internetistä helppoa. Tavoite on tehdä tärkeistä asioista turvallisia.
 
+Kotisataman turvallisuus ei perustu siihen, että internet olisi turvallinen, vaan siihen, että käyttäjä ei joudu vaaralliseen internetiin ilman tietoista päätöstä.
+
 ## Ei Google-riippuvuuksia
 
 Kotisataman lähtökohta on, ettei ratkaisun ytimeen rakenneta Google-riippuvuutta.

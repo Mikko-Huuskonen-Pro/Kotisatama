@@ -437,10 +437,10 @@ impl FontContext {
         if matches!(
             format_hint,
             FontFaceSourceFormat::Keyword(
-                FontFaceSourceFormatKeyword::Truetype |
-                    FontFaceSourceFormatKeyword::Opentype |
-                    FontFaceSourceFormatKeyword::Woff |
-                    FontFaceSourceFormatKeyword::Woff2
+                FontFaceSourceFormatKeyword::Truetype
+                    | FontFaceSourceFormatKeyword::Opentype
+                    | FontFaceSourceFormatKeyword::Woff
+                    | FontFaceSourceFormatKeyword::Woff2
             )
         ) {
             return true;
@@ -452,11 +452,11 @@ impl FontContext {
                 return true;
             }
 
-            return pref!(layout_variable_fonts_enabled) &&
-                (string == "truetype-variations" ||
-                    string == "opentype-variations" ||
-                    string == "woff-variations" ||
-                    string == "woff2-variations");
+            return pref!(layout_variable_fonts_enabled)
+                && (string == "truetype-variations"
+                    || string == "opentype-variations"
+                    || string == "woff-variations"
+                    || string == "woff2-variations");
         }
 
         false

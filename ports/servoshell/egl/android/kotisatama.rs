@@ -4,10 +4,10 @@
 
 //! JNI entry points for Kotisatama search and reports on Android.
 
+use jni::errors::ThrowRuntimeExAndDefault;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jstring};
 use jni::{Env, EnvUnowned};
-use jni::errors::ThrowRuntimeExAndDefault;
 use kotisatama_report::ReportKind;
 use serde_json::json;
 

@@ -33,7 +33,7 @@ pub struct Report {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub     context_url: Option<String>,
+    pub context_url: Option<String>,
 }
 
 /// Anonymous fallback search event (query only — no avomeri data, no user id).
@@ -99,7 +99,8 @@ pub fn submit(report: &Report) -> Result<(), ReportError> {
         return Err(ReportError::InvalidDomain);
     }
 
-    let endpoint = std::env::var("KOTISATAMA_REPORT_URL").map_err(|_| ReportError::MissingEndpoint)?;
+    let endpoint =
+        std::env::var("KOTISATAMA_REPORT_URL").map_err(|_| ReportError::MissingEndpoint)?;
 
     let agent = ureq::AgentBuilder::new()
         .timeout(std::time::Duration::from_secs(10))
@@ -183,7 +184,8 @@ fn append_local_fallback_log(event: &FallbackSearchEvent) -> Result<(), ReportEr
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| ReportError::Http(error.to_string()))?;
     }
-    let line = serde_json::to_string(event).map_err(|error| ReportError::Http(error.to_string()))?;
+    let line =
+        serde_json::to_string(event).map_err(|error| ReportError::Http(error.to_string()))?;
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)

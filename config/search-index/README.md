@@ -23,4 +23,4 @@ kun indeksi on tyhjä.
 
 1. Avaa selain, kirjoita hakukenttään **eläke**, paina Enter.
 2. Valitse tulos (esim. Kela) — sivu avautuu.
-3. Hae jotain mitä indeksissä ei ole → *Hae avomereltä* avaa Startpage.
+3. Hae jotain mitä indeksissä ei ole → tavoitetila on, että *Hae avomereltä* avaa Startpagen. Nykytila 2026-06-24: Avomeri/Startpage-polku ei avaudu luotettavasti, katso `docs/NYKYTILA-2026-06-24.md`.

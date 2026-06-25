@@ -338,8 +338,7 @@ struct PendingWhitelistChange {
 }
 
 #[cfg(feature = "kotisatama")]
-static WHITELIST_TOKENS: OnceLock<Mutex<HashMap<String, PendingWhitelistChange>>> =
-    OnceLock::new();
+static WHITELIST_TOKENS: OnceLock<Mutex<HashMap<String, PendingWhitelistChange>>> = OnceLock::new();
 
 #[cfg(feature = "kotisatama")]
 static WHITELIST_TOKEN_COUNTER: AtomicU64 = AtomicU64::new(1);

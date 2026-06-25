@@ -9,10 +9,10 @@ use std::sync::{Mutex, OnceLock};
 
 use url::Url;
 
+use crate::WhitelistError;
 use crate::document::{WhitelistDocument, WhitelistProfile};
 use crate::domain::host_matches_domain;
 use crate::user::{UserWhitelist, UserWhitelistEntry, user_whitelist_path};
-use crate::WhitelistError;
 
 /// Merged whitelist used for navigation checks.
 #[derive(Debug, Clone)]
@@ -23,11 +23,7 @@ pub struct EffectiveWhitelist {
 }
 
 impl EffectiveWhitelist {
-    pub fn new(
-        base: WhitelistDocument,
-        user: UserWhitelist,
-        profile: WhitelistProfile,
-    ) -> Self {
+    pub fn new(base: WhitelistDocument, user: UserWhitelist, profile: WhitelistProfile) -> Self {
         Self {
             profile: profile.clone(),
             base_hosts: base.domain_hosts_for_profile(&profile),
@@ -152,7 +148,5 @@ fn is_avomeri_gateway(url: &Url) -> bool {
 
 fn is_startpage_host(host: &str) -> bool {
     let host = host.to_ascii_lowercase();
-    host == "startpage.com"
-        || host == "www.startpage.com"
-        || host.ends_with(".startpage.com")
+    host == "startpage.com" || host == "www.startpage.com" || host.ends_with(".startpage.com")
 }

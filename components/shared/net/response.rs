@@ -284,8 +284,8 @@ impl Response {
                 let headers = old_headers
                     .iter()
                     .filter(|(name, _)| match &*name.as_str().to_ascii_lowercase() {
-                        "cache-control" | "content-language" | "content-length" |
-                        "content-type" | "expires" | "last-modified" | "pragma" => true,
+                        "cache-control" | "content-language" | "content-length"
+                        | "content-type" | "expires" | "last-modified" | "pragma" => true,
                         "set-cookie" | "set-cookie2" => false,
                         header => exposed_headers
                             .iter()

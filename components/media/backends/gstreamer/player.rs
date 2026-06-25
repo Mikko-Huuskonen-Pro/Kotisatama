@@ -262,9 +262,9 @@ impl PlayerInner {
         if self.stream_type != StreamType::Seekable {
             return Err(PlayerError::NonSeekableStream);
         }
-        if let Some(ref metadata) = self.last_metadata &&
-            let Some(ref duration) = metadata.duration &&
-            duration < &time::Duration::new(time as u64, 0)
+        if let Some(ref metadata) = self.last_metadata
+            && let Some(ref duration) = metadata.duration
+            && duration < &time::Duration::new(time as u64, 0)
         {
             gstreamer::warning!(self.cat, obj = &self.player, "Trying to seek out of range");
             return Err(PlayerError::SeekOutOfRange);
@@ -327,14 +327,14 @@ impl PlayerInner {
                     start.unwrap()
                 } else {
                     gstreamer::format::Percent::from_percent(0)
-                } / gstreamer::format::Percent::MAX) as f64 *
-                    duration.as_secs_f64();
+                } / gstreamer::format::Percent::MAX) as f64
+                    * duration.as_secs_f64();
                 let end = (if let gstreamer::GenericFormattedValue::Percent(end) = end {
                     end.unwrap()
                 } else {
                     gstreamer::format::Percent::from_percent(0)
-                } / gstreamer::format::Percent::MAX) as f64 *
-                    duration.as_secs_f64();
+                } / gstreamer::format::Percent::MAX) as f64
+                    * duration.as_secs_f64();
                 buffered_ranges.push(Range { start, end });
             }
         }
@@ -344,9 +344,9 @@ impl PlayerInner {
 
     pub fn seekable(&self) -> Vec<Range<f64>> {
         // if the servosrc is seekable, we should return the duration of the media
-        if let Some(metadata) = self.last_metadata.as_ref() &&
-            metadata.is_seekable &&
-            let Some(duration) = metadata.duration
+        if let Some(metadata) = self.last_metadata.as_ref()
+            && metadata.is_seekable
+            && let Some(duration) = metadata.duration
         {
             return vec![Range {
                 start: 0.0,
@@ -748,8 +748,8 @@ impl GStreamerPlayer {
             });
 
             let mut inner = inner_clone.lock().unwrap();
-            if let Some(ref mut metadata) = inner.last_metadata &&
-                metadata.duration != duration
+            if let Some(ref mut metadata) = inner.last_metadata
+                && metadata.duration != duration
             {
                 metadata.duration = duration;
                 gstreamer::info!(

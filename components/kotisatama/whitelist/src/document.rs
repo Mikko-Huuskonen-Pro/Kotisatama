@@ -9,8 +9,8 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::domain::normalize_domain;
 use crate::WhitelistError;
+use crate::domain::normalize_domain;
 
 /// Product profile controlling which curated entries are active.
 ///
@@ -134,7 +134,16 @@ impl WhitelistDocumentRaw {
                 },
                 RawDomain::Entry(entry) => entry,
             };
-            let normalized = normalize_domain(&entry.domain)?;
+            let normalized = match normalize_domain(&entry.domain) {
+                Ok(domain) => domain,
+                Err(error) => {
+                    log::warn!(
+                        "Kotisatama whitelist: ohitetaan domain {:?}: {error}",
+                        entry.domain
+                    );
+                    continue;
+                },
+            };
             domains.push(WhitelistEntry {
                 domain: normalized,
                 ..entry
@@ -155,10 +164,7 @@ mod tests {
 
     #[test]
     fn parses_v1_string_domains() {
-        let doc = WhitelistDocument::from_json_str(
-            r#"{"domains":["kela.fi","yle.fi"]}"#,
-        )
-        .unwrap();
+        let doc = WhitelistDocument::from_json_str(r#"{"domains":["kela.fi","yle.fi"]}"#).unwrap();
         assert_eq!(doc.domains.len(), 2);
         assert_eq!(doc.domains[0].domain, "kela.fi");
     }
@@ -176,6 +182,15 @@ mod tests {
         .unwrap();
         assert_eq!(doc.domains[0].label.as_deref(), Some("Kela"));
         assert_eq!(doc.domains[0].tags, vec!["hopeakettu"]);
+    }
+
+    #[test]
+    fn skips_invalid_curated_entries_without_dropping_whole_list() {
+        let doc =
+            WhitelistDocument::from_json_str(r#"{"domains":["kela.fi","not-a-domain","yle.fi"]}"#)
+                .unwrap();
+        let hosts = doc.domain_hosts_for_profile(&WhitelistProfile::Free);
+        assert_eq!(hosts, vec!["kela.fi", "yle.fi"]);
     }
 
     #[test]

@@ -70,6 +70,9 @@ pub fn get_default_url(
 /// If this is not a valid URL, try to "fix" it by adding a scheme or if all else fails,
 /// interpret the string as a search term.
 pub(crate) fn location_bar_input_to_url(request: &str, searchpage: &str) -> Option<ServoUrl> {
+    #[cfg(feature = "kotisatama")]
+    let _ = searchpage;
+
     let request = request.trim();
     let input_url = ServoUrl::parse(request).ok();
     if let Some(url) = input_url {
@@ -80,9 +83,15 @@ pub(crate) fn location_bar_input_to_url(request: &str, searchpage: &str) -> Opti
             _ => Some(url),
         }
     } else {
-        try_as_file(request)
-            .or_else(|| try_as_domain(request))
-            .or_else(|| try_as_search_page(request, searchpage))
+        let parsed = try_as_file(request).or_else(|| try_as_domain(request));
+        #[cfg(feature = "kotisatama")]
+        {
+            parsed
+        }
+        #[cfg(not(feature = "kotisatama"))]
+        {
+            parsed.or_else(|| try_as_search_page(request, searchpage))
+        }
     }
 }
 
@@ -100,6 +109,7 @@ fn try_as_domain(request: &str) -> Option<ServoUrl> {
     None
 }
 
+#[cfg(not(feature = "kotisatama"))]
 fn try_as_search_page(request: &str, searchpage: &str) -> Option<ServoUrl> {
     if request.is_empty() {
         return None;
@@ -108,8 +118,8 @@ fn try_as_search_page(request: &str, searchpage: &str) -> Option<ServoUrl> {
 }
 
 fn is_domain_like(s: &str) -> bool {
-    !s.starts_with('/') && s.contains('/') ||
-        (!s.contains(' ') && !s.starts_with('.') && s.split('.').count() > 1)
+    !s.starts_with('/') && s.contains('/')
+        || (!s.contains(' ') && !s.starts_with('.') && s.split('.').count() > 1)
 }
 
 fn is_localhost(s: &str) -> bool {

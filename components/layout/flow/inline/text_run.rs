@@ -208,9 +208,9 @@ impl TextRunSegment {
             return false;
         }
 
-        !script_is_specific(self.info.script) ||
-            !script_is_specific(new_script) ||
-            self.info.script == new_script
+        !script_is_specific(self.info.script)
+            || !script_is_specific(new_script)
+            || self.info.script == new_script
     }
 
     /// Update this segment to end at the given byte and character index. The update will only ever
@@ -301,9 +301,9 @@ impl TextRunSegment {
         self.break_at_start = false;
 
         let text_style = parent_style.get_inherited_text().clone();
-        let can_break_anywhere = text_style.word_break == WordBreak::BreakAll ||
-            text_style.overflow_wrap == OverflowWrap::Anywhere ||
-            text_style.overflow_wrap == OverflowWrap::BreakWord;
+        let can_break_anywhere = text_style.word_break == WordBreak::BreakAll
+            || text_style.overflow_wrap == OverflowWrap::Anywhere
+            || text_style.overflow_wrap == OverflowWrap::BreakWord;
 
         let mut last_slice = self.byte_range.start..self.byte_range.start;
         for break_index in linebreak_iter {
@@ -334,8 +334,8 @@ impl TextRunSegment {
                 // but not before. This means that we should not split off the first whitespace.
                 //
                 // An exception to this is if the style tells us that we can break in the middle of words.
-                if text_style.white_space_collapse == WhiteSpaceCollapse::BreakSpaces &&
-                    !can_break_anywhere
+                if text_style.white_space_collapse == WhiteSpaceCollapse::BreakSpaces
+                    && !can_break_anywhere
                 {
                     whitespace.start += first_white_space_character.len_utf8();
                     non_whitespace_slice_ends_with_whitespace = true;
@@ -346,10 +346,10 @@ impl TextRunSegment {
 
             // If there's no whitespace and `word-break` is set to `keep-all`, try increasing the slice.
             // TODO: This should only happen for CJK text.
-            if !ends_with_whitespace &&
-                *break_index != self.byte_range.end &&
-                text_style.word_break == WordBreak::KeepAll &&
-                !can_break_anywhere
+            if !ends_with_whitespace
+                && *break_index != self.byte_range.end
+                && text_style.word_break == WordBreak::KeepAll
+                && !can_break_anywhere
             {
                 continue;
             }
@@ -583,8 +583,8 @@ impl TextRun {
             };
 
             // If the existing segment is compatible with the character, just merge the character into it.
-            if let Some(current) = current.as_mut() &&
-                current.is_compatible(&font, script, bidi_level)
+            if let Some(current) = current.as_mut()
+                && current.is_compatible(&font, script, bidi_level)
             {
                 current.update(next_byte_index, current_character_index + 1, script);
                 continue;
@@ -685,8 +685,8 @@ impl TextRun {
             .current_inline_container_state()
             .style
             .get_inherited_text()
-            .white_space_collapse ==
-            WhiteSpaceCollapse::BreakSpaces
+            .white_space_collapse
+            == WhiteSpaceCollapse::BreakSpaces
         {
             ifc_layout.process_soft_wrap_opportunity();
         }
@@ -700,13 +700,13 @@ impl TextRun {
 fn is_cursive_script(script: Script) -> bool {
     matches!(
         script,
-        Script::Arabic |
-            Script::Hanifi_Rohingya |
-            Script::Mandaic |
-            Script::Mongolian |
-            Script::Nko |
-            Script::Phags_Pa |
-            Script::Syriac
+        Script::Arabic
+            | Script::Hanifi_Rohingya
+            | Script::Mandaic
+            | Script::Mongolian
+            | Script::Nko
+            | Script::Phags_Pa
+            | Script::Syriac
     )
 }
 
@@ -726,11 +726,11 @@ fn character_cannot_change_font(character: char) -> bool {
 
     matches!(
         icu_properties::maps::line_break().get(character),
-        LineBreak::CombiningMark |
-            LineBreak::Glue |
-            LineBreak::ZWSpace |
-            LineBreak::WordJoiner |
-            LineBreak::ZWJ
+        LineBreak::CombiningMark
+            | LineBreak::Glue
+            | LineBreak::ZWSpace
+            | LineBreak::WordJoiner
+            | LineBreak::ZWJ
     )
 }
 

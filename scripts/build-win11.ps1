@@ -88,6 +88,10 @@ $logFile = Join-Path $logDir ("kotisatama-{0:yyyyMMdd-HHmmss}.log" -f (Get-Date)
 if (-not $env:RUST_LOG) { $env:RUST_LOG = "info,servoshell=debug,kotisatama=debug" }
 if (-not $env:RUST_BACKTRACE) { $env:RUST_BACKTRACE = "1" }
 
+Remove-Item Env:HTTP_PROXY,Env:HTTPS_PROXY,Env:ALL_PROXY,Env:http_proxy,Env:https_proxy,Env:all_proxy -ErrorAction SilentlyContinue
+$env:NO_PROXY = "*"
+$env:no_proxy = "*"
+
 Write-Host "Lokit: $logFile"
 Write-Host "RUST_LOG=$($env:RUST_LOG)"
 
@@ -123,11 +127,19 @@ if (-not $env:KOTISATAMA_SEARCH_DOCUMENTS) {
 
 $env:KOTISATAMA_DATA_DIR = Join-Path $Root "index-data"
 New-Item -ItemType Directory -Force -Path $env:KOTISATAMA_DATA_DIR | Out-Null
+if (-not $env:KOTISATAMA_MEILISEARCH_DB) {
+    $env:KOTISATAMA_MEILISEARCH_DB = Join-Path $env:KOTISATAMA_DATA_DIR "meilisearch"
+}
 
 $exe = Join-Path $Root "servoshell.exe"
 if (-not (Test-Path $exe)) { throw "servoshell.exe missing in $Root" }
 
-& $exe @args 2>&1 | Tee-Object -FilePath $logFile
+$quotedArgs = @($args | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' })
+$cmdLine = '"' + $exe + '"'
+if ($quotedArgs.Count -gt 0) { $cmdLine += " " + ($quotedArgs -join " ") }
+$cmdLine += " 2>&1"
+& cmd.exe /d /c $cmdLine | Tee-Object -FilePath $logFile
+exit $LASTEXITCODE
 '@
     Set-Content -Path $runPath -Value $content -Encoding UTF8
 }
@@ -156,7 +168,15 @@ function New-DesktopPackage {
         [string]$BinDir
     )
     Write-Step "Packaging dist/"
-    if (Test-Path $DistDir) { Remove-Item -Recurse -Force $DistDir }
+    if (Test-Path $DistDir) {
+        try {
+            Remove-Item -Recurse -Force $DistDir
+        } catch {
+            $fallback = "{0}-{1}" -f $DistDir, (Get-Date -Format "yyyyMMdd-HHmmss")
+            Write-Warning "Dist-kansio on lukittu, paketoidaan kansioon: $fallback"
+            $DistDir = $fallback
+        }
+    }
     Copy-ReleaseArtifacts -ReleaseDir $ReleaseDir -DistDir $DistDir
     Copy-Item -Recurse -Force (Join-Path $RepoRoot "resources") (Join-Path $DistDir "resources")
     Copy-ConfigTree -RepoRoot $RepoRoot -DistDir $DistDir
@@ -167,12 +187,18 @@ function New-DesktopPackage {
     $sha = (git -C $RepoRoot rev-parse --short HEAD).Trim()
     $zip = Join-Path $RepoRoot "kotisatama-win11-$sha.zip"
     if (Test-Path $zip) { Remove-Item -Force $zip }
-    Compress-Archive -Path (Join-Path $DistDir "*") -DestinationPath $zip -Force
+    try {
+        Compress-Archive -Path (Join-Path $DistDir "*") -DestinationPath $zip -Force -ErrorAction Stop
+    } catch {
+        Write-Warning "Zip-paketin luonti ohitettiin: $($_.Exception.Message)"
+        $zip = "(ei luotu)"
+    }
     Write-Host ""
     Write-Host "Package ready:" -ForegroundColor Green
     Write-Host "  Folder: $DistDir"
     Write-Host "  Zip:    $zip"
     Write-Host "  Run:    $DistDir\run-test.ps1"
+    return $DistDir
 }
 
 # --- main ---
@@ -228,7 +254,7 @@ Write-Host "Using release dir: $releaseDir"
 
 $distDir = Join-Path $RepoRoot "dist"
 if (-not $NoPackage) {
-    New-DesktopPackage -RepoRoot $RepoRoot -ReleaseDir $releaseDir -DistDir $distDir -BinDir $BinDir
+    $distDir = New-DesktopPackage -RepoRoot $RepoRoot -ReleaseDir $releaseDir -DistDir $distDir -BinDir $BinDir
 }
 
 $sw.Stop()

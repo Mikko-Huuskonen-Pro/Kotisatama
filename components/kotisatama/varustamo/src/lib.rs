@@ -133,12 +133,7 @@ impl VarustamoRegistry {
     pub fn displayable_apps(&self) -> Vec<&VarustamoApp> {
         self.apps
             .iter()
-            .filter(|app| {
-                matches!(
-                    app.status.as_str(),
-                    "testable" | "bundled" | "installed"
-                )
-            })
+            .filter(|app| matches!(app.status.as_str(), "testable" | "bundled" | "installed"))
             .collect()
     }
 
@@ -160,14 +155,8 @@ mod tests {
 
     #[test]
     fn app_gateway_urls_for_known_apps() {
-        assert_eq!(
-            app_gateway_url("pulloposti").unwrap().path(),
-            "pulloposti"
-        );
-        assert_eq!(
-            app_gateway_url("missa-olen").unwrap().path(),
-            "missa-olen"
-        );
+        assert_eq!(app_gateway_url("pulloposti").unwrap().path(), "pulloposti");
+        assert_eq!(app_gateway_url("missa-olen").unwrap().path(), "missa-olen");
     }
 
     #[test]

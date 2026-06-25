@@ -1016,8 +1016,8 @@ impl Node {
     fn is_host_including_inclusive_ancestor(&self, child: &Node) -> bool {
         // An object A is a host-including inclusive ancestor of an object B, if either A is an inclusive ancestor of B,
         // or if B’s root has a non-null host and A is a host-including inclusive ancestor of B’s root’s host.
-        self.is_inclusive_ancestor_of(child) ||
-            child
+        self.is_inclusive_ancestor_of(child)
+            || child
                 .GetRootNode(&GetRootNodeOptions::empty())
                 .downcast::<DocumentFragment>()
                 .and_then(|fragment| fragment.host())
@@ -1369,8 +1369,8 @@ impl Node {
 
         // Step 3. If child is non-null and its parent is not newParent, then throw a
         // "NotFoundError" DOMException.
-        if let Some(child) = child &&
-            !new_parent.is_parent_of(child)
+        if let Some(child) = child
+            && !new_parent.is_parent_of(child)
         {
             return Err(Error::NotFound(None));
         }
@@ -1385,13 +1385,13 @@ impl Node {
                     return Err(Error::HierarchyRequest(None));
                 }
             },
-            NodeTypeId::CharacterData(CharacterDataTypeId::ProcessingInstruction) |
-            NodeTypeId::CharacterData(CharacterDataTypeId::Comment) |
-            NodeTypeId::Element(_) => (),
-            NodeTypeId::DocumentFragment(_) |
-            NodeTypeId::DocumentType |
-            NodeTypeId::Document(_) |
-            NodeTypeId::Attr => {
+            NodeTypeId::CharacterData(CharacterDataTypeId::ProcessingInstruction)
+            | NodeTypeId::CharacterData(CharacterDataTypeId::Comment)
+            | NodeTypeId::Element(_) => (),
+            NodeTypeId::DocumentFragment(_)
+            | NodeTypeId::DocumentType
+            | NodeTypeId::Document(_)
+            | NodeTypeId::Attr => {
                 return Err(Error::HierarchyRequest(None));
             },
         }
@@ -1479,9 +1479,9 @@ impl Node {
 
         // Step 15. If oldParent’s root is a shadow root, and oldParent is a slot whose assigned
         // nodes is empty, then run signal a slot change for oldParent.
-        if old_parent.is_in_a_shadow_tree() &&
-            let Some(slot_element) = old_parent.downcast::<HTMLSlotElement>() &&
-            !slot_element.has_assigned_nodes()
+        if old_parent.is_in_a_shadow_tree()
+            && let Some(slot_element) = old_parent.downcast::<HTMLSlotElement>()
+            && !slot_element.has_assigned_nodes()
         {
             slot_element.signal_a_slot_change();
         }
@@ -1526,9 +1526,9 @@ impl Node {
         // node is a slottable, then assign a slot for node.
         if let Some(shadow_root) = new_parent
             .downcast::<Element>()
-            .and_then(Element::shadow_root) &&
-            shadow_root.SlotAssignment() == SlotAssignmentMode::Named &&
-            (node.is::<Element>() || node.is::<Text>())
+            .and_then(Element::shadow_root)
+            && shadow_root.SlotAssignment() == SlotAssignmentMode::Named
+            && (node.is::<Element>() || node.is::<Text>())
         {
             rooted!(&in(cx) let slottable = Slottable(Dom::from_ref(node)));
             slottable.assign_a_slot(cx.no_gc());
@@ -1536,9 +1536,9 @@ impl Node {
 
         // Step 22. If newParent’s root is a shadow root, and newParent is a slot whose assigned
         // nodes is empty, then run signal a slot change for newParent.
-        if new_parent.is_in_a_shadow_tree() &&
-            let Some(slot_element) = new_parent.downcast::<HTMLSlotElement>() &&
-            !slot_element.has_assigned_nodes()
+        if new_parent.is_in_a_shadow_tree()
+            && let Some(slot_element) = new_parent.downcast::<HTMLSlotElement>()
+            && !slot_element.has_assigned_nodes()
         {
             slot_element.signal_a_slot_change();
         }
@@ -1561,9 +1561,9 @@ impl Node {
             }
 
             // Step 24.2. If inclusiveDescendant is custom and newParent is connected,
-            if let Some(descendant) = descendant.downcast::<Element>() &&
-                descendant.is_custom() &&
-                new_parent.is_connected()
+            if let Some(descendant) = descendant.downcast::<Element>()
+                && descendant.is_custom()
+                && new_parent.is_connected()
             {
                 // then enqueue a custom element callback reaction with
                 // inclusiveDescendant, callback name "connectedMoveCallback", and « ».
@@ -1679,8 +1679,8 @@ impl Node {
         shadow_including: ShadowIncluding,
     ) -> impl Iterator<Item = DomRoot<Node>> + use<> {
         SimpleNodeIterator::new(Some(DomRoot::from_ref(self)), move |n| {
-            if shadow_including == ShadowIncluding::Yes &&
-                let Some(shadow_root) = n.downcast::<ShadowRoot>()
+            if shadow_including == ShadowIncluding::Yes
+                && let Some(shadow_root) = n.downcast::<ShadowRoot>()
             {
                 return Some(DomRoot::from_ref(shadow_root.Host().upcast::<Node>()));
             }
@@ -1696,8 +1696,8 @@ impl Node {
         UnrootedSimpleNodeIterator::new(
             Some(UnrootedDom::from_dom(Dom::from_ref(self), no_gc)),
             move |n, no_gc| {
-                if shadow_including == ShadowIncluding::Yes &&
-                    let Some(shadow_root) = n.downcast::<ShadowRoot>()
+                if shadow_including == ShadowIncluding::Yes
+                    && let Some(shadow_root) = n.downcast::<ShadowRoot>()
                 {
                     return Some(UnrootedDom::from_dom(
                         Dom::from_ref(shadow_root.Host().upcast::<Node>()),
@@ -2011,9 +2011,9 @@ impl Node {
         let is_shadow_root_with_slots = self
             .downcast::<ShadowRoot>()
             .is_some_and(|shadow_root| shadow_root.has_slot_descendants());
-        if !is_shadow_root_with_slots &&
-            !self.is::<HTMLSlotElement>() &&
-            matches!(force, ForceSlottableNodeReconciliation::Skip)
+        if !is_shadow_root_with_slots
+            && !self.is::<HTMLSlotElement>()
+            && matches!(force, ForceSlottableNodeReconciliation::Skip)
         {
             return;
         }
@@ -2075,8 +2075,8 @@ impl Node {
         }
 
         let parent_or_none = self.GetParentNode();
-        if let Some(parent) = parent_or_none.as_deref() &&
-            let Some(shadow_root) = parent.downcast::<ShadowRoot>()
+        if let Some(parent) = parent_or_none.as_deref()
+            && let Some(shadow_root) = parent.downcast::<ShadowRoot>()
         {
             return Some(DomRoot::from_ref(shadow_root.Host().upcast::<Node>()));
         }
@@ -2335,8 +2335,8 @@ impl Node {
         }
 
         // Step 3. If child is non-null and its parent is not parent, then throw a "NotFoundError" DOMException.
-        if let Some(child) = child &&
-            !parent.is_parent_of(child)
+        if let Some(child) = child
+            && !parent.is_parent_of(child)
         {
             return Err(Error::NotFound(Some(
                 "Child is non-null and its parent is not parent".to_owned(),
@@ -2361,10 +2361,10 @@ impl Node {
                     )));
                 }
             },
-            NodeTypeId::DocumentFragment(_) |
-            NodeTypeId::Element(_) |
-            NodeTypeId::CharacterData(CharacterDataTypeId::ProcessingInstruction) |
-            NodeTypeId::CharacterData(CharacterDataTypeId::Comment) => (),
+            NodeTypeId::DocumentFragment(_)
+            | NodeTypeId::Element(_)
+            | NodeTypeId::CharacterData(CharacterDataTypeId::ProcessingInstruction)
+            | NodeTypeId::CharacterData(CharacterDataTypeId::Comment) => (),
             // Step 4. If node is not a DocumentFragment, DocumentType, Element,
             // or CharacterData node, then throw a "HierarchyRequestError" DOMException.
             NodeTypeId::Document(_) | NodeTypeId::Attr => {
@@ -2392,8 +2392,8 @@ impl Node {
                             if parent.child_elements_unrooted(no_gc).next().is_some() {
                                 return Err(Error::HierarchyRequest(None));
                             }
-                            if let Some(child) = child &&
-                                child
+                            if let Some(child) = child
+                                && child
                                     .inclusively_following_siblings_unrooted(no_gc)
                                     .any(|child| child.is_doctype())
                             {
@@ -2410,8 +2410,8 @@ impl Node {
                             "Parent has an element child".to_owned(),
                         )));
                     }
-                    if let Some(child) = child &&
-                        child
+                    if let Some(child) = child
+                        && child
                             .inclusively_following_siblings_unrooted(no_gc)
                             .any(|following| following.is_doctype())
                     {
@@ -2546,8 +2546,8 @@ impl Node {
         //        greater than child’s index, increase its start offset by count.
         //     2. For each live range whose end node is parent and end offset is
         //        greater than child’s index, increase its end offset by count.
-        if let Some(child) = child &&
-            !parent.ranges_is_empty()
+        if let Some(child) = child
+            && !parent.ranges_is_empty()
         {
             parent
                 .ranges()
@@ -2583,9 +2583,9 @@ impl Node {
 
             // Step 7.4 If parent is a shadow host whose shadow root’s slot assignment is "named"
             // and node is a slottable, then assign a slot for node.
-            if let Some(ref shadow_root) = parent_shadow_root &&
-                shadow_root.SlotAssignment() == SlotAssignmentMode::Named &&
-                (kid.is::<Element>() || kid.is::<Text>())
+            if let Some(ref shadow_root) = parent_shadow_root
+                && shadow_root.SlotAssignment() == SlotAssignmentMode::Named
+                && (kid.is::<Element>() || kid.is::<Text>())
             {
                 rooted!(&in(cx) let slottable = Slottable(Dom::from_ref(kid)));
                 slottable.assign_a_slot(cx.no_gc());
@@ -2593,9 +2593,9 @@ impl Node {
 
             // Step 7.5 If parent’s root is a shadow root, and parent is a slot whose assigned nodes
             // is the empty list, then run signal a slot change for parent.
-            if parent_in_shadow_tree &&
-                let Some(slot_element) = parent_as_slot &&
-                !slot_element.has_assigned_nodes()
+            if parent_in_shadow_tree
+                && let Some(slot_element) = parent_as_slot
+                && !slot_element.has_assigned_nodes()
             {
                 slot_element.signal_a_slot_change();
             }
@@ -2798,9 +2798,9 @@ impl Node {
 
         // Step 9. If parent’s root is a shadow root, and parent is a slot whose assigned nodes is the empty list,
         // then run signal a slot change for parent.
-        if parent.is_in_a_shadow_tree() &&
-            let Some(slot_element) = parent.downcast::<HTMLSlotElement>() &&
-            !slot_element.has_assigned_nodes()
+        if parent.is_in_a_shadow_tree()
+            && let Some(slot_element) = parent.downcast::<HTMLSlotElement>()
+            && !slot_element.has_assigned_nodes()
         {
             slot_element.signal_a_slot_change();
         }
@@ -3441,8 +3441,8 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
 
     /// <https://dom.spec.whatwg.org/#dom-node-getrootnode>
     fn GetRootNode(&self, options: &GetRootNodeOptions) -> DomRoot<Node> {
-        if !options.composed &&
-            let Some(shadow_root) = self.containing_shadow_root()
+        if !options.composed
+            && let Some(shadow_root) = self.containing_shadow_root()
         {
             return DomRoot::upcast(shadow_root);
         }
@@ -3722,9 +3722,9 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
 
         // Step 12. Let nodes be node’s children if node is a DocumentFragment node; otherwise « node ».
         rooted_vec!(let mut nodes);
-        let nodes = if node.type_id() ==
-            NodeTypeId::DocumentFragment(DocumentFragmentTypeId::DocumentFragment) ||
-            node.type_id() == NodeTypeId::DocumentFragment(DocumentFragmentTypeId::ShadowRoot)
+        let nodes = if node.type_id()
+            == NodeTypeId::DocumentFragment(DocumentFragmentTypeId::DocumentFragment)
+            || node.type_id() == NodeTypeId::DocumentFragment(DocumentFragmentTypeId::ShadowRoot)
         {
             nodes.extend(node.children().map(|node| Dom::from_ref(&*node)));
             nodes.r()
@@ -3833,24 +3833,24 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
         fn is_equal_doctype(node: &Node, other: &Node) -> bool {
             let doctype = node.downcast::<DocumentType>().unwrap();
             let other_doctype = other.downcast::<DocumentType>().unwrap();
-            (*doctype.name() == *other_doctype.name()) &&
-                (*doctype.public_id() == *other_doctype.public_id()) &&
-                (*doctype.system_id() == *other_doctype.system_id())
+            (*doctype.name() == *other_doctype.name())
+                && (*doctype.public_id() == *other_doctype.public_id())
+                && (*doctype.system_id() == *other_doctype.system_id())
         }
         fn is_equal_element(node: &Node, other: &Node) -> bool {
             let element = node.downcast::<Element>().unwrap();
             let other_element = other.downcast::<Element>().unwrap();
-            (*element.namespace() == *other_element.namespace()) &&
-                (*element.prefix() == *other_element.prefix()) &&
-                (*element.local_name() == *other_element.local_name()) &&
-                (element.attrs().borrow().len() == other_element.attrs().borrow().len())
+            (*element.namespace() == *other_element.namespace())
+                && (*element.prefix() == *other_element.prefix())
+                && (*element.local_name() == *other_element.local_name())
+                && (element.attrs().borrow().len() == other_element.attrs().borrow().len())
         }
         fn is_equal_processinginstruction(node: &Node, other: &Node) -> bool {
             let pi = node.downcast::<ProcessingInstruction>().unwrap();
             let other_pi = other.downcast::<ProcessingInstruction>().unwrap();
-            (*pi.target() == *other_pi.target()) &&
-                (*pi.upcast::<CharacterData>().data() ==
-                    *other_pi.upcast::<CharacterData>().data())
+            (*pi.target() == *other_pi.target())
+                && (*pi.upcast::<CharacterData>().data()
+                    == *other_pi.upcast::<CharacterData>().data())
         }
         fn is_equal_characterdata(node: &Node, other: &Node) -> bool {
             let characterdata = node.downcast::<CharacterData>().unwrap();
@@ -3860,9 +3860,9 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
         fn is_equal_attr(node: &Node, other: &Node) -> bool {
             let attr = node.downcast::<Attr>().unwrap();
             let other_attr = other.downcast::<Attr>().unwrap();
-            (*attr.namespace() == *other_attr.namespace()) &&
-                (attr.local_name() == other_attr.local_name()) &&
-                (**attr.value() == **other_attr.value())
+            (*attr.namespace() == *other_attr.namespace())
+                && (attr.local_name() == other_attr.local_name())
+                && (**attr.value() == **other_attr.value())
         }
         fn is_equal_element_attrs(node: &Node, other: &Node) -> bool {
             let element = node.downcast::<Element>().unwrap();
@@ -3870,9 +3870,9 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
             assert!(element.attrs().borrow().len() == other_element.attrs().borrow().len());
             element.attrs().borrow().iter().all(|attr| {
                 other_element.attrs().borrow().iter().any(|other_attr| {
-                    (*attr.namespace() == *other_attr.namespace()) &&
-                        (attr.local_name() == other_attr.local_name()) &&
-                        (**attr.value() == **other_attr.value())
+                    (*attr.namespace() == *other_attr.namespace())
+                        && (attr.local_name() == other_attr.local_name())
+                        && (**attr.value() == **other_attr.value())
                 })
             })
         }
@@ -3892,8 +3892,8 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
                 {
                     return false;
                 },
-                NodeTypeId::CharacterData(CharacterDataTypeId::Text(_)) |
-                NodeTypeId::CharacterData(CharacterDataTypeId::Comment)
+                NodeTypeId::CharacterData(CharacterDataTypeId::Text(_))
+                | NodeTypeId::CharacterData(CharacterDataTypeId::Comment)
                     if !is_equal_characterdata(this, node) =>
                 {
                     return false;
@@ -3976,28 +3976,28 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
         // This substep seems lacking in test coverage.
         // We hit this when comparing two attributes that have the
         // same owner element.
-        if let Some(node2) = node2 &&
-            Some(node2) == node1 &&
-            let (Some(a1), Some(a2)) = (attr1, attr2)
+        if let Some(node2) = node2
+            && Some(node2) == node1
+            && let (Some(a1), Some(a2)) = (attr1, attr2)
         {
             let attrs = node2.downcast::<Element>().unwrap().attrs();
             // go through the attrs in order to see if self
             // or other is first; spec is clear that we
             // want value-equality, not reference-equality
             for attr in attrs.borrow().iter() {
-                if (*attr.namespace() == *a1.namespace()) &&
-                    (attr.local_name() == a1.local_name()) &&
-                    (**attr.value() == **a1.value())
+                if (*attr.namespace() == *a1.namespace())
+                    && (attr.local_name() == a1.local_name())
+                    && (**attr.value() == **a1.value())
                 {
-                    return NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC +
-                        NodeConstants::DOCUMENT_POSITION_PRECEDING;
+                    return NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC
+                        + NodeConstants::DOCUMENT_POSITION_PRECEDING;
                 }
-                if (*attr.namespace() == *a2.namespace()) &&
-                    (attr.local_name() == a2.local_name()) &&
-                    (**attr.value() == **a2.value())
+                if (*attr.namespace() == *a2.namespace())
+                    && (attr.local_name() == a2.local_name())
+                    && (**attr.value() == **a2.value())
                 {
-                    return NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC +
-                        NodeConstants::DOCUMENT_POSITION_FOLLOWING;
+                    return NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC
+                        + NodeConstants::DOCUMENT_POSITION_FOLLOWING;
                 }
             }
             // both attrs have node2 as their owner element, so
@@ -4009,15 +4009,15 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
         match (node1, node2) {
             (None, _) => {
                 // node1 is null
-                NodeConstants::DOCUMENT_POSITION_FOLLOWING +
-                    NodeConstants::DOCUMENT_POSITION_DISCONNECTED +
-                    NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC
+                NodeConstants::DOCUMENT_POSITION_FOLLOWING
+                    + NodeConstants::DOCUMENT_POSITION_DISCONNECTED
+                    + NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC
             },
             (_, None) => {
                 // node2 is null
-                NodeConstants::DOCUMENT_POSITION_PRECEDING +
-                    NodeConstants::DOCUMENT_POSITION_DISCONNECTED +
-                    NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC
+                NodeConstants::DOCUMENT_POSITION_PRECEDING
+                    + NodeConstants::DOCUMENT_POSITION_DISCONNECTED
+                    + NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC
             },
             (Some(node1), Some(node2)) => {
                 // still step 6, testing if node1 and 2 share a root
@@ -4029,8 +4029,8 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
                     .collect::<SmallVec<[_; 20]>>();
 
                 if self_and_ancestors.last() != other_and_ancestors.last() {
-                    let random = as_uintptr(self_and_ancestors.last().unwrap()) <
-                        as_uintptr(other_and_ancestors.last().unwrap());
+                    let random = as_uintptr(self_and_ancestors.last().unwrap())
+                        < as_uintptr(other_and_ancestors.last().unwrap());
                     let random = if random {
                         NodeConstants::DOCUMENT_POSITION_FOLLOWING
                     } else {
@@ -4038,9 +4038,9 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
                     };
 
                     // Disconnected.
-                    return random +
-                        NodeConstants::DOCUMENT_POSITION_DISCONNECTED +
-                        NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC;
+                    return random
+                        + NodeConstants::DOCUMENT_POSITION_DISCONNECTED
+                        + NodeConstants::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC;
                 }
                 // steps 7-10
                 let mut parent = self_and_ancestors.pop().unwrap();
@@ -4075,11 +4075,11 @@ impl NodeMethods<crate::DomTypeHolder> for Node {
                 //
                 // If we're the container, return that `other` is contained by us.
                 if self_and_ancestors.len() < other_and_ancestors.len() {
-                    NodeConstants::DOCUMENT_POSITION_FOLLOWING +
-                        NodeConstants::DOCUMENT_POSITION_CONTAINED_BY
+                    NodeConstants::DOCUMENT_POSITION_FOLLOWING
+                        + NodeConstants::DOCUMENT_POSITION_CONTAINED_BY
                 } else {
-                    NodeConstants::DOCUMENT_POSITION_PRECEDING +
-                        NodeConstants::DOCUMENT_POSITION_CONTAINS
+                    NodeConstants::DOCUMENT_POSITION_PRECEDING
+                        + NodeConstants::DOCUMENT_POSITION_CONTAINS
                 }
             },
         }
@@ -4196,8 +4196,8 @@ impl VirtualMethods for Node {
             s.children_changed(cx, mutation);
         }
 
-        if let Some(data) = self.rare_data.borrow().as_ref() &&
-            let Some(list) = data.child_list.get()
+        if let Some(data) = self.rare_data.borrow().as_ref()
+            && let Some(list) = data.child_list.get()
         {
             list.as_children_list().children_changed(mutation);
         }
@@ -4235,9 +4235,9 @@ impl VirtualMethods for Node {
         // including descendants. If we're in a shadow tree at this point then the
         // unbind operation happened further up in the tree and we should not
         // drain any ranges.
-        if let Some(old_parent) = context.old_parent &&
-            !self.is_in_a_shadow_tree() &&
-            !self.ranges_is_empty()
+        if let Some(old_parent) = context.old_parent
+            && !self.is_in_a_shadow_tree()
+            && !self.ranges_is_empty()
         {
             self.ranges()
                 .drain_to_parent(old_parent, context.index(), self);

@@ -66,7 +66,10 @@ Sieltä voi:
 
 Yhtenäinen sanasto tekee tuotteesta helposti tunnistettavan ja tukee Kotisataman tavoitetta tarjota turvallinen, helposti ymmärrettävä ja luotettava käyttökokemus kaikenikäisille käyttäjille.
 
-Tuote- ja kehitysfilosofia (Servo, whitelist, Kela, Telakka): [Docs/FILOSOFIA.md](Docs/FILOSOFIA.md).
+Tuote- ja kehitysfilosofia (Servo, whitelist, Kela, Telakka): [docs/FILOSOFIA.md](docs/FILOSOFIA.md).
+
+Nykytilakirjaus whitelistin onnistuneesta tilasta ja Avomeren avoimesta arkkitehtuuripäätöksestä: [docs/NYKYTILA-2026-06-24.md](docs/NYKYTILA-2026-06-24.md).
+
 ---
 
 ## Kehitysympäristö

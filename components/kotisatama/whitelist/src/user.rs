@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::domain::normalize_domain;
 use crate::WhitelistError;
+use crate::domain::normalize_domain;
 
 /// A domain added locally by the user.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -51,7 +51,10 @@ impl UserWhitelist {
     }
 
     pub fn domain_hosts(&self) -> Vec<String> {
-        self.domains.iter().map(|entry| entry.domain.clone()).collect()
+        self.domains
+            .iter()
+            .map(|entry| entry.domain.clone())
+            .collect()
     }
 
     pub fn contains_domain(&self, domain: &str) -> bool {
@@ -60,7 +63,11 @@ impl UserWhitelist {
             .any(|entry| entry.domain.eq_ignore_ascii_case(domain))
     }
 
-    pub fn add_domain(&mut self, domain: &str, label: Option<String>) -> Result<bool, WhitelistError> {
+    pub fn add_domain(
+        &mut self,
+        domain: &str,
+        label: Option<String>,
+    ) -> Result<bool, WhitelistError> {
         let domain = normalize_domain(domain)?;
         if self.contains_domain(&domain) {
             return Ok(false);

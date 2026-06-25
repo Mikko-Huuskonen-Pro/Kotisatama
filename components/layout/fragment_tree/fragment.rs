@@ -148,10 +148,10 @@ impl Fragment {
             Fragment::Positioning(positioning_fragment) => {
                 positioning_fragment.set_containing_block(containing_block)
             },
-            Fragment::AbsoluteOrFixedPositionedPlaceholder(..) |
-            Fragment::Text(..) |
-            Fragment::Image(..) |
-            Fragment::IFrame(..) => {},
+            Fragment::AbsoluteOrFixedPositionedPlaceholder(..)
+            | Fragment::Text(..)
+            | Fragment::Image(..)
+            | Fragment::IFrame(..) => {},
         }
     }
 
@@ -215,10 +215,10 @@ impl Fragment {
                 fragment.with_style().scrollable_overflow_for_parent()
             },
             Fragment::Positioning(fragment) => fragment.scrollable_overflow_for_parent(),
-            Fragment::AbsoluteOrFixedPositionedPlaceholder(_) |
-            Fragment::Text(..) |
-            Fragment::Image(..) |
-            Fragment::IFrame(..) => self.base().map(|base| base.rect()).unwrap_or_default(),
+            Fragment::AbsoluteOrFixedPositionedPlaceholder(_)
+            | Fragment::Text(..)
+            | Fragment::Image(..)
+            | Fragment::IFrame(..) => self.base().map(|base| base.rect()).unwrap_or_default(),
         }
     }
 
@@ -280,10 +280,10 @@ impl Fragment {
                     containing_block_computation,
                 ))
             },
-            Fragment::Text(_) |
-            Fragment::AbsoluteOrFixedPositionedPlaceholder(_) |
-            Fragment::Image(_) |
-            Fragment::IFrame(_) => None,
+            Fragment::Text(_)
+            | Fragment::AbsoluteOrFixedPositionedPlaceholder(_)
+            | Fragment::Image(_)
+            | Fragment::IFrame(_) => None,
         }
     }
 

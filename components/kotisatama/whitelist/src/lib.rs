@@ -14,10 +14,10 @@ use std::sync::Mutex;
 pub use document::{WhitelistDocument, WhitelistEntry, WhitelistProfile};
 pub use domain::{host_matches_domain, normalize_domain};
 pub use state::{
-    add_user_domain, init, init_empty, is_navigation_allowed, remove_user_domain, user_entries,
-    EffectiveWhitelist,
+    EffectiveWhitelist, add_user_domain, init, init_empty, is_navigation_allowed,
+    remove_user_domain, user_entries,
 };
-pub use user::{user_whitelist_path, UserWhitelist, UserWhitelistEntry};
+pub use user::{UserWhitelist, UserWhitelistEntry, user_whitelist_path};
 
 use url::Url;
 
@@ -97,7 +97,10 @@ pub fn is_allowed(url: &Url, whitelist: &Whitelist) -> bool {
         Some(host) => host.to_ascii_lowercase(),
         None => return false,
     };
-    whitelist.domains.iter().any(|domain| host_matches_domain(&host, domain))
+    whitelist
+        .domains
+        .iter()
+        .any(|domain| host_matches_domain(&host, domain))
 }
 
 /// Whether `url` is the avomeri (Startpage) gateway — report UI is hidden here.
@@ -155,9 +158,7 @@ fn is_internal_navigation_url(url: &Url) -> bool {
 
 fn is_startpage_host(host: &str) -> bool {
     let host = host.to_ascii_lowercase();
-    host == "startpage.com"
-        || host == "www.startpage.com"
-        || host.ends_with(".startpage.com")
+    host == "startpage.com" || host == "www.startpage.com" || host.ends_with(".startpage.com")
 }
 
 #[cfg(test)]
@@ -176,6 +177,30 @@ mod tests {
         let whitelist = whitelist_with(&["kela.fi"]);
         let url = Url::parse("https://www.kela.fi/elake").unwrap();
         assert!(is_allowed(&url, &whitelist));
+    }
+
+    #[test]
+    fn kela_mvp_routes_stay_in_satama() {
+        let whitelist = whitelist_with(&["kela.fi"]);
+        for url in [
+            "https://www.kela.fi/",
+            "https://www.kela.fi/elake",
+            "https://asiointi.kela.fi/",
+        ] {
+            assert!(is_allowed(&Url::parse(url).unwrap(), &whitelist), "{url}");
+        }
+    }
+
+    #[test]
+    fn kela_lookalike_domains_stay_blocked() {
+        let whitelist = whitelist_with(&["kela.fi"]);
+        for url in [
+            "https://kela.fi.example.com/",
+            "https://example-kela.fi/",
+            "https://kelafi.example/",
+        ] {
+            assert!(!is_allowed(&Url::parse(url).unwrap(), &whitelist), "{url}");
+        }
     }
 
     #[test]
@@ -204,8 +229,7 @@ mod tests {
 
     #[test]
     fn user_overlay_allows_extra_domain() {
-        let base =
-            WhitelistDocument::from_json_str(r#"{"domains":["kela.fi"]}"#).unwrap();
+        let base = WhitelistDocument::from_json_str(r#"{"domains":["kela.fi"]}"#).unwrap();
         let mut user = UserWhitelist::default();
         user.add_domain("example.com", None).unwrap();
         let effective = EffectiveWhitelist::new(base, user, WhitelistProfile::Free);

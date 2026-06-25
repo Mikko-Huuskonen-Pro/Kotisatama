@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::sync::atomic::AtomicU64;
 
 use euclid::Scale;
-use log::warn;
+use log::{info, warn};
 use servo::{
     AuthenticationRequest, BluetoothDeviceSelectionRequest, ConsoleLogLevel, Cursor,
     DeviceIndependentIntRect, DeviceIndependentPixel, DeviceIntPoint, DeviceIntSize, DevicePixel,
@@ -18,6 +18,22 @@ use url::Url;
 
 use crate::parser::location_bar_input_to_url;
 use crate::running_app_state::{RunningAppState, UserInterfaceCommand, WebViewCollection};
+
+#[cfg(feature = "kotisatama")]
+fn kotisatama_go_input_is_search(input: &str) -> bool {
+    let input = input.trim();
+    if input.is_empty() || input.starts_with('/') || input.starts_with('\\') {
+        return false;
+    }
+    if Url::parse(input).is_ok() {
+        return false;
+    }
+    if input.contains(char::is_whitespace) {
+        return true;
+    }
+
+    !(input.eq_ignore_ascii_case("localhost") || input.contains('.') || input.contains(':'))
+}
 
 // This should vary by zoom level and maybe actual text size (focused or under cursor)
 #[cfg_attr(any(target_os = "android", target_env = "ohos"), expect(dead_code))]
@@ -225,8 +241,9 @@ impl ServoShellWindow {
     }
 
     pub(crate) fn update_and_request_repaint_if_necessary(&self, state: &RunningAppState) {
-        let updated_user_interface = self.needs_update.take() &&
-            self.platform_window
+        let updated_user_interface = self.needs_update.take()
+            && self
+                .platform_window
                 .update_user_interface_state(state, self);
 
         // Delegate handlers may have asked us to present or update painted WebView contents.
@@ -325,6 +342,47 @@ impl ServoShellWindow {
             match event {
                 UserInterfaceCommand::Go(location) => {
                     self.set_needs_update();
+                    #[cfg(feature = "kotisatama")]
+                    info!("Kotisatama address field submitted: {location:?}");
+                    if let Some(active_webview) = self.active_webview() {
+                        #[cfg(feature = "kotisatama")]
+                        if kotisatama_go_input_is_search(&location) {
+                            if let Some(url) = crate::kotisatama::resolve_address_alias(&location) {
+                                info!(
+                                    "Kotisatama opening curated address alias {location:?} as {url}"
+                                );
+                                crate::kotisatama::load_url_or_blocked(&active_webview, url);
+                                continue;
+                            }
+
+                            info!(
+                                "Kotisatama routing address field input to local search: {location:?}"
+                            );
+                            match crate::kotisatama::search(&location).outcome {
+                                crate::kotisatama::SearchOutcome::Hits(hits) => {
+                                    if let Some(hit) = hits.first() {
+                                        info!(
+                                            "Kotisatama opening first local search hit: {}",
+                                            hit.url
+                                        );
+                                        crate::kotisatama::open_search_hit(&active_webview, hit);
+                                    }
+                                },
+                                crate::kotisatama::SearchOutcome::NoResults => {
+                                    warn!(
+                                        "Kotisatama local search returned no results for {location:?}"
+                                    );
+                                },
+                                crate::kotisatama::SearchOutcome::Error(message) => {
+                                    warn!(
+                                        "Kotisatama local search failed for {location:?}: {message}"
+                                    );
+                                },
+                            }
+                            continue;
+                        }
+                    }
+
                     let Some(url) = location_bar_input_to_url(
                         &location.clone(),
                         &state.servoshell_preferences.searchpage,
@@ -335,10 +393,7 @@ impl ServoShellWindow {
                     if let Some(active_webview) = self.active_webview() {
                         // KOTISATAMA-PATCH: osoitepalkin Go → whitelist/blokkaussivu.
                         #[cfg(feature = "kotisatama")]
-                        crate::kotisatama::load_url_or_blocked(
-                            &active_webview,
-                            url.into_url(),
-                        );
+                        crate::kotisatama::load_url_or_blocked(&active_webview, url.into_url());
                         #[cfg(not(feature = "kotisatama"))]
                         active_webview.load(url.into_url());
                     }

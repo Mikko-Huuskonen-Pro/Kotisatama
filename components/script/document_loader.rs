@@ -77,8 +77,8 @@ impl Drop for LoadBlocker {
         // a dropped runtime. Therefore, we should only run the drop logic
         // in case this element is dropped, but its containing document
         // is still alive.
-        if runtime_is_alive() &&
-            let Some(load) = self.load.take()
+        if runtime_is_alive()
+            && let Some(load) = self.load.take()
         {
             self.doc.finish_load_for_dropped_blocker(load);
         }

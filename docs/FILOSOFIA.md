@@ -216,6 +216,8 @@ Ensimmäinen tavoitetaso (Kotisatama Ready kokonaisuutena):
 
 Onnistuminen kirjataan milestone-tasolla, ei binäärisesti “Kela toimii / ei toimi”.
 
+Ensimmäinen käytännön Kela-kierros kirjataan tiedostoon [KELA-TELAKKA.md](KELA-TELAKKA.md).
+
 ## Ydinlause
 
 > Servo on moottori. Kotisatama on satama. Telakka korjaa moottoria, mutta ei muuta sitä satamaksi.

@@ -11,6 +11,7 @@
 /output
 /index-data
 /dumps
+/dist-*
 /tests/wpt/reftests-report/report.html
 /python/_virtualenv*
 /python/_venv*

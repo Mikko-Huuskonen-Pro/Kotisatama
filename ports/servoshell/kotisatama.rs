@@ -13,12 +13,12 @@ use kotisatama_report::{Report, ReportError, ReportKind, note_blocked_url};
 pub use kotisatama_report::{domain_from_url, last_blocked_url};
 use kotisatama_search::SearchClient;
 pub use kotisatama_search::{SearchHit, SearchOutcome};
-pub use kotisatama_varustamo::{app_gateway_url, load_registry, VarustamoRegistry};
 use kotisatama_varustamo::gateway_url as varustamo_gateway_url;
+pub use kotisatama_varustamo::{VarustamoRegistry, app_gateway_url, load_registry};
 use kotisatama_whitelist::{
-    blocked_page_url, init as init_whitelist, init_empty, is_avomeri_gateway,
-    is_navigation_allowed, note_avomeri_query, startpage_query, startpage_search_url,
-    WhitelistProfile,
+    WhitelistDocument, WhitelistProfile, blocked_page_url, init as init_whitelist, init_empty,
+    is_avomeri_gateway, is_navigation_allowed, note_avomeri_query, startpage_query,
+    startpage_search_url,
 };
 use log::{info, warn};
 use servo::WebView;
@@ -27,6 +27,16 @@ use url::Url;
 static SEARCH: OnceLock<Option<SearchClient>> = OnceLock::new();
 static PULLOPOSTI: OnceLock<Option<PullopostiClient>> = OnceLock::new();
 static MISSA_OLEN: OnceLock<Option<MissaOlenClient>> = OnceLock::new();
+
+fn whitelist_base_path() -> PathBuf {
+    kotisatama_search::cached_whitelist_path()
+        .or_else(|| {
+            std::env::var("KOTISATAMA_WHITELIST_PATH")
+                .ok()
+                .map(PathBuf::from)
+        })
+        .unwrap_or_else(|| PathBuf::from("config/whitelist.json"))
+}
 
 /// Active Kotisatama search panel state for the servoshell UI.
 #[derive(Debug, Clone)]
@@ -58,13 +68,7 @@ pub fn init() {
         }
     }
 
-    let base_path = kotisatama_search::cached_whitelist_path()
-        .or_else(|| {
-            std::env::var("KOTISATAMA_WHITELIST_PATH")
-                .ok()
-                .map(PathBuf::from)
-        })
-        .unwrap_or_else(|| PathBuf::from("config/whitelist.json"));
+    let base_path = whitelist_base_path();
     let profile = WhitelistProfile::current();
     if let Err(error) = init_whitelist(&base_path, profile.clone()) {
         warn!(
@@ -89,6 +93,21 @@ pub fn check_url(url: &Url) -> bool {
     is_navigation_allowed(url)
 }
 
+/// Whether a navigation should be allowed in this webview.
+///
+/// Avomeri is an explicit escape hatch: after the user opens Startpage, clicks
+/// from that page stay in the open web instead of bouncing back to the whitelist
+/// confirmation page on every result.
+pub fn should_allow_navigation(webview: &WebView, target: &Url) -> bool {
+    if check_url(target) {
+        return true;
+    }
+    webview
+        .url()
+        .map(|current| is_avomeri_gateway(&current))
+        .unwrap_or(false)
+}
+
 /// Track allowed navigations (Startpage query for blocked-page fallback).
 pub fn on_allowed_navigation(url: &Url) {
     if let Some(query) = startpage_query(url) {
@@ -98,7 +117,7 @@ pub fn on_allowed_navigation(url: &Url) {
 
 /// Load `url` or show the blocked page if not whitelisted.
 pub fn load_url_or_blocked(webview: &WebView, url: Url) {
-    if check_url(&url) {
+    if should_allow_navigation(webview, &url) {
         on_allowed_navigation(&url);
         webview.load(url);
     } else {
@@ -187,6 +206,33 @@ pub fn pulloposti_available() -> bool {
 pub fn avomeri_search_url(query: &str) -> Url {
     note_avomeri_query(query);
     startpage_search_url(query)
+}
+
+/// Resolve a simple address-bar word such as "kela" to a curated domain.
+pub fn resolve_address_alias(input: &str) -> Option<Url> {
+    let query = input.trim().to_ascii_lowercase();
+    if query.is_empty() || query.contains(char::is_whitespace) || query.contains('.') {
+        return None;
+    }
+
+    let document = WhitelistDocument::load_from_path(&whitelist_base_path()).ok()?;
+    let profile = WhitelistProfile::current();
+    document
+        .entries_for_profile(&profile)
+        .into_iter()
+        .find_map(|entry| {
+            let label_matches = entry
+                .label
+                .as_deref()
+                .map(|label| label.trim().eq_ignore_ascii_case(&query))
+                .unwrap_or(false);
+            let domain_alias = entry.domain.split('.').next().unwrap_or_default();
+            if label_matches || domain_alias.eq_ignore_ascii_case(&query) {
+                Url::parse(&format!("https://{}", entry.domain)).ok()
+            } else {
+                None
+            }
+        })
 }
 
 pub fn ensure_pulloposti() {

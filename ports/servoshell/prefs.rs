@@ -209,6 +209,16 @@ fn get_preferences(prefs_files: &[PathBuf], config_dir: &Option<PathBuf>) -> Pre
         apply_preferences(&mut preferences, read_prefs_file(pref_file_path))
     }
 
+    #[cfg(feature = "kotisatama")]
+    {
+        // Kotisatama is a kiosk-like browser; inherited development proxies can
+        // break public sites by failing secondary asset loads.
+        preferences.network_http_proxy_uri.clear();
+        preferences.network_https_proxy_uri.clear();
+        preferences.network_http_no_proxy.clear();
+        preferences.network_connection_timeout = preferences.network_connection_timeout.max(30);
+    }
+
     preferences
 }
 
@@ -600,8 +610,8 @@ fn update_preferences_from_command_line_arguments(
     // KOTISATAMA-PATCH: keep experimental web platform prefs enabled by default
     // in Kotisatama. The upstream CLI flag still maps to the same state, but it
     // is no longer required for Kotisatama builds.
-    let experimental_preferences_enabled = KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED ||
-        cmd_args.enable_experimental_web_platform_features;
+    let experimental_preferences_enabled =
+        KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED || cmd_args.enable_experimental_web_platform_features;
 
     if experimental_preferences_enabled {
         for pref in EXPERIMENTAL_PREFS {
@@ -734,8 +744,8 @@ fn parse_arguments_helper(args_without_binary: Args) -> ArgumentParsingResult {
         exit_after_stable_image: cmd_args.exit,
         userscripts_directory: cmd_args.userscripts,
         user_stylesheets: cmd_args.user_stylesheet,
-        experimental_preferences_enabled: KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED ||
-            cmd_args.enable_experimental_web_platform_features,
+        experimental_preferences_enabled: KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED
+            || cmd_args.enable_experimental_web_platform_features,
         #[cfg(target_env = "ohos")]
         log_filter: cmd_args.log_filter.or_else(|| {
             (!preferences.log_filter.is_empty()).then(|| preferences.log_filter.clone())

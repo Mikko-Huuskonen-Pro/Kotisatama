@@ -11,8 +11,7 @@ use std::process::Command;
 use std::process::Stdio;
 
 use kotisatama_subprocess_app::{
-    find_binary, is_healthy, wait_for_health, HealthCheckConfig, ManagedSubprocess,
-    SubprocessError,
+    HealthCheckConfig, ManagedSubprocess, SubprocessError, find_binary, is_healthy, wait_for_health,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -74,7 +73,10 @@ impl PullopostiClient {
         }
 
         let binary = find_pulloposti_binary()?;
-        log::info!("Pulloposti: käynnistetään subprocess ({})", binary.display());
+        log::info!(
+            "Pulloposti: käynnistetään subprocess ({})",
+            binary.display()
+        );
 
         let child = Command::new(&binary)
             .env("KOTISATAMA_PULLOPOSTI_URL", &base_url)
@@ -98,8 +100,7 @@ impl PullopostiClient {
 
     /// Paikallinen gateway-sivu selaimessa (`servo:pulloposti`).
     pub fn gateway_url() -> Url {
-        Url::parse("servo:pulloposti")
-            .expect("pulloposti gateway URL must be valid")
+        Url::parse("servo:pulloposti").expect("pulloposti gateway URL must be valid")
     }
 
     /// Sovellusnäkymä selaimessa (`servo:pulloposti/app`).

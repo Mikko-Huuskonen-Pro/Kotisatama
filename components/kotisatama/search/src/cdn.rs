@@ -70,7 +70,9 @@ fn data_dir() -> PathBuf {
 }
 
 fn fetch_to_file(url: &str, dest: &Path) -> Result<(), SearchError> {
-    let response = ureq::get(url).call().map_err(|error| SearchError::Http(error.to_string()))?;
+    let response = ureq::get(url)
+        .call()
+        .map_err(|error| SearchError::Http(error.to_string()))?;
     if response.status() != 200 {
         return Err(SearchError::Http(format!(
             "GET {url} returned HTTP {}",

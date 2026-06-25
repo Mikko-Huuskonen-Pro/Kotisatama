@@ -12,7 +12,7 @@ use crate::WhitelistError;
 pub fn normalize_domain(input: &str) -> Result<String, WhitelistError> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
-        return Err(WhitelistError::InvalidDomain("tyhjä domain".into()));
+        return Err(WhitelistError::InvalidDomain("tyhjÃ¤ domain".into()));
     }
 
     if trimmed.contains("://") || trimmed.starts_with("//") {
@@ -34,17 +34,23 @@ pub fn normalize_domain(input: &str) -> Result<String, WhitelistError> {
 }
 
 fn normalize_host(host: &str) -> Result<String, WhitelistError> {
-    let host = host
-        .trim()
-        .to_ascii_lowercase()
-        .trim_end_matches('.')
-        .to_string();
+    let host = host.trim().trim_end_matches('.');
     if host.is_empty() {
-        return Err(WhitelistError::InvalidDomain("tyhjä domain".into()));
+        return Err(WhitelistError::InvalidDomain("tyhja domain".into()));
     }
     if host.contains(' ') || !host.contains('.') {
-        return Err(WhitelistError::InvalidDomain(host));
+        return Err(WhitelistError::InvalidDomain(host.to_string()));
     }
+
+    let host = if host.is_ascii() {
+        host.to_ascii_lowercase()
+    } else {
+        Url::parse(&format!("https://{host}"))
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_string))
+            .ok_or_else(|| WhitelistError::InvalidDomain(host.to_string()))?
+    };
+
     if !host
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
@@ -73,6 +79,14 @@ mod tests {
         assert_eq!(
             normalize_domain("https://www.Kela.fi/path").unwrap(),
             "kela.fi"
+        );
+    }
+
+    #[test]
+    fn normalizes_idn_domain_to_ascii() {
+        assert_eq!(
+            normalize_domain("el\u{e4}keliitto.fi").unwrap(),
+            "xn--elkeliitto-r5a.fi"
         );
     }
 

@@ -11,13 +11,13 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use kotisatama_subprocess_app::{
-    find_binary, find_on_path, is_healthy, wait_for_health, HealthCheckConfig, ManagedSubprocess,
-    SubprocessError,
+    HealthCheckConfig, ManagedSubprocess, SubprocessError, find_binary, find_on_path, is_healthy,
+    wait_for_health,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-pub use cdn::{cached_whitelist_path, sync_from_cdn, CdnSyncReport};
+pub use cdn::{CdnSyncReport, cached_whitelist_path, sync_from_cdn};
 
 const DEFAULT_BASE_URL: &str = "http://127.0.0.1:7700";
 const INDEX_UID: &str = "documents";
@@ -30,7 +30,14 @@ const HEALTH_CONFIG: HealthCheckConfig = HealthCheckConfig {
 fn data_dir() -> PathBuf {
     std::env::var("KOTISATAMA_DATA_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("index-data"))
+        .unwrap_or_else(|_| {
+            packaged_path("index-data").unwrap_or_else(|| PathBuf::from("index-data"))
+        })
+}
+
+fn packaged_path(relative: &str) -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    Some(exe_dir.join(relative))
 }
 
 /// A single search hit from the local index.
@@ -72,8 +79,12 @@ impl SearchClient {
         }
 
         let binary = find_meilisearch_binary()?;
-        let db_path = std::env::var("KOTISATAMA_MEILISEARCH_DB")
-            .unwrap_or_else(|_| data_dir().join("meilisearch").to_string_lossy().into_owned());
+        let db_path = std::env::var("KOTISATAMA_MEILISEARCH_DB").unwrap_or_else(|_| {
+            data_dir()
+                .join("meilisearch")
+                .to_string_lossy()
+                .into_owned()
+        });
         fs::create_dir_all(&db_path).map_err(SearchError::Io)?;
 
         let dump_path = std::env::var("KOTISATAMA_INDEX_DUMP")
@@ -142,19 +153,19 @@ impl SearchClient {
                     SearchOutcome::Hits(body.hits)
                 }
             },
-            Err(ureq::Error::Status(code, resp)) => {
-                SearchOutcome::Error(format!(
-                    "search failed (HTTP {code}): {}",
-                    resp.into_string().unwrap_or_default()
-                ))
-            },
+            Err(ureq::Error::Status(code, resp)) => SearchOutcome::Error(format!(
+                "search failed (HTTP {code}): {}",
+                resp.into_string().unwrap_or_default()
+            )),
             Err(error) => SearchOutcome::Error(format!("search request failed: {error}")),
         }
     }
 
     fn ensure_index(&self) -> Result<(), SearchError> {
         let stats_url = format!("{}/indexes/{}/stats", self.base_url, INDEX_UID);
-        if let Ok(resp) = ureq::get(&stats_url).call() && resp.status() == 200 {
+        if let Ok(resp) = ureq::get(&stats_url).call()
+            && resp.status() == 200
+        {
             let stats: IndexStats = resp
                 .into_json()
                 .map_err(|error| SearchError::Http(error.to_string()))?;
@@ -182,9 +193,14 @@ impl SearchClient {
 
     fn load_seed_documents(&self) -> Result<(), SearchError> {
         let path = std::env::var("KOTISATAMA_SEARCH_DOCUMENTS")
-            .unwrap_or_else(|_| "config/search-index/documents.json".to_string());
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                packaged_path("config/search-index/documents.json")
+                    .unwrap_or_else(|| PathBuf::from("config/search-index/documents.json"))
+            });
         let contents = fs::read_to_string(&path).map_err(SearchError::Io)?;
-        let documents: Vec<SeedDocument> = serde_json::from_str(&contents).map_err(SearchError::Json)?;
+        let documents: Vec<SeedDocument> =
+            serde_json::from_str(&contents).map_err(SearchError::Json)?;
 
         let url = format!("{}/indexes/{}/documents", self.base_url, INDEX_UID);
         ureq::post(&url)
@@ -202,6 +218,7 @@ struct SearchResponse {
 
 #[derive(Debug, Deserialize)]
 struct IndexStats {
+    #[serde(default, alias = "numberOfDocuments")]
     number_of_documents: u64,
 }
 
@@ -241,8 +258,17 @@ impl std::fmt::Display for SearchError {
 impl std::error::Error for SearchError {}
 
 fn find_meilisearch_binary() -> Result<PathBuf, SearchError> {
-    if let Ok(path) = find_binary("KOTISATAMA_MEILISEARCH_BIN", &[]) {
+    if let Ok(path) = find_binary(
+        "KOTISATAMA_MEILISEARCH_BIN",
+        &["bin/meilisearch.exe", "bin/meilisearch"],
+    ) {
         return Ok(path);
+    }
+
+    for relative in ["bin/meilisearch.exe", "bin/meilisearch"] {
+        if let Some(path) = packaged_path(relative).filter(|path| path.is_file()) {
+            return Ok(path);
+        }
     }
 
     find_on_path(&["meilisearch.exe", "meilisearch"]).ok_or(SearchError::BinaryNotFound)

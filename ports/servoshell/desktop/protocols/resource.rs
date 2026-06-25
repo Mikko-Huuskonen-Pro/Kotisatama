@@ -46,6 +46,10 @@ impl ResourceProtocolHandler {
         let file_path = crate::resources::resource_protocol_dir_path().join(path);
 
         if !file_path.exists() || file_path.is_dir() {
+            log::warn!(
+                "resource protocol path not found or not a file: {}",
+                file_path.display()
+            );
             return Box::pin(std::future::ready(Response::network_error(
                 NetworkError::ResourceLoadError("Invalid path".to_owned()),
             )));
@@ -79,6 +83,10 @@ impl ResourceProtocolHandler {
 
             response
         } else {
+            log::warn!(
+                "resource protocol failed to open file: {}",
+                file_path.display()
+            );
             Response::network_error(NetworkError::ResourceLoadError(
                 "Opening file failed".to_owned(),
             ))

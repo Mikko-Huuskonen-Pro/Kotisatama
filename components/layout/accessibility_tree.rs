@@ -233,8 +233,8 @@ impl AccessibilityTree {
                 _ => None,
             })
         {
-            if let Some(node) = self.nodes.remove(&id) &&
-                let Some(opaque_node) = node.borrow().opaque_node
+            if let Some(node) = self.nodes.remove(&id)
+                && let Some(opaque_node) = node.borrow().opaque_node
             {
                 self.opaque_node_to_id.remove(&opaque_node);
             }
@@ -451,8 +451,8 @@ impl AccessibilityNode {
         tree: &mut AccessibilityTree,
     ) -> LocalAccessibilityDamage {
         let mut new_damage = LocalAccessibilityDamage::empty();
-        if damage.contains(LocalAccessibilityDamage::SUBTREE_CHANGED) ||
-            damage.contains(LocalAccessibilityDamage::ROLE_CHANGED)
+        if damage.contains(LocalAccessibilityDamage::SUBTREE_CHANGED)
+            || damage.contains(LocalAccessibilityDamage::ROLE_CHANGED)
         {
             if let Some(text) = self.label_from_descendants(tree) {
                 new_damage.insert(self.set_label(text.as_str()));
@@ -531,8 +531,8 @@ impl AccessibilityNode {
             }
         }
         for new_child_id in children.iter() {
-            if !old_children.contains(new_child_id) &&
-                let Some(moved_child) = tree.node_for_id(new_child_id)
+            if !old_children.contains(new_child_id)
+                && let Some(moved_child) = tree.node_for_id(new_child_id)
             {
                 moved_child.borrow().set_subtree_state_change(
                     TreeChange::PendingMove,

@@ -117,8 +117,8 @@ impl WGPU {
                     noop: wgt::NoopBackendOptions::default(),
                 },
 
-                flags: wgt::InstanceFlags::from_build_config() |
-                    wgt::InstanceFlags::AUTOMATIC_TIMESTAMP_NORMALIZATION,
+                flags: wgt::InstanceFlags::from_build_config()
+                    | wgt::InstanceFlags::AUTOMATIC_TIMESTAMP_NORMALIZATION,
                 // TODO(sagudev): firefox actually sets this, but it can cause OOM for us
                 // meaning that we are likely leaking something
                 memory_budget_thresholds: wgt::MemoryBudgetThresholds {
@@ -912,8 +912,8 @@ impl WGPU {
                     },
                     WebGPURequest::UnmapBuffer { buffer_id, mapping } => {
                         let global = &self.global;
-                        if let Some(mapping) = mapping &&
-                            let Ok((slice_pointer, range_size)) = global.buffer_get_mapped_range(
+                        if let Some(mapping) = mapping
+                            && let Ok((slice_pointer, range_size)) = global.buffer_get_mapped_range(
                                 buffer_id,
                                 mapping.range.start,
                                 Some(mapping.range.end - mapping.range.start),

@@ -322,8 +322,8 @@ impl Rope {
                 .iter()
                 .take(rope_index.line)
                 .map(String::len)
-                .sum::<usize>() +
-                rope_index.code_point,
+                .sum::<usize>()
+                + rope_index.code_point,
         )
     }
 
@@ -343,8 +343,8 @@ impl Rope {
             .iter()
             .take(rope_index.line)
             .map(|line| Utf16CodeUnitLength(line.chars().map(char::len_utf16).sum()))
-            .sum::<Utf16CodeUnitLength>() +
-            final_line_offset
+            .sum::<Utf16CodeUnitLength>()
+            + final_line_offset
     }
 
     /// Convert a [`RopeIndex`] into a character offset from the start of the content.
@@ -358,8 +358,8 @@ impl Rope {
             .iter()
             .take(rope_index.line)
             .map(|line| line.chars().count())
-            .sum::<usize>() +
-            final_line_offset
+            .sum::<usize>()
+            + final_line_offset
     }
 
     /// Convert a byte offset from the start of the content into a [`RopeIndex`].
@@ -572,8 +572,8 @@ impl Iterator for RopeMovementIterator<'_> {
         assert!(self.slice.start.line < self.slice.rope.lines.len());
         let line = self.slice.rope.line_for_index(self.slice.start);
 
-        if self.slice.start.code_point < line.len() + 1 &&
-            let Some(end_offset) =
+        if self.slice.start.code_point < line.len() + 1
+            && let Some(end_offset) =
                 (self.end_of_forward_motion)(&self.slice, &line[self.slice.start.code_point..])
         {
             self.slice.start.code_point += end_offset;
@@ -594,8 +594,8 @@ impl DoubleEndedIterator for RopeMovementIterator<'_> {
         }
 
         let line = self.slice.rope.line_for_index(self.slice.end);
-        if self.slice.end.code_point > 0 &&
-            let Some(new_start_index) =
+        if self.slice.end.code_point > 0
+            && let Some(new_start_index) =
                 (self.start_of_backward_motion)(&self.slice, &line[..self.slice.end.code_point])
         {
             self.slice.end.code_point = new_start_index;

@@ -62,9 +62,7 @@ pub struct ManagedSubprocess {
 
 impl ManagedSubprocess {
     pub fn from_child(child: Child) -> Self {
-        Self {
-            child: Some(child),
-        }
+        Self { child: Some(child) }
     }
 
     pub fn detached() -> Self {

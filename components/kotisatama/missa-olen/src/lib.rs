@@ -10,8 +10,7 @@
 use std::process::{Command, Stdio};
 
 use kotisatama_subprocess_app::{
-    find_binary, is_healthy, wait_for_health, HealthCheckConfig, ManagedSubprocess,
-    SubprocessError,
+    HealthCheckConfig, ManagedSubprocess, SubprocessError, find_binary, is_healthy, wait_for_health,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -65,7 +64,10 @@ impl MissaOlenClient {
         }
 
         let binary = find_missa_olen_binary()?;
-        log::info!("Missä olen: käynnistetään subprocess ({})", binary.display());
+        log::info!(
+            "Missä olen: käynnistetään subprocess ({})",
+            binary.display()
+        );
 
         let child = Command::new(&binary)
             .env("KOTISATAMA_MISSA_OLEN_URL", &base_url)

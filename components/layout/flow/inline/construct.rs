@@ -402,18 +402,18 @@ impl InlineFormattingContextBuilder {
                 // If this character has a strong right-to-left class the new inline formatting context will
                 // need to be BiDi-aware. This match is derived from the list of strong right-to-left classes
                 // at https://www.unicode.org/reports/tr44/#Bidi_Class_Values.
-                self.has_right_to_left_content = self.has_right_to_left_content ||
-                    matches!(
+                self.has_right_to_left_content = self.has_right_to_left_content
+                    || matches!(
                         bidi_class_map.get(character),
-                        BidiClass::RightToLeft |
-                            BidiClass::ArabicLetter |
-                            BidiClass::RightToLeftEmbedding |
-                            BidiClass::RightToLeftIsolate |
-                            BidiClass::RightToLeftOverride
+                        BidiClass::RightToLeft
+                            | BidiClass::ArabicLetter
+                            | BidiClass::RightToLeftEmbedding
+                            | BidiClass::RightToLeftIsolate
+                            | BidiClass::RightToLeftOverride
                     );
 
-                self.is_empty = self.is_empty &&
-                    match white_space_collapse {
+                self.is_empty = self.is_empty
+                    && match white_space_collapse {
                         WhiteSpaceCollapse::Collapse => Self::is_document_white_space(character),
                         WhiteSpaceCollapse::PreserveBreaks => {
                             Self::is_document_white_space(character) && character != '\n'
@@ -444,8 +444,8 @@ impl InlineFormattingContextBuilder {
 
         let current_inline_styles = self.shared_inline_styles();
 
-        if let Some(InlineItem::TextRun(text_run)) = self.inline_items.last() &&
-            text_run
+        if let Some(InlineItem::TextRun(text_run)) = self.inline_items.last()
+            && text_run
                 .borrow()
                 .inline_styles
                 .ptr_eq(&current_inline_styles)
@@ -594,8 +594,8 @@ where
         // > characters are considered collapsible
         // If whitespace is not considered collapsible, it is preserved entirely, which
         // means that we can simply return the input string exactly.
-        if self.white_space_collapse == WhiteSpaceCollapse::Preserve ||
-            self.white_space_collapse == WhiteSpaceCollapse::BreakSpaces
+        if self.white_space_collapse == WhiteSpaceCollapse::Preserve
+            || self.white_space_collapse == WhiteSpaceCollapse::BreakSpaces
         {
             // From <https://drafts.csswg.org/css-text-3/#white-space-processing>:
             // > Carriage returns (U+000D) are treated identically to spaces (U+0020) in all respects.
@@ -618,8 +618,8 @@ where
             // Don't push non-newline whitespace immediately. Instead wait to push it until we
             // know that it isn't followed by a newline. See `push_pending_whitespace_if_needed`
             // above.
-            if InlineFormattingContextBuilder::is_document_white_space(character) &&
-                character != '\n'
+            if InlineFormattingContextBuilder::is_document_white_space(character)
+                && character != '\n'
             {
                 self.inside_white_space = true;
                 continue;
@@ -644,9 +644,9 @@ where
                 // >    collapsible segment break is removed.
                 // > 2. Then any remaining segment break is either transformed into a space (U+0020)
                 // >    or removed depending on the context before and after the break.
-                } else if !self.following_newline &&
-                    preserve_segment_break() &&
-                    !self.is_leading_trimmed_white_space()
+                } else if !self.following_newline
+                    && preserve_segment_break()
+                    && !self.is_leading_trimmed_white_space()
                 {
                     self.inside_white_space = false;
                     self.following_newline = true;
@@ -835,8 +835,8 @@ pub(crate) fn capitalize_string(string: &str, allow_word_at_start: bool) -> Stri
         let current_byte_index = byte_index;
         byte_index += character.len_utf8();
 
-        if let Some(next_index) = bounds.peek() &&
-            *next_index == current_byte_index
+        if let Some(next_index) = bounds.peek()
+            && *next_index == current_byte_index
         {
             bounds.next();
 
@@ -897,9 +897,9 @@ fn first_letter_range(text: &str) -> Range<usize> {
             State::Lns => {
                 // TODO: Implement support for intervening spaces
                 // <https://drafts.csswg.org/css-pseudo/#first-letter-pattern>
-                if character.is_punctuation() &&
-                    !character.is_punctuation_open() &&
-                    !character.is_punctuation_dash()
+                if character.is_punctuation()
+                    && !character.is_punctuation_open()
+                    && !character.is_punctuation_dash()
                 {
                     state = State::TrailingPunctuation;
                 } else {
@@ -909,9 +909,9 @@ fn first_letter_range(text: &str) -> Range<usize> {
             State::TrailingPunctuation => {
                 // TODO: Implement support for intervening spaces
                 // <https://drafts.csswg.org/css-pseudo/#first-letter-pattern>
-                if character.is_punctuation() &&
-                    !character.is_punctuation_open() &&
-                    !character.is_punctuation_dash()
+                if character.is_punctuation()
+                    && !character.is_punctuation_open()
+                    && !character.is_punctuation_dash()
                 {
                     continue;
                 } else {

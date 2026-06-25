@@ -77,10 +77,6 @@ pub struct Gui {
     pending_accesskit_updates: Vec<accesskit::TreeUpdate>,
 
     // KOTISATAMA-PATCH: desktop-haku, raportointi ja suomenkielinen UI (ks. suljetun repon Docs/KIELIROADMAP.md).
-    /// Kotisatama local search query (desktop toolbar).
-    #[cfg(feature = "kotisatama")]
-    search_query: String,
-
     /// Kotisatama search results panel.
     #[cfg(feature = "kotisatama")]
     search_panel: Option<crate::kotisatama::KotisatamaSearchPanel>,
@@ -265,8 +261,6 @@ impl Gui {
             favicon_textures: Default::default(),
             pending_accesskit_updates: vec![],
             // KOTISATAMA-PATCH: alusta haku- ja raportointitila (ks. suljetun repon Docs/KIELIROADMAP.md).
-            #[cfg(feature = "kotisatama")]
-            search_query: String::new(),
             #[cfg(feature = "kotisatama")]
             search_panel: None,
             #[cfg(feature = "kotisatama")]
@@ -546,6 +540,22 @@ impl Gui {
                                     window.set_needs_repaint();
                                 }
                             }
+                            #[cfg(feature = "kotisatama")]
+                            {
+                                let varustamo_button =
+                                    ui.add(Gui::toolbar_button(t("varustamo_button")));
+                                varustamo_button.widget_info(|| {
+                                    let mut info = WidgetInfo::new(WidgetType::Button);
+                                    info.label = Some(t("varustamo_button").into());
+                                    info
+                                });
+                                if varustamo_button.clicked() {
+                                    if let Some(webview) = window.active_webview() {
+                                        crate::kotisatama::open_varustamo(&webview);
+                                        window.set_needs_repaint();
+                                    }
+                                }
+                            }
 
                             ui.allocate_ui_with_layout(
                                 ui.available_size(),
@@ -609,8 +619,9 @@ impl Gui {
                                     }
                                     // Navigate to address when enter is pressed in the address bar.
                                     if location_field.lost_focus()
-                                        && ui.input(|i| i.clone().key_pressed(Key::Enter))
+                                        && ui.input(|i| i.key_pressed(Key::Enter))
                                     {
+                                        *location_dirty = false;
                                         window.queue_user_interface_command(
                                             UserInterfaceCommand::Go(location.clone()),
                                         );
@@ -620,45 +631,6 @@ impl Gui {
                         },
                     );
                 });
-
-                // KOTISATAMA-PATCH: kotisatama-hakupalkki ja Varustamo-linkki.
-                #[cfg(feature = "kotisatama")]
-                {
-                    let search_frame = egui::Frame::default()
-                        .fill(crate::kotisatama::theme_toolbar_fill(kotisatama_theme))
-                        .inner_margin(4.0);
-                    Panel::top("kotisatama_search_bar")
-                        .frame(search_frame)
-                        .show_inside(ctx, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(t("search_label"));
-                                let search_id = Id::new("kotisatama_search_input");
-                                let search_field = ui.add(
-                                    egui::TextEdit::singleline(&mut self.search_query)
-                                        .id(search_id)
-                                        .hint_text(t("search_hint")),
-                                );
-                                if search_field.lost_focus()
-                                    && ui.input(|i| i.key_pressed(Key::Enter))
-                                {
-                                    let query = self.search_query.clone();
-                                    let (tx, rx) = mpsc::channel();
-                                    self.search_pending = Some(rx);
-                                    self.search_panel = None;
-                                    std::thread::spawn(move || {
-                                        let _ = tx.send(crate::kotisatama::search(&query));
-                                    });
-                                    window.set_needs_repaint();
-                                }
-                                if ui.button(t("varustamo_button")).clicked() {
-                                    if let Some(webview) = window.active_webview() {
-                                        crate::kotisatama::open_varustamo(&webview);
-                                        window.set_needs_repaint();
-                                    }
-                                }
-                            });
-                        });
-                }
 
                 // A simple Tab header strip
                 let outer = Panel::top("tabs").show_inside(ctx, |ui| {

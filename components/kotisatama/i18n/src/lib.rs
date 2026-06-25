@@ -162,9 +162,7 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Sv, "search_query_prefix") => "Sök:",
 
         (Locale::Fi, "search_no_results") => "Ei löydy satamasta — haluatko hakea avomereltä?",
-        (Locale::Sv, "search_no_results") => {
-            "Finns inte i hamnen — vill du söka på öppet hav?"
-        },
+        (Locale::Sv, "search_no_results") => "Finns inte i hamnen — vill du söka på öppet hav?",
 
         (Locale::Fi, "search_avomeri") => "Hae avomereltä",
         (Locale::Sv, "search_avomeri") => "Sök på öppet hav",
@@ -175,8 +173,12 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "report_window_title") => "Lokikirja",
         (Locale::Sv, "report_window_title") => "Loggbok",
 
-        (Locale::Fi, "report_intro") => "Lähetä anonyymi merkintä lokikirjaan (ei käyttäjätunnistetta).",
-        (Locale::Sv, "report_intro") => "Skicka en anonym anteckning till loggboken (ingen användaridentifiering).",
+        (Locale::Fi, "report_intro") => {
+            "Lähetä anonyymi merkintä lokikirjaan (ei käyttäjätunnistetta)."
+        },
+        (Locale::Sv, "report_intro") => {
+            "Skicka en anonym anteckning till loggboken (ingen användaridentifiering)."
+        },
 
         (Locale::Fi, "report_site_broken") => "Sivusto ei toimi",
         (Locale::Sv, "report_site_broken") => "Webbplatsen fungerar inte",

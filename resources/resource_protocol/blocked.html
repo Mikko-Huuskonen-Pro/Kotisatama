@@ -75,7 +75,7 @@
       <p id="blockedUrl" class="url"></p>
       <div class="actions">
         <a id="addSiteLink" class="add-site" data-i18n="addSiteLink">Lisää sivusto sallittuihin</a>
-        <a id="continueLink" data-i18n="continueLink">Mene avomerelle</a>
+        <a id="avomeriLink" data-i18n="avomeriLink">Avaa Avomeri-portti</a>
         <a class="manage-link" href="servo:whitelist" data-i18n="manageSitesLink">Hallitse sallittuja sivustoja</a>
       </div>
       <p class="report-hint" data-i18n-html="reportHint"></p>
@@ -88,17 +88,16 @@
 
         const params = new URLSearchParams(location.search);
         const blockedUrl = params.get("u") || "";
-        const continueHref = params.get("continue") || "#";
 
         document.getElementById("blockedUrl").textContent = blockedUrl;
-        const continueLink = document.getElementById("continueLink");
-        continueLink.href = continueHref;
 
         const addSiteLink = document.getElementById("addSiteLink");
+        const avomeriLink = document.getElementById("avomeriLink");
         if (blockedUrl) {
           try {
             const host = new URL(blockedUrl).hostname.replace(/^www\./i, "");
             if (host) {
+              avomeriLink.href = "servo:avomeri?q=" + encodeURIComponent(host);
               const returnParam = encodeURIComponent(blockedUrl);
               addSiteLink.href =
                 "servo:whitelist/add?domain=" +
@@ -110,9 +109,11 @@
             }
           } catch (_) {
             addSiteLink.hidden = true;
+            avomeriLink.href = "servo:avomeri";
           }
         } else {
           addSiteLink.hidden = true;
+          avomeriLink.href = "servo:avomeri";
         }
       })();
     </script>

@@ -8,12 +8,17 @@
       title: { fi: "Avomeri", sv: "Öppet hav" },
       heading: { fi: "Avomeri", sv: "Öppet hav" },
       intro: {
-        fi: "Olet siirtymässä avomerelle. Sataman ulkopuolelle mennään vain käyttäjän omasta valinnasta.",
-        sv: "Du håller på att gå ut på öppet hav. Utanför hamnen sker det endast på användarens eget val.",
+        fi: "Avomeri on erillinen poikkeustila avoimelle netille. Satama ei avaa sitä automaattisesti.",
+        sv: "Öppet hav är ett separat undantagsläge för det öppna nätet. Hamnen öppnar det inte automatiskt.",
       },
-      searchLabel: { fi: "Hae avomereltä", sv: "Sök på öppet hav" },
-      searchPlaceholder: { fi: "Kirjoita hakusana…", sv: "Skriv sökord…" },
-      searchButton: { fi: "Hae", sv: "Sök" },
+      requestHeading: { fi: "Avomerelle pyydetty haku", sv: "Sökning begärd till öppet hav" },
+      requestHelp: {
+        fi: "Jatka vain, jos haluat poistua Sataman whitelist-suojasta.",
+        sv: "Fortsätt bara om du vill lämna hamnens whitelist-skydd.",
+      },
+      openAvomeri: { fi: "Jatka Avomerelle", sv: "Fortsätt till öppet hav" },
+      backSatama: { fi: "Takaisin Satamaan", sv: "Tillbaka till hamnen" },
+      manageSites: { fi: "Ehdota tai lisää sivusto", sv: "Föreslå eller lägg till webbplats" },
       offline: {
         fi: "Myrsky: verkkoyhteyttä ei ole. Avomeri ei ole käytettävissä offline-tilassa.",
         sv: "Storm: ingen nätverksanslutning. Öppet hav är inte tillgängligt offline.",
@@ -96,7 +101,7 @@
     newtab: {
       title: { fi: "Kotisatama – uusi välilehti", sv: "Kotisatama – ny flik" },
       heading: { fi: "Kotisatama", sv: "Kotisatama" },
-      searchPlaceholder: { fi: "Hae avomereltä…", sv: "Sök på öppet hav…" },
+      searchPlaceholder: { fi: "Kirjoita osoite tai hae satamasta…", sv: "Skriv adress eller sök i hamnen…" },
       searchButton: { fi: "Hae", sv: "Sök" },
     },
     varustamo: {
@@ -193,8 +198,8 @@
         fi: "Tätä sivua ei löydy satamassa.",
         sv: "Den här sidan finns inte i hamnen.",
       },
-      continueLink: { fi: "Jatka avomerelle", sv: "Fortsätt till öppet hav" },
       addSiteLink: { fi: "Lisää satamaan", sv: "Lägg till i hamnen" },
+      avomeriLink: { fi: "Avaa Avomeri-portti", sv: "Öppna porten till öppet hav" },
       manageSitesLink: { fi: "Omat sataman sivut", sv: "Egna sidor i hamnen" },
       reportHint: {
         fi: 'Voit kirjata havainnon lokikirjaan selaimen <strong>Lokikirja</strong>-napilla.',

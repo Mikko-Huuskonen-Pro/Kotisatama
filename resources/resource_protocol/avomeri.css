@@ -54,6 +54,23 @@ button {
   height: 2.5em;
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.actions a {
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  text-decoration: none;
+}
+
+.actions .button {
+  font-weight: 700;
+}
+
 .muted {
   opacity: 0.88;
   margin-top: 0.35rem;
@@ -97,6 +114,14 @@ button {
     background: #42bf64;
     color: #ffffff;
   }
+  .actions a {
+    background: rgba(10, 20, 30, 0.08);
+    color: #0e1726;
+  }
+  .actions .button {
+    background: #1f6b4a;
+    color: #ffffff;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -117,6 +142,14 @@ button {
   button {
     background: rgba(255, 255, 255, 0.10);
     color: #42bf64;
+  }
+  .actions a {
+    background: rgba(255, 255, 255, 0.10);
+    color: hsl(0, 0%, 96%);
+  }
+  .actions .button {
+    background: #42bf64;
+    color: #07110b;
   }
 }
 

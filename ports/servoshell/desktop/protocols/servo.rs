@@ -85,6 +85,22 @@ impl ProtocolHandler for ServoProtocolHandler {
                 "/avomeri.html",
             ),
 
+            #[cfg(feature = "kotisatama")]
+            "avomeri/open" => {
+                let query = query_param(url.as_url(), "q").unwrap_or_default();
+                crate::kotisatama::enter_avomeri_mode();
+                return redirect_response(
+                    request,
+                    crate::kotisatama::avomeri_open_url(&query).as_str(),
+                );
+            },
+
+            #[cfg(feature = "kotisatama")]
+            "avomeri/leave" => {
+                crate::kotisatama::leave_avomeri_mode();
+                return redirect_response(request, "servo:newtab");
+            },
+
             "pulloposti" => ResourceProtocolHandler::response_for_path(
                 request,
                 done_chan,

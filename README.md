@@ -1,6 +1,13 @@
-# Kotisatama
+# Katselin
 
-Kotisatama on Servo-pohjainen selain whitelist-pohjaisella hakumallilla. Selain ja esiladattu hakuindeksi muodostavat suljetun ympäristön — käyttäjä löytää kaiken tarvitsemansa ilman että eksyy avomerelle.
+Katselin on Servo-pohjainen selain whitelist-pohjaisella hakumallilla. Selain ja
+esiladattu hakuindeksi muodostavat suljetun ympäristön: käyttäjä löytää kaiken
+tarvitsemansa ilman että eksyy avomerelle.
+
+Kotisatama on projektin aiempi nimi ja säilyy toistaiseksi teknisissä poluissa,
+crate-nimissä, moduuleissa ja meriteemaisessa käyttöliittymäkielessä. Nimeä
+vaihdetaan asteittain Katseliniksi, jotta toimivaa koodia ja build-skriptejä ei
+rikota yhdellä isolla uudelleennimeämisellä.
 
 > Tämä repo on fork [servo/servo](https://github.com/servo/servo). Kotisatama-spesifiset muutokset on eriytetty omiin moduuleihinsa. Upstream-muutokset julkaistaan MPL 2.0:n mukaisesti. Koska servo ei ole valmis, edetään sivu kerrallaan kotisatamassa. Kun käyttäjä pysyy satamassa, ne sivut pitää toimia ja latautua oikein. Jos lähtee avomerelle, eli kiertää whitelistauksen, sivujen toimivuus on Servon kehityksen varassa. Tietenkin kun ratkotaan whitelistattujen sivujen ongelmia, samalla myöskin kotisatama paranee verrattuna Servoon. Kuitenkin siihen pisteeseen on matkaan, että päästäisiin antamaan Servolle takaisin contribuutiota. \\ MH 13.6.2026
 
@@ -34,9 +41,12 @@ Ei omaa palvelinta. Ei VPN-infraa. Haku tapahtuu laitteelle esiladatusta indeksi
 
 ---
 
-## Kotisataman nimimaailma
+## Katselimen nimimaailma
 
-Kotisatama rakentuu yhtenäisen meriteeman ympärille. Käyttöliittymä käyttää samoja käsitteitä kaikkialla, jolloin kokonaisuus tuntuu omalta tuotteelta eikä kokoelmalta irrallisia ominaisuuksia.
+Katselin rakentuu yhtenäisen meriteeman ympärille. Käyttöliittymä käyttää samoja
+käsitteitä kaikkialla, jolloin kokonaisuus tuntuu omalta tuotteelta eikä
+kokoelmalta irrallisia ominaisuuksia. Kotisatama jää tässä sanastossa
+turvallisen etusivun ja suljetun käyttötilan nimeksi.
 
 Käsite| Merkitys
 🏠 Kotisatama| Sovelluksen turvallinen etusivu
@@ -50,7 +60,7 @@ Käsite| Merkitys
 
 Filosofia
 
-Kotisatama ei pyri jäljittelemään perinteistä käyttöjärjestelmää.
+Katselin ei pyri jäljittelemään perinteistä käyttöjärjestelmää.
 
 Sen sijaan koko käyttöliittymä rakentuu yhden selkeän metaforan ympärille:
 
@@ -58,13 +68,14 @@ Käyttäjä on omassa Kotisatamassaan.
 
 Sieltä voi:
 
-- purjehtia Avomerelle
 - käyttää turvallista Satamaa
 - varustaa ympäristöään Varustamossa
 - tarkastella Lokikirjaa
 - hakea apua Majakasta
 
-Yhtenäinen sanasto tekee tuotteesta helposti tunnistettavan ja tukee Kotisataman tavoitetta tarjota turvallinen, helposti ymmärrettävä ja luotettava käyttökokemus kaikenikäisille käyttäjille.
+Yhtenäinen sanasto tekee tuotteesta helposti tunnistettavan ja tukee Katselimen
+tavoitetta tarjota turvallinen, helposti ymmärrettävä ja luotettava
+käyttökokemus kaikenikäisille käyttäjille.
 
 Tuote- ja kehitysfilosofia (Servo, whitelist, Kela, Telakka): [docs/FILOSOFIA.md](docs/FILOSOFIA.md).
 

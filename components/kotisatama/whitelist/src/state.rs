@@ -111,7 +111,7 @@ fn with_effective_mut<R>(f: impl FnOnce(&mut EffectiveWhitelist) -> R) -> Option
 
 /// Whether navigation to `url` is allowed under the effective whitelist.
 pub fn is_navigation_allowed(url: &Url) -> bool {
-    if is_internal_navigation_url(url) || is_avomeri_gateway(url) {
+    if is_internal_navigation_url(url) {
         return true;
     }
     let host = match url.host_str() {
@@ -140,13 +140,4 @@ pub fn remove_user_domain(domain: &str) -> Result<bool, WhitelistError> {
 
 fn is_internal_navigation_url(url: &Url) -> bool {
     matches!(url.scheme(), "about" | "data" | "servo")
-}
-
-fn is_avomeri_gateway(url: &Url) -> bool {
-    url.host_str().map(is_startpage_host).unwrap_or(false)
-}
-
-fn is_startpage_host(host: &str) -> bool {
-    let host = host.to_ascii_lowercase();
-    host == "startpage.com" || host == "www.startpage.com" || host.ends_with(".startpage.com")
 }

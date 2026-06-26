@@ -9,8 +9,6 @@ mod domain;
 mod state;
 mod user;
 
-use std::sync::Mutex;
-
 pub use document::{WhitelistDocument, WhitelistEntry, WhitelistProfile};
 pub use domain::{host_matches_domain, normalize_domain};
 pub use state::{
@@ -70,27 +68,9 @@ impl std::fmt::Display for WhitelistError {
 
 impl std::error::Error for WhitelistError {}
 
-static LAST_AVOMERI_QUERY: Mutex<Option<String>> = Mutex::new(None);
-
-/// Remember the last avomeri/Startpage search query (blocked-page fallback link).
-pub fn note_avomeri_query(query: &str) {
-    let query = query.trim();
-    if query.is_empty() || query.chars().count() > 200 {
-        return;
-    }
-    if let Ok(mut guard) = LAST_AVOMERI_QUERY.lock() {
-        *guard = Some(query.to_string());
-    }
-}
-
-/// Last avomeri search query, if any.
-pub fn last_avomeri_query() -> Option<String> {
-    LAST_AVOMERI_QUERY.lock().ok()?.clone()
-}
-
 /// Returns whether navigation to `url` is allowed under `whitelist`.
 pub fn is_allowed(url: &Url, whitelist: &Whitelist) -> bool {
-    if is_internal_navigation_url(url) || is_avomeri_gateway(url) {
+    if is_internal_navigation_url(url) {
         return true;
     }
     let host = match url.host_str() {
@@ -103,38 +83,19 @@ pub fn is_allowed(url: &Url, whitelist: &Whitelist) -> bool {
         .any(|domain| host_matches_domain(&host, domain))
 }
 
-/// Whether `url` is the avomeri (Startpage) gateway — report UI is hidden here.
+/// Whether `url` is the internal Avomeri port.
 pub fn is_avomeri_gateway(url: &Url) -> bool {
-    url.host_str().map(is_startpage_host).unwrap_or(false)
-}
-
-/// Extract Startpage `q` query parameter if present.
-pub fn startpage_query(url: &Url) -> Option<String> {
-    if !is_avomeri_gateway(url) {
-        return None;
-    }
-    url.query_pairs()
-        .find(|(key, _)| key == "q")
-        .map(|(_, value)| value.into_owned())
-        .filter(|query| !query.trim().is_empty())
+    url.scheme() == "servo" && url.path() == "avomeri"
 }
 
 /// Build the internal blocked-page URL (`servo:blocked` + query params).
 pub fn blocked_page_url(blocked_url: &Url) -> Url {
     let display = blocked_url.as_str();
-    let search_term = last_avomeri_query().unwrap_or_else(|| {
-        blocked_url
-            .host_str()
-            .unwrap_or_else(|| blocked_url.as_str())
-            .to_string()
-    });
-    let continue_href = startpage_search_url(&search_term);
 
     let mut url = Url::parse("servo:blocked").expect("servo:blocked URL must be valid");
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("u", display);
-        pairs.append_pair("continue", continue_href.as_str());
     }
     url
 }
@@ -145,20 +106,8 @@ pub fn avomeri_gateway_url(query: &str) -> Url {
     Url::parse(&format!("servo:avomeri?q={encoded}")).expect("avomeri gateway URL must be valid")
 }
 
-/// Startpage search URL for avomeri fallback.
-pub fn startpage_search_url(query: &str) -> Url {
-    let encoded = url::form_urlencoded::byte_serialize(query.as_bytes()).collect::<String>();
-    Url::parse(&format!("https://www.startpage.com/search?q={encoded}"))
-        .expect("startpage URL must be valid")
-}
-
 fn is_internal_navigation_url(url: &Url) -> bool {
     matches!(url.scheme(), "about" | "data" | "servo")
-}
-
-fn is_startpage_host(host: &str) -> bool {
-    let host = host.to_ascii_lowercase();
-    host == "startpage.com" || host == "www.startpage.com" || host.ends_with(".startpage.com")
 }
 
 #[cfg(test)]
@@ -221,9 +170,16 @@ mod tests {
     }
 
     #[test]
-    fn allows_startpage_gateway() {
+    fn blocks_startpage_without_explicit_whitelist_entry() {
         let whitelist = whitelist_with(&[]);
         let url = Url::parse("https://www.startpage.com/search?q=test").unwrap();
+        assert!(!is_allowed(&url, &whitelist));
+    }
+
+    #[test]
+    fn allows_internal_avomeri_port() {
+        let whitelist = whitelist_with(&[]);
+        let url = avomeri_gateway_url("test");
         assert!(is_allowed(&url, &whitelist));
     }
 

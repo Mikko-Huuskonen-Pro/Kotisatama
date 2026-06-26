@@ -24,6 +24,9 @@ use servo::{
 };
 use url::Url;
 
+#[cfg(feature = "kotisatama")]
+pub const KOTISATAMA_DEFAULT_HOMEPAGE: &str = "https://katselin.fi/fi/";
+
 use crate::VERSION;
 
 /// Preferences enabled when servoshell is launched with the `--enable-experimental-web-platform-features` flag.
@@ -118,14 +121,17 @@ impl Default for ServoShellPreferences {
             clean_shutdown: false,
             device_pixel_ratio_override: None,
             headless: false,
-            // KOTISATAMA-PATCH: tyhjä oletussivu; uusi välilehti tulee erikseen.
+            // KOTISATAMA-PATCH: Kotisataman etusivu käynnistyksessä.
+            #[cfg(feature = "kotisatama")]
+            homepage: KOTISATAMA_DEFAULT_HOMEPAGE.into(),
+            #[cfg(not(feature = "kotisatama"))]
             homepage: "about:blank".into(),
             initial_window_size: Size2D::new(1024, 740),
             no_native_titlebar: true,
             screen_size_override: None,
             simulate_touch_events: false,
-            // KOTISATAMA-PATCH: avomeri-haku Startpagella (ei DuckDuckGo).
-            searchpage: "https://www.startpage.com/search?q=%s".into(),
+            // KOTISATAMA-PATCH: avoin haku ei ole oletusfallback; ohjaa sisäiseen Avomeri-porttiin.
+            searchpage: "servo:avomeri?q=%s".into(),
             tracing_filter: None,
             url: None,
             output_image_path: None,
@@ -593,7 +599,11 @@ struct CmdArgs {
     zealous_gc: bool,
 
     /// The url we should load.
-    // KOTISATAMA-PATCH: oletus about:blank (ei servo.org).
+    // KOTISATAMA-PATCH: tyhjä oletus → käytä homepage-prefiä (katselin.fi).
+    #[cfg(feature = "kotisatama")]
+    #[bpaf(positional("URL"), fallback(String::new()))]
+    url: String,
+    #[cfg(not(feature = "kotisatama"))]
     #[bpaf(positional("URL"), fallback(String::from("about:blank")))]
     url: String,
 }
@@ -730,7 +740,21 @@ fn parse_arguments_helper(args_without_binary: Args) -> ArgumentParsingResult {
         });
 
     let servoshell_preferences = ServoShellPreferences {
-        url: Some(cmd_args.url),
+        url: {
+            let trimmed = cmd_args.url.trim();
+            #[cfg(feature = "kotisatama")]
+            {
+                if trimmed.is_empty() || trimmed == "about:blank" {
+                    None
+                } else {
+                    Some(cmd_args.url.clone())
+                }
+            }
+            #[cfg(not(feature = "kotisatama"))]
+            {
+                Some(cmd_args.url.clone())
+            }
+        },
         no_native_titlebar: cmd_args.no_native_titlebar,
         device_pixel_ratio_override: cmd_args.device_pixel_ratio,
         clean_shutdown: cmd_args.clean_shutdown,
@@ -883,7 +907,7 @@ fn test_create_prefs_map() {
         \"layout.writing-mode.enabled\": true,
         \"network.mime.sniff\": false,
         // KOTISATAMA-PATCH: testi vastaa oletuskotisatama-homepagea.
-        \"shell.homepage\": \"about:blank\"
+        \"shell.homepage\": \"https://katselin.fi/fi/\"
     }";
     assert_eq!(read_prefs_map(json_str).len(), 3);
 }

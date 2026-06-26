@@ -6,6 +6,7 @@
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use kotisatama_missa_olen::MissaOlenClient;
 use kotisatama_pulloposti::PullopostiClient;
@@ -16,9 +17,8 @@ pub use kotisatama_search::{SearchHit, SearchOutcome};
 use kotisatama_varustamo::gateway_url as varustamo_gateway_url;
 pub use kotisatama_varustamo::{VarustamoRegistry, app_gateway_url, load_registry};
 use kotisatama_whitelist::{
-    WhitelistDocument, WhitelistProfile, blocked_page_url, init as init_whitelist, init_empty,
-    is_avomeri_gateway, is_navigation_allowed, note_avomeri_query, startpage_query,
-    startpage_search_url,
+    WhitelistDocument, WhitelistProfile, avomeri_gateway_url, blocked_page_url,
+    init as init_whitelist, init_empty, is_avomeri_gateway, is_navigation_allowed,
 };
 use log::{info, warn};
 use servo::WebView;
@@ -27,6 +27,7 @@ use url::Url;
 static SEARCH: OnceLock<Option<SearchClient>> = OnceLock::new();
 static PULLOPOSTI: OnceLock<Option<PullopostiClient>> = OnceLock::new();
 static MISSA_OLEN: OnceLock<Option<MissaOlenClient>> = OnceLock::new();
+static AVOMERI_MODE: AtomicBool = AtomicBool::new(false);
 
 fn whitelist_base_path() -> PathBuf {
     kotisatama_search::cached_whitelist_path()
@@ -95,24 +96,15 @@ pub fn check_url(url: &Url) -> bool {
 
 /// Whether a navigation should be allowed in this webview.
 ///
-/// Avomeri is an explicit escape hatch: after the user opens Startpage, clicks
-/// from that page stay in the open web instead of bouncing back to the whitelist
-/// confirmation page on every result.
+/// Avomeri is an internal port; it does not grant open-web navigation by itself.
 pub fn should_allow_navigation(webview: &WebView, target: &Url) -> bool {
-    if check_url(target) {
-        return true;
-    }
-    webview
-        .url()
-        .map(|current| is_avomeri_gateway(&current))
-        .unwrap_or(false)
+    let _ = webview;
+    check_url(target) || avomeri_mode_enabled()
 }
 
-/// Track allowed navigations (Startpage query for blocked-page fallback).
+/// Track allowed navigations.
 pub fn on_allowed_navigation(url: &Url) {
-    if let Some(query) = startpage_query(url) {
-        note_avomeri_query(&query);
-    }
+    let _ = url;
 }
 
 /// Load `url` or show the blocked page if not whitelisted.
@@ -169,7 +161,7 @@ pub fn default_report_form(current_location: &str) -> KotisatamaReportForm {
     }
 }
 
-/// Submit an anonymous user report to the Cloudflare Worker endpoint.
+/// Submit an anonymous user report to Katselin.fi GitHub Issues (token or worker URL).
 pub fn submit_report(
     form: &KotisatamaReportForm,
     context_url: Option<String>,
@@ -202,10 +194,33 @@ pub fn pulloposti_available() -> bool {
     }
 }
 
-/// Startpage URL for avomeri search fallback (direct — no extra gateway page on desktop).
+/// Internal Avomeri port URL. This does not grant open internet access by itself.
 pub fn avomeri_search_url(query: &str) -> Url {
-    note_avomeri_query(query);
-    startpage_search_url(query)
+    avomeri_gateway_url(query)
+}
+
+/// Open web target after the user explicitly confirms Avomeri mode.
+pub fn avomeri_open_url(query: &str) -> Url {
+    let query = query.trim();
+    let target = if query.is_empty() {
+        "https://www.startpage.com/".to_owned()
+    } else {
+        let encoded = url::form_urlencoded::byte_serialize(query.as_bytes()).collect::<String>();
+        format!("https://www.startpage.com/search?q={encoded}")
+    };
+    Url::parse(&target).expect("Avomeri target URL must be valid")
+}
+
+pub fn enter_avomeri_mode() {
+    AVOMERI_MODE.store(true, Ordering::Relaxed);
+}
+
+pub fn leave_avomeri_mode() {
+    AVOMERI_MODE.store(false, Ordering::Relaxed);
+}
+
+pub fn avomeri_mode_enabled() -> bool {
+    AVOMERI_MODE.load(Ordering::Relaxed)
 }
 
 /// Resolve a simple address-bar word such as "kela" to a curated domain.
@@ -315,7 +330,6 @@ pub fn search(query: &str) -> KotisatamaSearchPanel {
             outcome: SearchOutcome::Error("Hakusana puuttuu.".into()),
         };
     }
-    note_avomeri_query(&query);
     let platform = if cfg!(target_os = "android") {
         "android"
     } else {
@@ -360,9 +374,6 @@ pub enum KotisatamaTheme {
 pub fn current_theme(location: &str, last_search: Option<&SearchOutcome>) -> KotisatamaTheme {
     if matches!(last_search, Some(SearchOutcome::Error(_))) {
         return KotisatamaTheme::Myrsky;
-    }
-    if is_blocked_page(location) {
-        return KotisatamaTheme::Avomeri;
     }
     if Url::parse(location)
         .map(|url| is_avomeri_gateway(&url))

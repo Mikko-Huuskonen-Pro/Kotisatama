@@ -161,11 +161,15 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "search_query_prefix") => "Haku:",
         (Locale::Sv, "search_query_prefix") => "Sök:",
 
-        (Locale::Fi, "search_no_results") => "Ei löydy satamasta — haluatko hakea avomereltä?",
-        (Locale::Sv, "search_no_results") => "Finns inte i hamnen — vill du söka på öppet hav?",
+        (Locale::Fi, "search_no_results") => {
+            "Ei löydy satamasta. Voit kirjata tarpeen tai ehdottaa sivustoa Satamaan."
+        },
+        (Locale::Sv, "search_no_results") => {
+            "Finns inte i hamnen. Du kan anteckna behovet eller föreslå webbplatsen till hamnen."
+        },
 
-        (Locale::Fi, "search_avomeri") => "Hae avomereltä",
-        (Locale::Sv, "search_avomeri") => "Sök på öppet hav",
+        (Locale::Fi, "search_avomeri") => "Avaa Avomeri-portti",
+        (Locale::Sv, "search_avomeri") => "Öppna porten till öppet hav",
 
         (Locale::Fi, "close") => "Sulje",
         (Locale::Sv, "close") => "Stäng",
@@ -174,10 +178,10 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Sv, "report_window_title") => "Loggbok",
 
         (Locale::Fi, "report_intro") => {
-            "Lähetä anonyymi merkintä lokikirjaan (ei käyttäjätunnistetta)."
+            "Lähetä anonyymi ilmoitus GitHub-issueen (Katselin.fi-repo). Ei käyttäjätunnistetta."
         },
         (Locale::Sv, "report_intro") => {
-            "Skicka en anonym anteckning till loggboken (ingen användaridentifiering)."
+            "Skicka en anonym rapport som GitHub-issue (Katselin.fi-repot). Ingen inloggning."
         },
 
         (Locale::Fi, "report_site_broken") => "Sivusto ei toimi",
@@ -192,8 +196,8 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "report_description") => "Kuvaus (valinnainen):",
         (Locale::Sv, "report_description") => "Beskrivning (valfritt):",
 
-        (Locale::Fi, "report_sent") => "Merkintä tallennettu lokikirjaan.",
-        (Locale::Sv, "report_sent") => "Anteckningen har sparats i loggboken.",
+        (Locale::Fi, "report_sent") => "Ilmoitus tallennettu (GitHub-issue).",
+        (Locale::Sv, "report_sent") => "Rapporten sparades (GitHub-issue).",
 
         (Locale::Fi, "report_submit") => "Lähetä",
         (Locale::Sv, "report_submit") => "Skicka",

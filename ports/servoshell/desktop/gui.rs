@@ -752,7 +752,7 @@ impl Gui {
                     });
             }
 
-            // KOTISATAMA-PATCH: hakutulospaneeli ja avomeri-fallback (suomenkielinen teksti).
+            // KOTISATAMA-PATCH: hakutulospaneeli ja sisäinen Avomeri-portti (suomenkielinen teksti).
             #[cfg(feature = "kotisatama")]
             if let Some(panel) = &self.search_panel {
                 use crate::kotisatama::SearchOutcome;

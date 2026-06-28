@@ -240,4 +240,4 @@ Myöhempi vaihe:
 
 katselin.fi → staattinen hakemisto tai palvelinhaku
 
-Tärkeintä nyt on rakentaa graafinen ikkuna nykyisen toimivan hakumoottorin päälle.
+Tärkeintä nyt on rakentaa graafinen ikkuna nykyisen toimivan hakumoottorin päälle. Teemana sivulle klassinen hakukone, joka toi oikeat tulokset, ei muuta. 

@@ -162,6 +162,30 @@ git merge upstream/main
 
 ---
 
+## Whitelist — skeema 2.1
+
+Kuratoitu lista (`whitelist-unified.json`) on versio **2.1**. Rakenne:
+
+```json
+{
+  "version": "2.1",
+  "categories": [ { "id": "health", "label": "…", "icon": "health" } ],
+  "types": [ { "id": "white", … }, { "id": "yellow", … } ],
+  "domains": [ { "domain": "kela.fi", "label": "Kela", "category": "health", "type": "white", "tags": [] } ]
+}
+```
+
+- **Valkoiset ja keltaiset sivut** ovat samassa `domains`-listassa (`type`: `white` | `yellow`).
+- **`category`** viittaa `categories[].id`-kenttään (toimialaikoni UI:ssa).
+- **`type`** viittaa `types[].id`-kenttään (väripiste UI:ssa).
+- Tuotantodata pysyy suljetussa repossa; julkinen repo sisältää skeeman ja esimerkin.
+
+Skeema: `config/whitelist.schema.json`. Esimerkki: `config/whitelist.example.json`.
+
+Hakutulossivun toteutus: `docs/HAKUTULOKSET-ROADMAP.md`.
+
+---
+
 ## Haku — Meilisearch subprocess
 
 Meilisearch on palvelinprosessi (LMDB). Mobiilissa ja desktopilla:
@@ -249,7 +273,7 @@ näyttäisi upstream:ista poikkeavalta — se on todennäköisesti tarkoituksell
 | Embedder-hook | Rust (`ports/servoshell/`) |
 | Tauri-hallintapaneeli | Rust + TypeScript (`tauri/`) |
 | Crawler | Node.js + Playwright |
-| Whitelist JSON | JSON, skeema `config/whitelist.schema.json` |
+| Whitelist JSON | JSON v2.1, skeema `config/whitelist.schema.json` |
 
 ---
 

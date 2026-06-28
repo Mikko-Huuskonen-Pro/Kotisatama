@@ -10,7 +10,7 @@ use std::sync::{Mutex, OnceLock};
 use url::Url;
 
 use crate::WhitelistError;
-use crate::document::{WhitelistDocument, WhitelistProfile};
+use crate::document::{WhitelistDocument, WhitelistEntry, WhitelistProfile};
 use crate::domain::host_matches_domain;
 use crate::user::{UserWhitelist, UserWhitelistEntry, user_whitelist_path};
 
@@ -18,15 +18,18 @@ use crate::user::{UserWhitelist, UserWhitelistEntry, user_whitelist_path};
 #[derive(Debug, Clone)]
 pub struct EffectiveWhitelist {
     profile: WhitelistProfile,
+    base: WhitelistDocument,
     base_hosts: Vec<String>,
     user: UserWhitelist,
 }
 
 impl EffectiveWhitelist {
     pub fn new(base: WhitelistDocument, user: UserWhitelist, profile: WhitelistProfile) -> Self {
+        let base_hosts = base.domain_hosts_for_profile(&profile);
         Self {
             profile: profile.clone(),
-            base_hosts: base.domain_hosts_for_profile(&profile),
+            base,
+            base_hosts,
             user,
         }
     }
@@ -35,8 +38,19 @@ impl EffectiveWhitelist {
         &self.profile
     }
 
+    pub fn base_document(&self) -> &WhitelistDocument {
+        &self.base
+    }
+
     pub fn base_domain_count(&self) -> usize {
         self.base_hosts.len()
+    }
+
+    /// Curated whitelist entry for `host`, if any (for search result enrichment).
+    pub fn lookup_curated_entry(&self, host: &str) -> Option<WhitelistEntry> {
+        self.base
+            .lookup_entry_for_host(host, &self.profile)
+            .cloned()
     }
 
     pub fn user_entries(&self) -> &[UserWhitelistEntry] {
@@ -89,6 +103,8 @@ pub fn init_empty(profile: WhitelistProfile) -> Result<(), WhitelistError> {
         version: None,
         updated: None,
         description: None,
+        categories: Vec::new(),
+        types: Vec::new(),
         domains: Vec::new(),
     };
     let user = UserWhitelist::load_from_path(&user_whitelist_path())?;
@@ -124,6 +140,17 @@ pub fn is_navigation_allowed(url: &Url) -> bool {
 /// User-added whitelist entries for UI.
 pub fn user_entries() -> Vec<UserWhitelistEntry> {
     with_effective(|effective| effective.user_entries().to_vec()).unwrap_or_default()
+}
+
+/// Curated whitelist entry for `host` (search UI metadata lookup).
+pub fn lookup_curated_entry(host: &str) -> Option<WhitelistEntry> {
+    with_effective(|effective| effective.lookup_curated_entry(host))
+        .unwrap_or(None)
+}
+
+/// Active curated whitelist document (categories, types, domains).
+pub fn curated_document() -> Option<WhitelistDocument> {
+    with_effective(|effective| effective.base_document().clone())
 }
 
 /// Add a user domain to the local overlay.

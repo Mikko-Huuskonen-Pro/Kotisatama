@@ -6,7 +6,7 @@
   "properties": {
     "version": {
       "type": "string",
-      "description": "Document version (2.0 for tagged entries)."
+      "description": "Document version (2.1 for unified whitelist with categories and types)."
     },
     "updated": {
       "type": "string",
@@ -15,9 +15,41 @@
     "description": {
       "type": "string"
     },
+    "categories": {
+      "type": "array",
+      "description": "Toimialojen metatiedot (v2.1). UI käyttää icon-kenttää SVG-valintaan.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "icon"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "icon": { "type": "string", "minLength": 1 },
+          "priority": { "type": "integer" }
+        }
+      }
+    },
+    "types": {
+      "type": "array",
+      "description": "Värien metatiedot (v2.1): white = julkinen/nonprofit, yellow = kaupallinen.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "icon"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "enum": ["white", "yellow"] },
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "icon": { "type": "string", "minLength": 1 },
+          "priority": { "type": "integer" }
+        }
+      }
+    },
     "domains": {
       "type": "array",
-      "description": "Curated whitelist entries. v1: plain domain strings. v2: objects with tags.",
+      "description": "Kuratoidut whitelist-merkinnät. v1: plain domain strings. v2+: objects with metadata.",
       "minItems": 1,
       "items": {
         "oneOf": [
@@ -37,13 +69,17 @@
               "label": {
                 "type": "string"
               },
+              "category": {
+                "type": "string",
+                "description": "Viittaa categories[].id-kenttään."
+              },
               "tags": {
                 "type": "array",
                 "items": { "type": "string" }
               },
               "type": {
                 "type": "string",
-                "enum": ["white"]
+                "enum": ["white", "yellow"]
               }
             }
           }

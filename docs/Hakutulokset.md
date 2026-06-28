@@ -22,37 +22,38 @@ Sijainti
 
 Hakutulossivu toteutetaan julkiseen Katselin/Kotisatama-repoon.
 
-Whitelist- ja yellowlist-data voivat pysyä suljetussa repossa.
+Kuratoitu domain-lista (`whitelist-unified.json`, v2.1) pysyy suljetussa repossa
+(`Kotisataman-suljetut-osat/valkoiset-sivut/`). Valkoiset ja keltaiset sivut ovat
+samassa tiedostossa — erotettu `type`-kentällä (`white` / `yellow`).
 
 Julkiseen repoon kuuluu:
 
-- käyttöliittymä
-- hakutuloksen komponentit
-- hakutuloksen visuaalinen malli
-- tyhjän haun näkymä
-- virhenäkymä
-- dokumentoitu dataformaatti
+- käyttöliittymä (`servo:haku`, `resource_protocol/haku.html`)
+- hakutuloksen komponentit ja visuaalinen malli
+- tyhjän haun näkymä ja virhenäkymä
+- whitelist-skeema 2.1 (`config/whitelist.schema.json`)
+- toteutusroadmap (`docs/HAKUTULOKSET-ROADMAP.md`)
 
 Suljettuun repoon kuuluu:
 
-- varsinainen domain-lista
+- varsinainen domain-lista (`whitelist-unified.json`)
 - Meilisearch-indeksi
-- kuratoitu data
-- mahdolliset sisäiset laatumerkinnät
+- kuratoitu data ja sisäiset laatumerkinnät
 
 Perusmalli
 
 Hakutulossivu saa hakusanan selaimen sisäisestä hausta.
 
-Esimerkki:
+Ensimmäinen versio käyttää sisäistä protokollaa (kuten Avomeri):
 
-katselin://haku?q=eläke
+servo:haku?q=eläke
 
-tai myöhemmin:
+Myöhemmin:
 
-https://katselin.fi/haku?q=eläke
+katselin.fi/haku?q=eläke
 
 Ensimmäisessä vaiheessa haku toimii selaimen sisällä paikallista Meilisearch-indeksiä vasten.
+Tulokset rikastetaan whitelist 2.1 -metadatalla (label, category, type, tags).
 
 Käyttötapa
 
@@ -77,14 +78,21 @@ Myöhemmin asetuksissa voidaan tarjota valinta:
 
 Hakutuloksen rakenne
 
+Whitelist 2.1 (`whitelist-unified.json`) määrittelee metatiedot. Meilisearch palauttaa
+`url` + `title` (crawlattu). UI yhdistää nämä ajonaikaisesti:
+
+- `label`, `category`, `type`, `tags` → whitelist-lookup (url-host → domain)
+- `title` → hakutuloskuvaus (crawlattu teksti)
+- ikoni ja väripiste → `categories[]` ja `types[]` -taulukot whitelist-tiedostossa
+
 Yksi hakutulos sisältää vähintään:
 
 {
   "domain": "kela.fi",
   "label": "Kela",
-  "description": "Eläke, tuet, lapsiperheet ja sosiaaliturvan asiointi",
-  "category": "government",
-  "tags": ["eläke", "tuet", "sosiaaliturva", "asiointi"],
+  "title": "Eläke - Kela",
+  "category": "health",
+  "tags": ["eläke", "sosiaaliturva", "hopeakettu"],
   "type": "white"
 }
 
@@ -125,13 +133,17 @@ Keltaisissa sivuissa
 
 Kategoriat
 
-Hakutuloksessa voidaan näyttää kategorian symboli.
+Kategoriat määritellään whitelist-tiedoston juuressa (`categories[]`). Domain viittaa
+`category`-kentällä kategorian `id`:hen. UI käyttää `icon`-kenttää SVG-valintaan.
+
+Täydellinen lista: `config/whitelist.example.json` ja
+`config/whitelist.schema.json`.
 
 Esimerkkejä:
 
 emergency     🚨
 government    🏛️
-municipality  🏘️
+municipality  🏘️  (icon: city)
 health        🏥
 education     🎓
 library       📚
@@ -145,6 +157,7 @@ nature        🌲
 work          💼
 media         📰
 housing       🏠
+religion      ⛪  (icon: church)
 organization  🤝
 other         🔎
 
@@ -240,4 +253,6 @@ Myöhempi vaihe:
 
 katselin.fi → staattinen hakemisto tai palvelinhaku
 
-Tärkeintä nyt on rakentaa graafinen ikkuna nykyisen toimivan hakumoottorin päälle. Teemana sivulle klassinen hakukone, joka toi oikeat tulokset, ei muuta. 
+Tärkeintä nyt on rakentaa graafinen ikkuna nykyisen toimivan hakumoottorin päälle. Teemana sivulle klassinen hakukone, joka toi oikeat tulokset, ei muuta.
+
+Toteutusjärjestys: [HAKUTULOKSET-ROADMAP.md](HAKUTULOKSET-ROADMAP.md) 

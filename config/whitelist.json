@@ -1,16 +1,51 @@
 {
-  "version": "2.0",
+  "version": "2.1",
+  "updated": "2026-06-28",
   "description": "Paikallinen kehitys — aja scripts/sync-whitelist.ps1 suljetusta reposta",
+  "categories": [
+    {
+      "id": "health",
+      "label": "Terveys",
+      "description": "Terveydenhuolto, hyvinvointialueet, apteekit ja hoivapalvelut",
+      "icon": "health",
+      "priority": 90
+    },
+    {
+      "id": "media",
+      "label": "Media",
+      "description": "Uutiset, radio, televisio ja julkaisut",
+      "icon": "media",
+      "priority": 55
+    }
+  ],
+  "types": [
+    {
+      "id": "white",
+      "label": "Valkoinen",
+      "description": "Valtio, kunta, nonprofit tai järjestö",
+      "icon": "white",
+      "priority": 100
+    },
+    {
+      "id": "yellow",
+      "label": "Keltainen",
+      "description": "Kaupallinen toimija",
+      "icon": "yellow",
+      "priority": 90
+    }
+  ],
   "domains": [
     {
       "domain": "kela.fi",
       "label": "Kela",
+      "category": "health",
       "tags": ["virastot"],
       "type": "white"
     },
     {
       "domain": "yle.fi",
       "label": "Yle",
+      "category": "media",
       "tags": ["uutiset"],
       "type": "white"
     }

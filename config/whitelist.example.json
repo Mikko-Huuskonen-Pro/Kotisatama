@@ -1,19 +1,200 @@
 {
-  "version": "2.0",
-  "updated": "2026-06-18",
-  "description": "Esimerkki — ei oikeita kuratoituja listoja",
+  "version": "2.1",
+  "updated": "2026-06-28",
+  "description": "Esimerkki — ei oikeita kuratoituja listoja. Lähde: Kotisataman-suljetut-osat/valkoiset-sivut/whitelist-unified.json",
+  "categories": [
+    {
+      "id": "emergency",
+      "label": "Hätä ja turvallisuus",
+      "description": "Hätätilanteet, pelastus, poliisi ja arjen turvallisuus",
+      "icon": "emergency",
+      "priority": 100
+    },
+    {
+      "id": "government",
+      "label": "Viranomaiset",
+      "description": "Valtion viranomaiset ja julkiset asiointipalvelut",
+      "icon": "government",
+      "priority": 95
+    },
+    {
+      "id": "municipality",
+      "label": "Kunnat",
+      "description": "Kuntien ja kaupunkien verkkopalvelut",
+      "icon": "city",
+      "priority": 90
+    },
+    {
+      "id": "health",
+      "label": "Terveys",
+      "description": "Terveydenhuolto, hyvinvointialueet, apteekit ja hoivapalvelut",
+      "icon": "health",
+      "priority": 90
+    },
+    {
+      "id": "education",
+      "label": "Koulutus",
+      "description": "Koulut, oppilaitokset, korkeakoulut ja opiskelupalvelut",
+      "icon": "education",
+      "priority": 85
+    },
+    {
+      "id": "library",
+      "label": "Kirjastot",
+      "description": "Kirjastot, aineistohaku ja lukemisen palvelut",
+      "icon": "library",
+      "priority": 80
+    },
+    {
+      "id": "transport",
+      "label": "Liikenne",
+      "description": "Joukkoliikenne, matkustus, tiet ja liikkumisen palvelut",
+      "icon": "transport",
+      "priority": 80
+    },
+    {
+      "id": "banking",
+      "label": "Pankit ja vakuutus",
+      "description": "Pankit, vakuutusyhtiöt ja talouden peruspalvelut",
+      "icon": "bank",
+      "priority": 80
+    },
+    {
+      "id": "commerce",
+      "label": "Kauppa",
+      "description": "Päivittäistavarat, verkkokaupat ja kaupan alan palvelut",
+      "icon": "shop",
+      "priority": 70
+    },
+    {
+      "id": "services",
+      "label": "Palvelut",
+      "description": "Arjen palvelut kuten parturit, korjaamot, siivous ja muut paikalliset palvelut",
+      "icon": "services",
+      "priority": 65
+    },
+    {
+      "id": "culture",
+      "label": "Kulttuuri",
+      "description": "Museot, teatterit, tapahtumat, taide ja kulttuuripalvelut",
+      "icon": "culture",
+      "priority": 60
+    },
+    {
+      "id": "sports",
+      "label": "Liikunta ja harrastukset",
+      "description": "Urheilu, liikuntapaikat, seurat ja harrastuspalvelut",
+      "icon": "sports",
+      "priority": 60
+    },
+    {
+      "id": "nature",
+      "label": "Luonto",
+      "description": "Luontokohteet, retkeily, sää, vesistöt ja ympäristö",
+      "icon": "nature",
+      "priority": 60
+    },
+    {
+      "id": "work",
+      "label": "Työ ja yritykset",
+      "description": "Työnhaku, yrityspalvelut, yrittäjyys ja työelämä",
+      "icon": "work",
+      "priority": 60
+    },
+    {
+      "id": "media",
+      "label": "Media",
+      "description": "Uutiset, radio, televisio ja julkaisut",
+      "icon": "media",
+      "priority": 55
+    },
+    {
+      "id": "housing",
+      "label": "Asuminen",
+      "description": "Vuokra-asuminen, taloyhtiöt, energia, vesi ja jätehuolto",
+      "icon": "home",
+      "priority": 55
+    },
+    {
+      "id": "religion",
+      "label": "Uskonto ja seurakunnat",
+      "description": "Seurakunnat, uskonnolliset yhteisöt ja hengelliset palvelut",
+      "icon": "church",
+      "priority": 40
+    },
+    {
+      "id": "organization",
+      "label": "Järjestöt",
+      "description": "Kansalaisjärjestöt, yhdistykset ja yleishyödylliset toimijat",
+      "icon": "organization",
+      "priority": 50
+    },
+    {
+      "id": "other",
+      "label": "Muut",
+      "description": "Muut hyväksytyt verkkopalvelut",
+      "icon": "other",
+      "priority": 10
+    }
+  ],
+  "types": [
+    {
+      "id": "white",
+      "label": "Valkoinen",
+      "description": "Valtio, kunta, nonprofit tai järjestö",
+      "icon": "white",
+      "priority": 100
+    },
+    {
+      "id": "yellow",
+      "label": "Keltainen",
+      "description": "Kaupallinen toimija",
+      "icon": "yellow",
+      "priority": 90
+    }
+  ],
   "domains": [
     {
       "domain": "kela.fi",
       "label": "Kela",
-      "tags": ["virastot", "hopeakettu"],
+      "category": "health",
+      "tags": ["eläke", "sosiaaliturva", "hopeakettu"],
       "type": "white"
+    },
+    {
+      "domain": "112.fi",
+      "label": "Hätäkeskuslaitos — 112 hätänumero",
+      "category": "emergency",
+      "tags": ["turvallisuus", "hätäkeskus", "hopeakettu"],
+      "type": "white"
+    },
+    {
+      "domain": "247apteekkiin.fi",
+      "label": "247Apteekkiin — apteekki",
+      "category": "health",
+      "tags": ["apteekki", "terveys", "hopeakettu"],
+      "type": "yellow"
     },
     {
       "domain": "yle.fi",
       "label": "Yle",
+      "category": "media",
       "tags": ["uutiset", "hopeakettu"],
       "type": "white"
+    },
+    {
+      "domain": "aalto.fi",
+      "label": "Aalto-yliopisto",
+      "category": "education",
+      "tags": ["oppiminen", "yliopisto", "hopeakettu"],
+      "type": "white"
+    },
+    {
+      "domain": "a-katsastus.fi",
+      "label": "A-Katsastus",
+      "category": "services",
+      "tags": ["katsastus", "auto", "hopeakettu"],
+      "type": "yellow"
     }
   ]
 }

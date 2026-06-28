@@ -9,11 +9,13 @@ mod domain;
 mod state;
 mod user;
 
-pub use document::{WhitelistDocument, WhitelistEntry, WhitelistProfile};
+pub use document::{
+    CategoryMeta, TypeMeta, WhitelistDocument, WhitelistEntry, WhitelistProfile,
+};
 pub use domain::{host_matches_domain, normalize_domain};
 pub use state::{
-    EffectiveWhitelist, add_user_domain, init, init_empty, is_navigation_allowed,
-    remove_user_domain, user_entries,
+    EffectiveWhitelist, add_user_domain, curated_document, init, init_empty,
+    is_navigation_allowed, lookup_curated_entry, remove_user_domain, user_entries,
 };
 pub use user::{UserWhitelist, UserWhitelistEntry, user_whitelist_path};
 

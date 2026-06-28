@@ -81,6 +81,10 @@ Tuote- ja kehitysfilosofia (Servo, whitelist, Kela, Telakka): [docs/FILOSOFIA.md
 
 Nykytilakirjaus whitelistin onnistuneesta tilasta ja Avomeren avoimesta arkkitehtuuripäätöksestä: [docs/NYKYTILA-2026-06-24.md](docs/NYKYTILA-2026-06-24.md).
 
+Hakutulossivu (tuotespesifikaatio): [docs/Hakutulokset.md](docs/Hakutulokset.md). Toteutusroadmap: [docs/HAKUTULOKSET-ROADMAP.md](docs/HAKUTULOKSET-ROADMAP.md).
+
+Whitelist-skeema 2.1 (valkoiset + keltaiset sivut, kategoriat): [config/whitelist.schema.json](config/whitelist.schema.json).
+
 ---
 
 ## Kehitysympäristö

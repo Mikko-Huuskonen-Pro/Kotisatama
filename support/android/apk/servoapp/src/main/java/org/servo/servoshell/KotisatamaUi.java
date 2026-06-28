@@ -15,8 +15,6 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.Toast;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.servo.servoview.ServoView;
 
 /**
@@ -45,53 +43,32 @@ public final class KotisatamaUi {
             servoView.loadUri(text);
             return;
         }
-        showSearchResults(activity, servoView, text);
+        openSearchResultsPage(servoView, text, false);
     }
 
-    public static void showSearchResults(Activity activity, ServoView servoView, String query) {
-        String json = servoView.kotisatamaSearch(query);
-        try {
-            JSONObject root = new JSONObject(json);
-            String type = root.optString("type", "error");
-            if ("hits".equals(type)) {
-                JSONArray hits = root.getJSONArray("hits");
-                if (hits.length() == 0) {
-                    offerAvomeri(activity, servoView, query);
-                    return;
-                }
-                String[] labels = new String[hits.length()];
-                final String[] urls = new String[hits.length()];
-                for (int i = 0; i < hits.length(); i++) {
-                    JSONObject hit = hits.getJSONObject(i);
-                    urls[i] = hit.getString("url");
-                    labels[i] = hit.getString("title") + " — " + urls[i];
-                }
-                new AlertDialog.Builder(activity)
-                        .setTitle("Satama-haku: " + query)
-                        .setItems(labels, (dialog, which) -> servoView.loadUri(urls[which]))
-                        .setNegativeButton("Sulje", null)
-                        .show();
-            } else if ("no_results".equals(type)) {
-                offerAvomeri(activity, servoView, query);
-            } else {
-                String message = root.optString("message", "Haku epäonnistui");
-                Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
-            }
-        } catch (Exception e) {
-            Toast.makeText(activity, "Haku epäonnistui", Toast.LENGTH_LONG).show();
+    public static void openSearchResultsPage(
+            ServoView servoView, String query, boolean forceResultsPage) {
+        query = query == null ? "" : query.trim();
+        if (query.isEmpty()) {
+            return;
         }
-    }
-
-    private static void offerAvomeri(Activity activity, ServoView servoView, String query) {
-        new AlertDialog.Builder(activity)
-                .setTitle("Ei löydy satamasta")
-                .setMessage("Haluatko hakea avomereltä?")
-                .setPositiveButton("Hae avomereltä", (dialog, which) -> {
-                    String encoded = android.net.Uri.encode(query);
-                    servoView.loadUri("https://www.startpage.com/search?q=" + encoded);
-                })
-                .setNegativeButton("Peruuta", null)
-                .show();
+        if (!forceResultsPage) {
+            String json = servoView.kotisatamaSearch(query);
+            try {
+                org.json.JSONObject root = new org.json.JSONObject(json);
+                if ("hits".equals(root.optString("type", ""))) {
+                    org.json.JSONArray hits = root.getJSONArray("hits");
+                    if (hits.length() == 1) {
+                        servoView.loadUri(hits.getJSONObject(0).getString("url"));
+                        return;
+                    }
+                }
+            } catch (Exception ignored) {
+                // Fall through to the internal results page.
+            }
+        }
+        String encoded = android.net.Uri.encode(query);
+        servoView.loadUri("servo:haku?q=" + encoded);
     }
 
     public static void showReportDialog(Activity activity, ServoView servoView, String currentUrl) {

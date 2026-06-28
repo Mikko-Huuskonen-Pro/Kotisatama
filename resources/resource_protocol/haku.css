@@ -1,0 +1,240 @@
+/* Kotisatama hakutulossivu */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  min-height: 100%;
+}
+
+.page {
+  width: min(760px, calc(100vw - 2rem));
+  margin: 0 auto;
+  padding: 1.5rem 0 2.5rem;
+}
+
+.search-header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.35rem;
+}
+
+.muted {
+  opacity: 0.85;
+}
+
+.search-form {
+  display: flex;
+  gap: 0.65rem;
+  margin: 1.25rem 0 1rem;
+}
+
+.search-form input {
+  flex: 1;
+  height: 2.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 0 0.9rem;
+  font-size: 1rem;
+}
+
+.search-form button {
+  height: 2.75rem;
+  border-radius: 12px;
+  border: 0;
+  padding: 0 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.status {
+  margin: 0.5rem 0 1rem;
+  font-size: 0.95rem;
+}
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.result-card {
+  display: block;
+  text-decoration: none;
+  border-radius: 14px;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.result-card:hover,
+.result-card:focus-visible {
+  outline: 2px solid rgba(66, 191, 100, 0.55);
+  outline-offset: 2px;
+}
+
+.result-top {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.type-dot,
+.category-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+}
+
+.type-dot {
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+
+.type-dot.yellow {
+  background: #f5c518;
+  border-color: #d4a90f;
+}
+
+.type-dot.white {
+  background: #ffffff;
+  border-color: #d0d7de;
+}
+
+.result-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.result-domain {
+  margin: 0.2rem 0 0.35rem;
+  font-size: 0.92rem;
+  opacity: 0.88;
+}
+
+.result-snippet {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.tag {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+}
+
+.empty-box,
+.error-box {
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.empty-box ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.empty-actions a {
+  text-decoration: none;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 600;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    color: #0e1726;
+    background:
+      linear-gradient(rgba(248, 250, 252, 0.92), rgba(248, 250, 252, 0.92)),
+      url("resource:///themes/satama.svg") center / cover no-repeat;
+  }
+  .search-form input {
+    background: rgba(255, 255, 255, 0.94);
+    color: #0e1726;
+    border-color: rgba(10, 20, 30, 0.12);
+  }
+  .search-form button {
+    background: #1f6b4a;
+    color: #fff;
+  }
+  .result-card,
+  .empty-box,
+  .error-box {
+    background: rgba(255, 255, 255, 0.78);
+    border-color: rgba(10, 20, 30, 0.1);
+  }
+  .tag {
+    background: rgba(10, 20, 30, 0.07);
+    color: #0e1726;
+  }
+  .empty-actions a {
+    background: rgba(10, 20, 30, 0.08);
+    color: #0e1726;
+  }
+  .empty-actions a.primary {
+    background: #1f6b4a;
+    color: #fff;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    color: hsl(0, 0%, 96%);
+    background:
+      linear-gradient(rgba(12, 16, 22, 0.82), rgba(12, 16, 22, 0.82)),
+      url("resource:///themes/satama.svg") center / cover no-repeat;
+  }
+  .search-form input {
+    background: rgba(10, 14, 20, 0.62);
+    color: hsl(0, 0%, 96%);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  .search-form button {
+    background: #42bf64;
+    color: #07110b;
+  }
+  .result-card,
+  .empty-box,
+  .error-box {
+    background: rgba(15, 22, 33, 0.72);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .tag {
+    background: rgba(255, 255, 255, 0.1);
+    color: hsl(0, 0%, 96%);
+  }
+  .empty-actions a {
+    background: rgba(255, 255, 255, 0.1);
+    color: hsl(0, 0%, 96%);
+  }
+  .empty-actions a.primary {
+    background: #42bf64;
+    color: #07110b;
+  }
+}

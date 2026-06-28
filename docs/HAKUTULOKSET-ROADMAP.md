@@ -58,108 +58,54 @@ Klikkaus → load_url_or_blocked (whitelist päättää)
 
 ---
 
-## Vaihe 1 — Hakurikastus
+## Vaihe 1 — Hakurikastus ✅
 
 **Hakemisto:** `components/kotisatama/search/`
 
-Tavoite: muuntaa Meilisearch-osuma rikastetuksi hakutulokseksi.
-
-```rust
-pub struct EnrichedSearchHit {
-    pub url: String,
-    pub title: String,           // crawlattu / Meilisearch
-    pub label: Option<String>,   // whitelist
-    pub category: Option<String>,
-    pub entry_type: Option<String>,  // white | yellow
-    pub tags: Vec<String>,
-}
-```
-
-Tehtävät:
-
-- [ ] `enrich_hit(hit: &SearchHit) -> EnrichedSearchHit` — host → `lookup_curated_entry`
-- [ ] `search_enriched(query) -> Vec<EnrichedSearchHit>` — kääri nykyinen `search()`
-- [ ] Yksikkötestit: whitelist-metatiedot liittyvät oikeaan URL:ään
-- [ ] Fallback: jos whitelist-match puuttuu, näytä vain `title` + `url`
-
-**Ei koske upstreamia.**
+- [x] `enrich_hit(hit: &SearchHit) -> EnrichedSearchHit`
+- [x] `enrich_outcome()` / `search_results_json()` servoshellissa
+- [x] Yksikkötestit
+- [x] Fallback ilman whitelist-matchia
 
 ---
 
-## Vaihe 2 — Sisäinen hakusivu (UI)
+## Vaihe 2 — Sisäinen hakusivu (UI) ✅
 
 **Hakemistot:** `resources/resource_protocol/`, `components/kotisatama/i18n/`
 
-Tavoite: `servo:haku?q=eläke` — klassinen hakukonenäkymä selaimessa (kuten `servo:avomeri`).
-
-Tehtävät:
-
-- [ ] `haku.html` + `haku.css` — hakukenttä, tuloslista, tyhjä näkymä
-- [ ] SVG-ikonit kategorioille ja tyypeille (`icon`-kentän mukaan)
-- [ ] `kotisatama-i18n.js` — käännökset (fi + sv)
-- [ ] Tuloskortti: väripiste (`type`) + toimialaikoni (`category`) + label + domain + title
-- [ ] Tyhjä tulos: ohjeet (tarkista kirjoitusasu, kokeile yleisempää, Avomeri-linkki)
-- [ ] Klikkaus → `https://domain/...` (whitelist-tarkistus navigoinnissa)
-
-**Ei koske upstreamia** (paitsi yksi `servo.rs`-case, ks. Vaihe 3).
+- [x] `haku.html` + `haku.css`
+- [x] `haku-icons.js` — SVG-ikonit kategorioille ja tyypeille
+- [x] `kotisatama-i18n.js` — käännökset (fi + sv)
+- [x] Tuloskortti: väripiste + toimialaikoni + label + domain + title
+- [x] Tyhjä tulos ja virhenäkymä
 
 ---
 
-## Vaihe 3 — Protokolla ja data-API
+## Vaihe 3 — Protokolla ja data-API ✅
 
-**Hakemisto:** `ports/servoshell/desktop/protocols/servo.rs` (minimaalinen patch)
+**Hakemisto:** `ports/servoshell/desktop/protocols/servo.rs`
 
-Tehtävät:
-
-- [ ] `servo:haku` → `haku.html` (kuten Avomeri)
-- [ ] `servo:haku/data?q=…` → JSON: rikastetut tulokset + `categories` + `types` taulukot
-- [ ] `kotisatama.rs`: `search_results_url(query) -> Url`
-
-```rust
-// servo.rs — yksi case, KOTISATAMA-PATCH
-"haku" => ResourceProtocolHandler::response_for_path(..., "/haku.html"),
-"haku/data" => { /* JSON response */ }
-```
-
-**Upstream-riski:** pieni, merkitty patch.
+- [x] `servo:haku` → `haku.html`
+- [x] `servo:haku/data?q=…` → JSON
+- [x] `kotisatama.rs`: `search_results_url()`, `search_results_json()`
 
 ---
 
-## Vaihe 4 — Osoitepalkin reititys
+## Vaihe 4 — Osoitepalkin reititys ✅
 
 **Hakemisto:** `ports/servoshell/window.rs`, `desktop/gui.rs`
 
-Nykyinen käyttäytyminen: haku avaa aina ensimmäisen osuman.
-
-Uusi käyttäytyminen:
-
-| Toiminto | Tulos |
-|---|---|
-| Enter + korkea varmuus (yksi selkeä osuma / alias) | Avaa paras osuma suoraan |
-| Enter + epävarma haku | `servo:haku?q=…` |
-| Hakupainike | `servo:haku?q=…` |
-| Useita vahvoja osumia | `servo:haku?q=…` |
-
-Tehtävät:
-
-- [ ] `should_show_results_page(query, hits) -> bool` — `kotisatama.rs`
-- [ ] Erillinen `UserInterfaceCommand::Search` hakupainikkeelle (jos erotetaan Enteristä)
-- [ ] `window.rs`: reititys → `search_results_url` kun tulossivu tarvitaan
-- [ ] Poista tai ohita egui-hakupaneeli (`gui.rs`) — HTML-sivu korvaa sen
-
-**Upstream-riski:** pieni, merkitty patch `window.rs` + `gui.rs`.
+- [x] `open_search_or_results()` + `should_open_best_hit_directly()`
+- [x] `UserInterfaceCommand::Search` hakupainikkeelle
+- [x] Enter: yksi osuma → suoraan, muuten `servo:haku`
+- [x] egui-hakupaneeli poistettu
 
 ---
 
-## Vaihe 5 — Android
+## Vaihe 5 — Android ✅
 
-**Hakemistot:** `support/android/`, `ports/servoshell/egl/android/`
-
-Tehtävät:
-
-- [ ] Avaa `servo:haku?q=…` webviewissä (sama HTML kuin desktop)
-- [ ] Poista/pienennä erillinen hakupaneeli jos se duplikoi toiminnon
-- [ ] Testaa: haku → tulossivu → klikkaus → whitelist
+- [x] `KotisatamaUi` avaa `servo:haku?q=…` webviewissä
+- [x] Yksi osuma Enterillä → suoraan (kuten desktop)
 
 ---
 
@@ -225,7 +171,7 @@ Sisällytä:
 
 ## Seuraava askel
 
-Aloita **Vaihe 1** (hakurikastus `kotisatama-search`) kun whitelist 2.1 on synkattu suljetusta reposta kehitysympäristöön:
+Vaiheet 1–5 on toteutettu. Seuraavaksi: **Vaihe 6** (crawler-indeksin laajennus, valinnainen) tai manuaalinen testaus paikallisella whitelistillä ja Meilisearchilla.
 
 ```powershell
 .\scripts\sync-whitelist.ps1

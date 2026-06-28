@@ -156,6 +156,9 @@ impl WebViewCollection {
 #[cfg_attr(any(target_os = "android", target_env = "ohos"), expect(dead_code))]
 pub(crate) enum UserInterfaceCommand {
     Go(String),
+    /// KOTISATAMA-PATCH: avaa aina hakutulossivu (hakupainike).
+    #[cfg(feature = "kotisatama")]
+    Search(String),
     Back,
     Forward,
     Reload,

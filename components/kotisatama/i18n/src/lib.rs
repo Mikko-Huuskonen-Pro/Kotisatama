@@ -152,6 +152,12 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "varustamo_button") => "Varustamo",
         (Locale::Sv, "varustamo_button") => "Varustamo",
 
+        (Locale::Fi, "search_button") => "🔍",
+        (Locale::Sv, "search_button") => "🔍",
+
+        (Locale::Fi, "search_button_a11y") => "Avaa hakutulokset",
+        (Locale::Sv, "search_button_a11y") => "Öppna sökresultat",
+
         (Locale::Fi, "search_window_title") => "Satama-haku",
         (Locale::Sv, "search_window_title") => "Hamn-sökning",
 

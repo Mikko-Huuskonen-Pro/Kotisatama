@@ -13,10 +13,12 @@ path = "src/lib.rs"
 
 [dependencies]
 kotisatama-subprocess-app = { path = "../subprocess-app" }
+kotisatama-whitelist = { path = "../whitelist" }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 ureq = { version = "2.12", features = ["json"] }
+url = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

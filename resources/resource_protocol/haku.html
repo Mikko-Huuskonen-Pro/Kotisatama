@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta data-i18n-title="title" />
+    <link rel="stylesheet" href="resource:///haku.css" />
+  </head>
+  <body>
+    <main class="page" role="main">
+      <header class="search-header">
+        <h1 data-i18n="heading">Kotisatama-haku</h1>
+        <p class="muted" data-i18n="intro">Hae Sataman sisäisestä hakemistosta.</p>
+      </header>
+
+      <form id="searchForm" class="search-form" role="search">
+        <input
+          id="queryInput"
+          name="q"
+          type="search"
+          autocomplete="off"
+          data-i18n-placeholder="searchPlaceholder"
+          data-i18n-aria-label="searchAriaLabel"
+        />
+        <button type="submit" data-i18n="searchButton">Hae</button>
+      </form>
+
+      <p id="status" class="status muted hidden" aria-live="polite"></p>
+      <p id="loading" class="status muted hidden" data-i18n="loading">Haetaan…</p>
+      <p id="error" class="error-box hidden" role="alert"></p>
+
+      <ul id="results" class="results" aria-live="polite"></ul>
+
+      <section id="empty" class="empty-box hidden">
+        <strong data-i18n="emptyTitle">Ei tuloksia Satamasta.</strong>
+        <ul>
+          <li data-i18n="emptyHintSpelling">Tarkista kirjoitusasu</li>
+          <li data-i18n="emptyHintBroader">Kokeile yleisempää hakusanaa</li>
+        </ul>
+        <div class="empty-actions">
+          <a id="avomeriLink" class="primary" href="servo:avomeri" data-i18n="emptyAvomeri">Avaa haku Avomerellä</a>
+          <a href="servo:whitelist" data-i18n="emptySuggest">Ehdota sivua Satamaan</a>
+        </div>
+      </section>
+    </main>
+
+    <script src="resource:///kotisatama-i18n.js"></script>
+    <script src="resource:///haku-icons.js"></script>
+    <script>
+      (function () {
+        KotisatamaI18n.applyDocument("haku");
+
+        const params = new URLSearchParams(location.search);
+        let query = params.get("q") || "";
+        const queryInput = document.getElementById("queryInput");
+        const statusEl = document.getElementById("status");
+        const loadingEl = document.getElementById("loading");
+        const errorEl = document.getElementById("error");
+        const resultsEl = document.getElementById("results");
+        const emptyEl = document.getElementById("empty");
+        const avomeriLink = document.getElementById("avomeriLink");
+        const searchForm = document.getElementById("searchForm");
+
+        queryInput.value = query;
+
+        searchForm.addEventListener("submit", function (event) {
+          event.preventDefault();
+          const next = queryInput.value.trim();
+          if (!next) {
+            return;
+          }
+          location.href = "servo:haku?q=" + encodeURIComponent(next);
+        });
+
+        function hideAll() {
+          statusEl.classList.add("hidden");
+          loadingEl.classList.add("hidden");
+          errorEl.classList.add("hidden");
+          resultsEl.innerHTML = "";
+          emptyEl.classList.add("hidden");
+        }
+
+        function categoryLabel(id, categories) {
+          const found = categories.find(function (item) {
+            return item.id === id;
+          });
+          return found ? found.label : id;
+        }
+
+        function renderTags(tags, categoryId, categories) {
+          const chips = [];
+          if (categoryId) {
+            chips.push(categoryLabel(categoryId, categories));
+          }
+          tags.forEach(function (tag) {
+            if (!chips.includes(tag)) {
+              chips.push(tag);
+            }
+          });
+          return chips
+            .map(function (tag) {
+              return '<span class="tag">' + escapeHtml(tag) + "</span>";
+            })
+            .join("");
+        }
+
+        function renderResults(data) {
+          hideAll();
+          query = data.query || query;
+          queryInput.value = query;
+          if (query) {
+            avomeriLink.href = "servo:avomeri?q=" + encodeURIComponent(query);
+          }
+
+          if (data.status === "error") {
+            errorEl.textContent = data.message || KotisatamaI18n.t("haku", "errorGeneric");
+            errorEl.classList.remove("hidden");
+            return;
+          }
+
+          if (data.status === "no_results" || !data.hits || data.hits.length === 0) {
+            emptyEl.classList.remove("hidden");
+            return;
+          }
+
+          const countTemplate = KotisatamaI18n.t("haku", "resultsCount");
+          statusEl.textContent = countTemplate.replace("{count}", String(data.hits.length));
+          statusEl.classList.remove("hidden");
+
+          data.hits.forEach(function (hit) {
+            const li = document.createElement("li");
+            const link = document.createElement("a");
+            link.className = "result-card";
+            link.href = hit.url;
+            link.innerHTML =
+              '<div class="result-top">' +
+              HakuIcons.typeDot(hit.type) +
+              HakuIcons.categoryIcon(hit.category, data.categories) +
+              '<h2 class="result-title">' +
+              escapeHtml(hit.label || hit.title || hit.domain || hit.url) +
+              "</h2></div>" +
+              '<p class="result-domain">' +
+              escapeHtml(hit.domain || hit.url) +
+              "</p>" +
+              (hit.title
+                ? '<p class="result-snippet">' + escapeHtml(hit.title) + "</p>"
+                : "") +
+              '<div class="tags">' +
+              renderTags(hit.tags || [], hit.category, data.categories || []) +
+              "</div>";
+            li.appendChild(link);
+            resultsEl.appendChild(li);
+          });
+        }
+
+        function escapeHtml(value) {
+          return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        function loadResults() {
+          if (!query.trim()) {
+            hideAll();
+            return;
+          }
+          hideAll();
+          loadingEl.classList.remove("hidden");
+          fetch("servo:haku/data?q=" + encodeURIComponent(query))
+            .then(function (response) {
+              return response.json();
+            })
+            .then(function (data) {
+              loadingEl.classList.add("hidden");
+              renderResults(data);
+            })
+            .catch(function () {
+              loadingEl.classList.add("hidden");
+              errorEl.textContent = KotisatamaI18n.t("haku", "errorGeneric");
+              errorEl.classList.remove("hidden");
+            });
+        }
+
+        loadResults();
+      })();
+    </script>
+  </body>
+</html>

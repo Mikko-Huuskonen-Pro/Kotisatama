@@ -13,14 +13,18 @@ use kotisatama_pulloposti::PullopostiClient;
 use kotisatama_report::{Report, ReportError, ReportKind, note_blocked_url};
 pub use kotisatama_report::{domain_from_url, last_blocked_url};
 use kotisatama_search::SearchClient;
-pub use kotisatama_search::{SearchHit, SearchOutcome};
+pub use kotisatama_search::{
+    EnrichedSearchHit, EnrichedSearchOutcome, SearchHit, SearchOutcome, enrich_outcome,
+};
 use kotisatama_varustamo::gateway_url as varustamo_gateway_url;
 pub use kotisatama_varustamo::{VarustamoRegistry, app_gateway_url, load_registry};
 use kotisatama_whitelist::{
-    WhitelistDocument, WhitelistProfile, avomeri_gateway_url, blocked_page_url,
-    init as init_whitelist, init_empty, is_avomeri_gateway, is_navigation_allowed,
+    CategoryMeta, TypeMeta, WhitelistDocument, WhitelistProfile, avomeri_gateway_url,
+    blocked_page_url, curated_document, init as init_whitelist, init_empty,
+    is_avomeri_gateway, is_navigation_allowed,
 };
 use log::{info, warn};
+use serde::Serialize;
 use servo::WebView;
 use url::Url;
 
@@ -353,6 +357,87 @@ pub fn search(query: &str) -> KotisatamaSearchPanel {
         kotisatama_report::log_fallback_search(&query, platform);
     }
     KotisatamaSearchPanel { query, outcome }
+}
+
+/// Internal search results page (`servo:haku?q=...`).
+pub fn search_results_url(query: &str) -> Url {
+    let encoded = url::form_urlencoded::byte_serialize(query.trim().as_bytes()).collect::<String>();
+    Url::parse(&format!("servo:haku?q={encoded}")).expect("haku URL must be valid")
+}
+
+/// Whether Enter should open the best hit directly instead of the results page.
+pub fn should_open_best_hit_directly(hits: &[SearchHit]) -> bool {
+    hits.len() == 1
+}
+
+/// Route address-bar search input (alias, direct hit, or results page).
+pub fn open_search_or_results(webview: &WebView, query: &str, force_results_page: bool) {
+    let query = query.trim();
+    if query.is_empty() {
+        return;
+    }
+
+    if let Some(url) = resolve_address_alias(query) {
+        load_url_or_blocked(webview, url);
+        return;
+    }
+
+    let panel = search(query);
+    match panel.outcome {
+        SearchOutcome::Hits(ref hits)
+            if !force_results_page && should_open_best_hit_directly(hits) =>
+        {
+            if let Some(hit) = hits.first() {
+                open_search_hit(webview, hit);
+            }
+        },
+        SearchOutcome::Hits(_) | SearchOutcome::NoResults | SearchOutcome::Error(_) => {
+            load_url_or_blocked(webview, search_results_url(&panel.query));
+        },
+    }
+}
+
+#[derive(Serialize)]
+struct SearchResultsData {
+    query: String,
+    status: &'static str,
+    message: Option<String>,
+    hits: Vec<EnrichedSearchHit>,
+    categories: Vec<CategoryMeta>,
+    types: Vec<TypeMeta>,
+}
+
+/// JSON payload for `servo:haku/data?q=...`.
+pub fn search_results_json(query: &str) -> String {
+    let panel = search(query);
+    let enriched = enrich_outcome(&panel.outcome);
+    let document = curated_document();
+    let categories = document
+        .as_ref()
+        .map(|doc| doc.categories.clone())
+        .unwrap_or_default();
+    let types = document
+        .as_ref()
+        .map(|doc| doc.types.clone())
+        .unwrap_or_default();
+
+    let (status, message, hits) = match enriched {
+        EnrichedSearchOutcome::Hits(hits) => ("hits", None, hits),
+        EnrichedSearchOutcome::NoResults => ("no_results", None, Vec::new()),
+        EnrichedSearchOutcome::Error(message) => ("error", Some(message), Vec::new()),
+    };
+
+    serde_json::to_string(&SearchResultsData {
+        query: panel.query,
+        status,
+        message,
+        hits,
+        categories,
+        types,
+    })
+    .unwrap_or_else(|_| {
+        r#"{"status":"error","message":"JSON serialisointi epäonnistui"}"#.to_owned()
+    })
 }
 
 /// Load a search hit URL in the webview (whitelist-checked).

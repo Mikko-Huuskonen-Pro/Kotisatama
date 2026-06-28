@@ -104,6 +104,34 @@
       searchPlaceholder: { fi: "Kirjoita osoite tai hae satamasta…", sv: "Skriv adress eller sök i hamnen…" },
       searchButton: { fi: "Hae", sv: "Sök" },
     },
+    haku: {
+      title: { fi: "Kotisatama-haku", sv: "Kotisatama-sökning" },
+      heading: { fi: "Kotisatama-haku", sv: "Kotisatama-sökning" },
+      intro: {
+        fi: "Hae Sataman sisäisestä hakemistosta.",
+        sv: "Sök i hamnens interna register.",
+      },
+      searchPlaceholder: { fi: "Hakusana…", sv: "Sökord…" },
+      searchAriaLabel: { fi: "Hakusana", sv: "Sökord" },
+      searchButton: { fi: "Hae", sv: "Sök" },
+      loading: { fi: "Haetaan…", sv: "Söker…" },
+      resultsCount: { fi: "Löytyi {count} tulosta", sv: "Hittade {count} resultat" },
+      emptyTitle: { fi: "Ei tuloksia Satamasta.", sv: "Inga resultat i hamnen." },
+      emptyHintSpelling: {
+        fi: "Tarkista kirjoitusasu",
+        sv: "Kontrollera stavningen",
+      },
+      emptyHintBroader: {
+        fi: "Kokeile yleisempää hakusanaa",
+        sv: "Prova ett mer allmänt sökord",
+      },
+      emptyAvomeri: { fi: "Avaa haku Avomerellä", sv: "Öppna sökning på öppet hav" },
+      emptySuggest: { fi: "Ehdota sivua Satamaan", sv: "Föreslå en sida till hamnen" },
+      errorGeneric: {
+        fi: "Haku epäonnistui. Yritä uudelleen.",
+        sv: "Sökningen misslyckades. Försök igen.",
+      },
+    },
     varustamo: {
       title: { fi: "Varustamo", sv: "Varustamo" },
       heading: { fi: "Varustamo", sv: "Varustamo" },

@@ -9,6 +9,7 @@
 //! - servo:config
 //! - servo:newtab
 //! - servo:avomeri
+//! - servo:haku
 //! - servo:pulloposti
 //! - servo:varustamo
 //! - servo:missa-olen
@@ -99,6 +100,22 @@ impl ProtocolHandler for ServoProtocolHandler {
             "avomeri/leave" => {
                 crate::kotisatama::leave_avomeri_mode();
                 return redirect_response(request, "servo:newtab");
+            },
+
+            // KOTISATAMA-PATCH: sisäinen hakutulossivu (resource_protocol/haku.html).
+            #[cfg(feature = "kotisatama")]
+            "haku" => ResourceProtocolHandler::response_for_path(
+                request,
+                done_chan,
+                context,
+                "/haku.html",
+            ),
+
+            #[cfg(feature = "kotisatama")]
+            "haku/data" => {
+                let query = query_param(url.as_url(), "q").unwrap_or_default();
+                let body = crate::kotisatama::search_results_json(&query);
+                return json_response(request, body);
             },
 
             "pulloposti" => ResourceProtocolHandler::response_for_path(

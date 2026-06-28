@@ -76,15 +76,7 @@ pub struct Gui {
     /// This allows us to ensure that graft nodes are sent before the subtrees they graft.
     pending_accesskit_updates: Vec<accesskit::TreeUpdate>,
 
-    // KOTISATAMA-PATCH: desktop-haku, raportointi ja suomenkielinen UI (ks. suljetun repon Docs/KIELIROADMAP.md).
-    /// Kotisatama search results panel.
-    #[cfg(feature = "kotisatama")]
-    search_panel: Option<crate::kotisatama::KotisatamaSearchPanel>,
-
-    /// Background Kotisatama search in progress.
-    #[cfg(feature = "kotisatama")]
-    search_pending: Option<Receiver<crate::kotisatama::KotisatamaSearchPanel>>,
-
+    // KOTISATAMA-PATCH: desktop-raportointi ja suomenkielinen UI (ks. suljetun repon Docs/KIELIROADMAP.md).
     /// Kotisatama anonymous report dialog.
     #[cfg(feature = "kotisatama")]
     report_dialog_open: bool,
@@ -260,11 +252,7 @@ impl Gui {
             can_go_forward: false,
             favicon_textures: Default::default(),
             pending_accesskit_updates: vec![],
-            // KOTISATAMA-PATCH: alusta haku- ja raportointitila (ks. suljetun repon Docs/KIELIROADMAP.md).
-            #[cfg(feature = "kotisatama")]
-            search_panel: None,
-            #[cfg(feature = "kotisatama")]
-            search_pending: None,
+            // KOTISATAMA-PATCH: alusta raportointitila (ks. suljetun repon Docs/KIELIROADMAP.md).
             #[cfg(feature = "kotisatama")]
             report_dialog_open: false,
             #[cfg(feature = "kotisatama")]
@@ -439,8 +427,7 @@ impl Gui {
                     .and_then(|webview| webview.url())
                     .map(|url| url.to_string())
                     .unwrap_or_else(|| location.clone());
-                let last_search = self.search_panel.as_ref().map(|panel| &panel.outcome);
-                let theme = crate::kotisatama::current_theme(&current_location, last_search);
+                let theme = crate::kotisatama::current_theme(&current_location, None);
                 crate::kotisatama::paint_theme_background(
                     ctx,
                     ctx.screen_rect(),
@@ -626,6 +613,22 @@ impl Gui {
                                             UserInterfaceCommand::Go(location.clone()),
                                         );
                                     }
+                                    #[cfg(feature = "kotisatama")]
+                                    {
+                                        let search_button =
+                                            ui.add(Gui::toolbar_button(t("search_button")));
+                                        search_button.widget_info(|| {
+                                            let mut info = WidgetInfo::new(WidgetType::Button);
+                                            info.label = Some(t("search_button_a11y").into());
+                                            info
+                                        });
+                                        if search_button.clicked() {
+                                            *location_dirty = false;
+                                            window.queue_user_interface_command(
+                                                UserInterfaceCommand::Search(location.clone()),
+                                            );
+                                        }
+                                    }
                                 },
                             );
                         },
@@ -721,89 +724,15 @@ impl Gui {
                 .show(|ui| ui.add(Label::new(status_text.clone()).extend()));
             }
 
-            // KOTISATAMA-PATCH: taustahakujen ja raporttien vastausten kuuntelu.
+            // KOTISATAMA-PATCH: raporttien vastausten kuuntelu.
             #[cfg(feature = "kotisatama")]
             {
-                if let Some(rx) = &self.search_pending {
-                    if let Ok(panel) = rx.try_recv() {
-                        self.search_panel = Some(panel);
-                        self.search_pending = None;
-                        window.set_needs_repaint();
-                    }
-                }
                 if let Some(rx) = &self.report_pending {
                     if let Ok(status) = rx.try_recv() {
                         self.report_status = Some(status);
                         self.report_pending = None;
                         window.set_needs_repaint();
                     }
-                }
-            }
-
-            // KOTISATAMA-PATCH: haun odotusikkuna (suomenkielinen teksti).
-            #[cfg(feature = "kotisatama")]
-            if self.search_pending.is_some() {
-                egui::Window::new(t("search_window_title"))
-                    .collapsible(false)
-                    .resizable(false)
-                    .default_width(320.0)
-                    .show(ctx, |ui| {
-                        ui.label(t("search_loading"));
-                    });
-            }
-
-            // KOTISATAMA-PATCH: hakutulospaneeli ja sisäinen Avomeri-portti (suomenkielinen teksti).
-            #[cfg(feature = "kotisatama")]
-            if let Some(panel) = &self.search_panel {
-                use crate::kotisatama::SearchOutcome;
-
-                let mut close_panel = false;
-                let mut panel_open = true;
-                egui::Window::new(t("search_window_title"))
-                    .collapsible(false)
-                    .resizable(true)
-                    .default_width(520.0)
-                    .open(&mut panel_open)
-                    .show(ctx, |ui| {
-                        ui.label(format!("{} {}", t("search_query_prefix"), panel.query));
-                        ui.separator();
-                        match &panel.outcome {
-                            SearchOutcome::Hits(hits) => {
-                                for hit in hits {
-                                    let label = truncate_with_ellipsis(
-                                        &format!("{} — {}", hit.title, hit.url),
-                                        80,
-                                    );
-                                    if ui.button(label).clicked() {
-                                        if let Some(webview) = window.active_webview() {
-                                            crate::kotisatama::open_search_hit(&webview, hit);
-                                        }
-                                        close_panel = true;
-                                    }
-                                }
-                            },
-                            SearchOutcome::NoResults => {
-                                ui.label(t("search_no_results"));
-                                if ui.button(t("search_avomeri")).clicked() {
-                                    if let Some(webview) = window.active_webview() {
-                                        crate::kotisatama::load_url_or_blocked(
-                                            &webview,
-                                            crate::kotisatama::avomeri_search_url(&panel.query),
-                                        );
-                                    }
-                                    close_panel = true;
-                                }
-                            },
-                            SearchOutcome::Error(message) => {
-                                ui.colored_label(egui::Color32::RED, message);
-                            },
-                        }
-                        if ui.button(t("close")).clicked() {
-                            close_panel = true;
-                        }
-                    });
-                if close_panel || !panel_open {
-                    self.search_panel = None;
                 }
             }
 

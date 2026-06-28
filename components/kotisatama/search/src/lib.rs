@@ -5,6 +5,7 @@
 //! Local search against a Meilisearch instance (subprocess on `127.0.0.1:7700`).
 
 mod cdn;
+mod enrich;
 
 use std::fs;
 use std::path::PathBuf;
@@ -18,6 +19,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 pub use cdn::{CdnSyncReport, cached_whitelist_path, sync_from_cdn};
+pub use enrich::{
+    EnrichedSearchHit, EnrichedSearchOutcome, enrich_hit, enrich_hits, enrich_outcome,
+};
 
 const DEFAULT_BASE_URL: &str = "http://127.0.0.1:7700";
 const INDEX_UID: &str = "documents";

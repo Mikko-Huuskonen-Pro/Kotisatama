@@ -347,55 +347,40 @@ impl ServoShellWindow {
                     if let Some(active_webview) = self.active_webview() {
                         #[cfg(feature = "kotisatama")]
                         if kotisatama_go_input_is_search(&location) {
-                            if let Some(url) = crate::kotisatama::resolve_address_alias(&location) {
-                                info!(
-                                    "Kotisatama opening curated address alias {location:?} as {url}"
-                                );
-                                crate::kotisatama::load_url_or_blocked(&active_webview, url);
-                                continue;
-                            }
-
                             info!(
                                 "Kotisatama routing address field input to local search: {location:?}"
                             );
-                            match crate::kotisatama::search(&location).outcome {
-                                crate::kotisatama::SearchOutcome::Hits(hits) => {
-                                    if let Some(hit) = hits.first() {
-                                        info!(
-                                            "Kotisatama opening first local search hit: {}",
-                                            hit.url
-                                        );
-                                        crate::kotisatama::open_search_hit(&active_webview, hit);
-                                    }
-                                },
-                                crate::kotisatama::SearchOutcome::NoResults => {
-                                    warn!(
-                                        "Kotisatama local search returned no results for {location:?}"
-                                    );
-                                },
-                                crate::kotisatama::SearchOutcome::Error(message) => {
-                                    warn!(
-                                        "Kotisatama local search failed for {location:?}: {message}"
-                                    );
-                                },
-                            }
+                            crate::kotisatama::open_search_or_results(
+                                &active_webview,
+                                &location,
+                                false,
+                            );
                             continue;
                         }
-                    }
 
-                    let Some(url) = location_bar_input_to_url(
-                        &location.clone(),
-                        &state.servoshell_preferences.searchpage,
-                    ) else {
-                        warn!("failed to parse location");
-                        break;
-                    };
-                    if let Some(active_webview) = self.active_webview() {
+                        let Some(url) = location_bar_input_to_url(
+                            &location.clone(),
+                            &state.servoshell_preferences.searchpage,
+                        ) else {
+                            warn!("failed to parse location");
+                            break;
+                        };
                         // KOTISATAMA-PATCH: osoitepalkin Go → whitelist/blokkaussivu.
                         #[cfg(feature = "kotisatama")]
                         crate::kotisatama::load_url_or_blocked(&active_webview, url.into_url());
                         #[cfg(not(feature = "kotisatama"))]
                         active_webview.load(url.into_url());
+                    }
+                },
+                #[cfg(feature = "kotisatama")]
+                UserInterfaceCommand::Search(location) => {
+                    self.set_needs_update();
+                    if let Some(active_webview) = self.active_webview() {
+                        crate::kotisatama::open_search_or_results(
+                            &active_webview,
+                            &location,
+                            true,
+                        );
                     }
                 },
                 UserInterfaceCommand::Back => {

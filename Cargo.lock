@@ -4768,10 +4768,12 @@ name = "kotisatama-search"
 version = "0.1.0"
 dependencies = [
  "kotisatama-subprocess-app",
+ "kotisatama-whitelist",
  "log",
  "serde",
  "serde_json",
  "ureq",
+ "url",
 ]
 
 [[package]]

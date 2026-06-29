@@ -77,4 +77,6 @@ Kun ymmärrät **miksi** bugi syntyi, tee erillinen merkintä [oppimispäiväkir
 ## Seuraavaksi
 
 - [oppimispäiväkirja/README.md](oppimispäiväkirja/README.md) — malli päiväkirjamerkinnälle
+- [oppimispäiväkirja/2026-06-29-kela-etusivu.md](oppimispäiväkirja/2026-06-29-kela-etusivu.md) — esimerkki: Kela-etusivu
+- [kotisatama-vs-servo.md](../kotisatama-vs-servo.md) — miten fork eroaa Servosta
 - [servo/komponentit.md](../servo/komponentit.md)

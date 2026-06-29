@@ -11,6 +11,7 @@ Tämä hakemisto on suomenkielinen oppimateriaali **Servo-selainmoottorin** ymm�
 | [00-aloitus.md](00-aloitus.md) | Esitiedot, työkalut, ensimmäiset askeleet |
 | [sanasto.md](sanasto.md) | Keskeiset termit suomeksi ja englanniksi |
 | [linkit.md](linkit.md) | Kuratoitu lista upstream-lähteistä |
+| [kotisatama-vs-servo.md](kotisatama-vs-servo.md) | Miten fork eroaa upstream-Servosta |
 | [servo/](servo/) | Moottorin arkkitehtuuri ja komponentit |
 | [rust/](rust/) | Rust- ja repokohtaiset käytännöt |
 | [telakka/](telakka/) | Debuggaus ja oppimispäiväkirja (Kela-työ) |
@@ -52,8 +53,13 @@ Telakka-malli: Kela testikohteena, yleinen korjaus tuloksena.
 - **Pidä koodi englanniksi** — suomi vain tässä hakemistossa (ks. [AGENT.md](../AGENT.md)).
 - **Upstream-korjaukset** dokumentoidaan yleisinä, ei sivukohtaisina hackeina.
 
+## Esimerkkimerkinnät
+
+- [telakka/oppimispäiväkirja/2026-06-29-kela-etusivu.md](telakka/oppimispäiväkirja/2026-06-29-kela-etusivu.md) — Kela-etusivu, Kotisatama vs. Servo debuggauksessa
+
 ## Liittyvät dokumentit
 
 - [AGENT.md](../AGENT.md) — kehityssäännöt (älä koske upstreamia suoraan)
 - [docs/FILOSOFIA.md](../docs/FILOSOFIA.md) — Servo vs. Kotisatama
 - [docs/KELA-TELAKKA.md](../docs/KELA-TELAKKA.md) — ensimmäinen Telakka-kierros
+- [kotisatama-vs-servo.md](kotisatama-vs-servo.md) — fork-erot yhdellä sivulla

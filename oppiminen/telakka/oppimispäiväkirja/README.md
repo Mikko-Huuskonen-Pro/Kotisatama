@@ -48,7 +48,7 @@ Kopioi alla oleva pohja uuteen tiedostoon:
 
 ## Esimerkkimerkinnät
 
-_(Ei vielä merkintöjä — lisää ensimmäinen kun debuggaat tai opiskelet.)_
+- [2026-06-29-kela-etusivu.md](2026-06-29-kela-etusivu.md) — navigointi (`kela` / `kela.fi`), kerrosten erottelu, MVP-tarkistus
 
 ## Liittyvät dokumentit
 

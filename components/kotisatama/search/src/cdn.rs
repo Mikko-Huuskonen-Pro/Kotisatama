@@ -4,13 +4,13 @@
 
 //! Fetch whitelist and index dump from Kotisatama CDN for OTA updates.
 
-use std::fs::{self, File};
-use std::io;
-use std::path::{Path, PathBuf};
+use std::fs;
+use std::path::PathBuf;
 
 use log::{info, warn};
 
 use crate::SearchError;
+use crate::cdn_integrity::{fetch_manifest, fetch_verify_and_install, skip_integrity_check};
 
 /// Result of a CDN sync attempt.
 #[derive(Debug, Clone, Default)]
@@ -19,23 +19,31 @@ pub struct CdnSyncReport {
     pub index_dump_updated: bool,
 }
 
-/// Download `/free/whitelist.json` and `/free/index.dump` from CDN base URL.
+/// Download `/free/manifest.json`, then `/free/whitelist.json` and `/free/index.dump` with SHA-256 checks.
 pub fn sync_from_cdn(base_url: &str) -> Result<CdnSyncReport, SearchError> {
     let base = base_url.trim_end_matches('/');
     let cache_dir = data_dir().join("cache");
     fs::create_dir_all(&cache_dir).map_err(SearchError::Io)?;
 
+    let manifest = match fetch_manifest(base_url) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            warn!("Kotisatama CDN: manifest fetch failed: {error}");
+            return Ok(CdnSyncReport::default());
+        },
+    };
+
     let mut report = CdnSyncReport::default();
 
     let whitelist_url = format!("{base}/free/whitelist.json");
     let whitelist_dest = cache_dir.join("whitelist.json");
-    match fetch_to_file(&whitelist_url, &whitelist_dest) {
+    match fetch_verify_and_install(&whitelist_url, &whitelist_dest, &manifest, "whitelist.json") {
         Ok(()) => {
             info!("Kotisatama CDN: updated whitelist from {whitelist_url}");
             report.whitelist_updated = true;
         },
         Err(error) => {
-            warn!("Kotisatama CDN: whitelist fetch failed: {error}");
+            warn!("Kotisatama CDN: whitelist update rejected: {error}");
         },
     }
 
@@ -44,14 +52,18 @@ pub fn sync_from_cdn(base_url: &str) -> Result<CdnSyncReport, SearchError> {
     if let Some(parent) = dump_dest.parent() {
         fs::create_dir_all(parent).map_err(SearchError::Io)?;
     }
-    match fetch_to_file(&dump_url, &dump_dest) {
+    match fetch_verify_and_install(&dump_url, &dump_dest, &manifest, "index.dump") {
         Ok(()) => {
             info!("Kotisatama CDN: updated index dump from {dump_url}");
             report.index_dump_updated = true;
         },
         Err(error) => {
-            warn!("Kotisatama CDN: index dump fetch failed: {error}");
+            warn!("Kotisatama CDN: index dump update rejected: {error}");
         },
+    }
+
+    if skip_integrity_check() {
+        warn!("Kotisatama CDN: KOTISATAMA_CDN_SKIP_INTEGRITY is set — do not use in production");
     }
 
     Ok(report)
@@ -60,28 +72,24 @@ pub fn sync_from_cdn(base_url: &str) -> Result<CdnSyncReport, SearchError> {
 /// Cached whitelist path after successful CDN sync.
 pub fn cached_whitelist_path() -> Option<PathBuf> {
     let path = data_dir().join("cache").join("whitelist.json");
-    path.is_file().then_some(path)
+    if !path.is_file() {
+        return None;
+    }
+    if skip_integrity_check() {
+        return Some(path);
+    }
+    let manifest_path = data_dir().join("cache").join("manifest.json");
+    if !manifest_path.is_file() {
+        return None;
+    }
+    let manifest = crate::cdn_integrity::load_manifest(&manifest_path).ok()?;
+    crate::cdn_integrity::verify_manifest_signature(&manifest).ok()?;
+    crate::cdn_integrity::verify_file(&manifest, "whitelist.json", &path).ok()?;
+    Some(path)
 }
 
 fn data_dir() -> PathBuf {
     std::env::var("KOTISATAMA_DATA_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("index-data"))
-}
-
-fn fetch_to_file(url: &str, dest: &Path) -> Result<(), SearchError> {
-    let response = ureq::get(url)
-        .call()
-        .map_err(|error| SearchError::Http(error.to_string()))?;
-    if response.status() != 200 {
-        return Err(SearchError::Http(format!(
-            "GET {url} returned HTTP {}",
-            response.status()
-        )));
-    }
-
-    let mut reader = response.into_reader();
-    let mut file = File::create(dest).map_err(SearchError::Io)?;
-    io::copy(&mut reader, &mut file).map_err(SearchError::Io)?;
-    Ok(())
 }

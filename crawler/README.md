@@ -24,11 +24,18 @@ npm run crawl -- --whitelist ../config/whitelist.json --output ../output/cdn
 
 ```
 output/cdn/free/
+  manifest.json     ← SHA-256-tiivisteet (automaattinen)
   whitelist.json    ← kopio syötteestä
   index.dump        ← Meilisearch-dump
 ```
 
-Julkaise nämä CDN-polkuun `/free/whitelist.json` ja `/free/index.dump`.
+Julkaise nämä CDN-polkuun `/free/manifest.json`, `/free/whitelist.json` ja `/free/index.dump`.
+
+### CDN-allekirjoitus (CI)
+
+Aseta CI-salaisuus `KOTISATAMA_CDN_SIGNING_KEY_HEX` (32 tavua, 64 hex-merkkiä). Crawler allekirjoittaa `manifest.json`:n automaattisesti.
+
+Julkinen avain asiakkaalle: `config/cdn-signing-public.hex` (kehitys) tai `KOTISATAMA_CDN_PUBLIC_KEY` (tuotanto-build).
 
 ## Parametrit
 

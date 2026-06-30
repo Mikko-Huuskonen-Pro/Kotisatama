@@ -248,6 +248,9 @@ Sync-MissaOlenDaemon -RepoRoot $RepoRoot
 
 Write-Step "mach build --release"
 & .\mach build --release
+if ($LASTEXITCODE -ne 0) {
+    throw "mach build --release failed with exit code $LASTEXITCODE"
+}
 
 $releaseDir = Get-ServoshellReleaseDir -RepoRoot $RepoRoot -ServoTargetDir $ServoTargetDir
 Write-Host "Using release dir: $releaseDir"

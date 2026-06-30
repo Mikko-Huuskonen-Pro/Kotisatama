@@ -6,6 +6,8 @@
 
 mod document;
 mod domain;
+mod product_profile;
+mod resolve;
 mod state;
 mod user;
 
@@ -13,6 +15,8 @@ pub use document::{
     CategoryMeta, TypeMeta, WhitelistDocument, WhitelistEntry, WhitelistProfile,
 };
 pub use domain::{host_matches_domain, normalize_domain};
+pub use product_profile::{ProductProfile, effective_whitelist_profile};
+pub use resolve::{curated_whitelist_candidates, init_with_fallback};
 pub use state::{
     EffectiveWhitelist, add_user_domain, curated_document, init, init_empty,
     is_navigation_allowed, lookup_curated_entry, remove_user_domain, user_entries,
@@ -55,6 +59,7 @@ pub enum WhitelistError {
     Json(serde_json::Error),
     InvalidDomain(String),
     NotInitialized,
+    NoBaseListFound,
 }
 
 impl std::fmt::Display for WhitelistError {
@@ -64,6 +69,7 @@ impl std::fmt::Display for WhitelistError {
             Self::Json(error) => write!(f, "failed to parse whitelist JSON: {error}"),
             Self::InvalidDomain(domain) => write!(f, "virheellinen domain: {domain}"),
             Self::NotInitialized => write!(f, "whitelist not initialized"),
+            Self::NoBaseListFound => write!(f, "no curated whitelist could be loaded"),
         }
     }
 }

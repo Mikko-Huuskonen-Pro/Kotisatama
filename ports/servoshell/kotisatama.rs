@@ -19,19 +19,22 @@ pub use kotisatama_search::{
 use kotisatama_varustamo::gateway_url as varustamo_gateway_url;
 pub use kotisatama_varustamo::{VarustamoRegistry, app_gateway_url, load_registry};
 use kotisatama_whitelist::{
-    CategoryMeta, TypeMeta, WhitelistDocument, WhitelistProfile, avomeri_gateway_url,
-    blocked_page_url, curated_document, init as init_whitelist, init_empty,
-    is_avomeri_gateway, is_navigation_allowed,
+    CategoryMeta, TypeMeta, WhitelistDocument, avomeri_gateway_url, blocked_page_url,
+    curated_document, effective_whitelist_profile, init_with_fallback, is_avomeri_gateway,
+    is_navigation_allowed, ProductProfile,
 };
 use log::{info, warn};
 use serde::Serialize;
 use servo::WebView;
 use url::Url;
 
+const AVOMERI_DEFAULT_SEARCHPAGE: &str = "https://www.qwant.com/?q=%s";
+
 static SEARCH: OnceLock<Option<SearchClient>> = OnceLock::new();
 static PULLOPOSTI: OnceLock<Option<PullopostiClient>> = OnceLock::new();
 static MISSA_OLEN: OnceLock<Option<MissaOlenClient>> = OnceLock::new();
 static AVOMERI_MODE: AtomicBool = AtomicBool::new(false);
+static AVOMERI_SEARCHPAGE: OnceLock<String> = OnceLock::new();
 
 fn whitelist_base_path() -> PathBuf {
     kotisatama_search::cached_whitelist_path()
@@ -41,6 +44,11 @@ fn whitelist_base_path() -> PathBuf {
                 .map(PathBuf::from)
         })
         .unwrap_or_else(|| PathBuf::from("config/whitelist.json"))
+}
+
+/// Active product profile (normaali / lapsi / seniori / hopeakettu).
+pub fn product_profile() -> ProductProfile {
+    ProductProfile::current()
 }
 
 /// Active Kotisatama search panel state for the servoshell UI.
@@ -73,14 +81,13 @@ pub fn init() {
         }
     }
 
-    let base_path = whitelist_base_path();
-    let profile = WhitelistProfile::current();
-    if let Err(error) = init_whitelist(&base_path, profile.clone()) {
-        warn!(
-            "Kotisatama: could not load whitelist from {}: {error}. Using empty base list.",
-            base_path.display()
-        );
-        let _ = init_empty(profile);
+    let cache = kotisatama_search::cached_whitelist_path();
+    let profile = effective_whitelist_profile();
+    match init_with_fallback(cache, profile.clone()) {
+        Ok(path) => info!("Kotisatama: whitelist active from {}", path.display()),
+        Err(error) => warn!(
+            "Kotisatama: whitelist not loaded ({error}). Navigation restricted to internal pages."
+        ),
     }
 
     // Meilisearch, Pulloposti and Varustamo apps start lazily on first use.
@@ -103,7 +110,8 @@ pub fn check_url(url: &Url) -> bool {
 /// Avomeri is an internal port; it does not grant open-web navigation by itself.
 pub fn should_allow_navigation(webview: &WebView, target: &Url) -> bool {
     let _ = webview;
-    check_url(target) || avomeri_mode_enabled()
+    check_url(target)
+        || (avomeri_mode_enabled() && ProductProfile::current().can_enter_avomeri())
 }
 
 /// Track allowed navigations.
@@ -205,18 +213,44 @@ pub fn avomeri_search_url(query: &str) -> Url {
 
 /// Open web target after the user explicitly confirms Avomeri mode.
 pub fn avomeri_open_url(query: &str) -> Url {
+    avomeri_open_url_with_searchpage(query, AVOMERI_SEARCHPAGE.get().map(String::as_str))
+}
+
+pub fn set_avomeri_searchpage(searchpage: &str) {
+    let _ = AVOMERI_SEARCHPAGE.set(searchpage.trim().to_owned());
+}
+
+fn avomeri_open_url_with_searchpage(query: &str, searchpage: Option<&str>) -> Url {
     let query = query.trim();
+    let searchpage = searchpage
+        .map(str::trim)
+        .filter(|value| value.starts_with("https://") && value.contains("%s"))
+        .unwrap_or(AVOMERI_DEFAULT_SEARCHPAGE);
     let target = if query.is_empty() {
-        "https://www.startpage.com/".to_owned()
+        avomeri_home_url(searchpage)
     } else {
         let encoded = url::form_urlencoded::byte_serialize(query.as_bytes()).collect::<String>();
-        format!("https://www.startpage.com/search?q={encoded}")
+        searchpage.replace("%s", &encoded)
     };
     Url::parse(&target).expect("Avomeri target URL must be valid")
 }
 
+fn avomeri_home_url(searchpage: &str) -> String {
+    match Url::parse(searchpage) {
+        Ok(mut url) => {
+            url.set_path("/");
+            url.set_query(None);
+            url.set_fragment(None);
+            url.to_string()
+        },
+        Err(_) => "https://www.qwant.com/".to_owned(),
+    }
+}
+
 pub fn enter_avomeri_mode() {
-    AVOMERI_MODE.store(true, Ordering::Relaxed);
+    if ProductProfile::current().can_enter_avomeri() {
+        AVOMERI_MODE.store(true, Ordering::Relaxed);
+    }
 }
 
 pub fn leave_avomeri_mode() {
@@ -235,7 +269,7 @@ pub fn resolve_address_alias(input: &str) -> Option<Url> {
     }
 
     let document = WhitelistDocument::load_from_path(&whitelist_base_path()).ok()?;
-    let profile = WhitelistProfile::current();
+    let profile = effective_whitelist_profile();
     document
         .entries_for_profile(&profile)
         .into_iter()
@@ -537,4 +571,46 @@ pub fn paint_theme_background(
         uv,
         egui::Color32::WHITE,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::avomeri_open_url_with_searchpage;
+
+    #[test]
+    fn avomeri_defaults_to_qwant() {
+        let url = avomeri_open_url_with_searchpage("katsastus", None);
+        assert_eq!(url.as_str(), "https://www.qwant.com/?q=katsastus");
+    }
+
+    #[test]
+    fn avomeri_supports_startpage_template() {
+        let url = avomeri_open_url_with_searchpage(
+            "katsastus",
+            Some("https://www.startpage.com/search?q=%s"),
+        );
+        assert_eq!(url.as_str(), "https://www.startpage.com/search?q=katsastus");
+    }
+
+    #[test]
+    fn avomeri_supports_duckduckgo_template() {
+        let url = avomeri_open_url_with_searchpage(
+            "katsastus",
+            Some("https://duckduckgo.com/html/?q=%s"),
+        );
+        assert_eq!(url.as_str(), "https://duckduckgo.com/html/?q=katsastus");
+    }
+
+    #[test]
+    fn avomeri_empty_query_opens_search_engine_home() {
+        let url = avomeri_open_url_with_searchpage("", None);
+        assert_eq!(url.as_str(), "https://www.qwant.com/");
+    }
+
+    #[test]
+    fn avomeri_empty_query_uses_selected_search_engine_root() {
+        let url =
+            avomeri_open_url_with_searchpage("", Some("https://www.startpage.com/search?q=%s"));
+        assert_eq!(url.as_str(), "https://www.startpage.com/");
+    }
 }

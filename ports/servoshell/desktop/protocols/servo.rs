@@ -88,6 +88,9 @@ impl ProtocolHandler for ServoProtocolHandler {
 
             #[cfg(feature = "kotisatama")]
             "avomeri/open" => {
+                if !crate::kotisatama::product_profile().can_enter_avomeri() {
+                    return redirect_response(request, "servo:avomeri?error=disabled");
+                }
                 let query = query_param(url.as_url(), "q").unwrap_or_default();
                 crate::kotisatama::enter_avomeri_mode();
                 return redirect_response(
@@ -183,6 +186,10 @@ impl ProtocolHandler for ServoProtocolHandler {
             "whitelist/add" => {
                 use kotisatama_whitelist::normalize_domain;
 
+                if !crate::kotisatama::product_profile().can_add_user_domain() {
+                    return redirect_response(request, "servo:whitelist?error=disabled");
+                }
+
                 let domain = query_param(url.as_url(), "domain");
                 let return_url = query_param(url.as_url(), "return");
                 let domain = match domain.and_then(|domain| normalize_domain(&domain).ok()) {
@@ -197,6 +204,10 @@ impl ProtocolHandler for ServoProtocolHandler {
             "whitelist/commit-add" => {
                 use kotisatama_whitelist::{add_user_domain, is_navigation_allowed};
                 use url::Url;
+
+                if !crate::kotisatama::product_profile().can_add_user_domain() {
+                    return redirect_response(request, "servo:whitelist?error=disabled");
+                }
 
                 let domain = query_param(url.as_url(), "domain");
                 let token = query_param(url.as_url(), "token");

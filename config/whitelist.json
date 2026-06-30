@@ -1,8 +1,15 @@
 {
   "version": "2.1",
-  "updated": "2026-06-28",
+  "updated": "2026-06-30",
   "description": "Paikallinen kehitys — aja scripts/sync-whitelist.ps1 suljetusta reposta",
   "categories": [
+    {
+      "id": "auth",
+      "label": "Tunnistautuminen",
+      "description": "FTN-ketju: Suomi.fi, pankit ja tunnistuspalvelut",
+      "icon": "auth",
+      "priority": 95
+    },
     {
       "id": "health",
       "label": "Terveys",
@@ -41,6 +48,97 @@
       "category": "health",
       "tags": ["virastot"],
       "type": "white"
+    },
+    {
+      "domain": "suomi.fi",
+      "label": "Suomi.fi",
+      "category": "auth",
+      "tags": ["virastot", "tunnistus", "ftn"],
+      "type": "white"
+    },
+    {
+      "domain": "vero.fi",
+      "label": "Vero",
+      "category": "auth",
+      "tags": ["virastot", "tunnistus"],
+      "type": "white"
+    },
+    {
+      "domain": "tunnistus.fi",
+      "label": "Tunnistus",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "white"
+    },
+    {
+      "domain": "mobiilivarmenne.fi",
+      "label": "Mobiilivarmenne",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "white"
+    },
+    {
+      "domain": "nordea.fi",
+      "label": "Nordea",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "yellow"
+    },
+    {
+      "domain": "op.fi",
+      "label": "OP",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "yellow"
+    },
+    {
+      "domain": "aktia.fi",
+      "label": "Aktia",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "yellow"
+    },
+    {
+      "domain": "danskebank.fi",
+      "label": "Danske Bank",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "yellow"
+    },
+    {
+      "domain": "saastopankki.fi",
+      "label": "Säästöpankki",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "yellow"
+    },
+    {
+      "domain": "poppankki.fi",
+      "label": "POP Pankki",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "yellow"
+    },
+    {
+      "domain": "handelsbanken.fi",
+      "label": "Handelsbanken",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "yellow"
+    },
+    {
+      "domain": "alandsbanken.fi",
+      "label": "Ålandsbanken",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "yellow"
+    },
+    {
+      "domain": "s-pankki.fi",
+      "label": "S-Pankki",
+      "category": "auth",
+      "tags": ["tunnistus", "ftn"],
+      "type": "yellow"
     },
     {
       "domain": "yle.fi",

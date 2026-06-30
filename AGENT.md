@@ -184,6 +184,8 @@ Skeema: `config/whitelist.schema.json`. Esimerkki: `config/whitelist.example.jso
 
 Hakutulossivun toteutus: `docs/HAKUTULOKSET-ROADMAP.md`.
 
+Turvallisuus ja profiilit: `docs/TURVALLISUUS-PROFIILIT.md`.
+
 ---
 
 ## Haku — Meilisearch subprocess

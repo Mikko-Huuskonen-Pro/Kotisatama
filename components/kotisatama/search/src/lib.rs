@@ -5,20 +5,26 @@
 //! Local search against a Meilisearch instance (subprocess on `127.0.0.1:7700`).
 
 mod cdn;
+mod cdn_integrity;
 mod enrich;
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use kotisatama_subprocess_app::{
     HealthCheckConfig, ManagedSubprocess, SubprocessError, find_binary, find_on_path, is_healthy,
     wait_for_health,
 };
+use kotisatama_whitelist::{WhitelistEntry, curated_document};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 pub use cdn::{CdnSyncReport, cached_whitelist_path, sync_from_cdn};
+pub use cdn_integrity::{CdnManifest, sha256_file};
 pub use enrich::{
     EnrichedSearchHit, EnrichedSearchOutcome, enrich_hit, enrich_hits, enrich_outcome,
 };
@@ -170,12 +176,6 @@ impl SearchClient {
         if let Ok(resp) = ureq::get(&stats_url).call()
             && resp.status() == 200
         {
-            let stats: IndexStats = resp
-                .into_json()
-                .map_err(|error| SearchError::Http(error.to_string()))?;
-            if stats.number_of_documents > 0 {
-                return Ok(());
-            }
             return self.load_seed_documents();
         }
 
@@ -202,16 +202,49 @@ impl SearchClient {
                 packaged_path("config/search-index/documents.json")
                     .unwrap_or_else(|| PathBuf::from("config/search-index/documents.json"))
             });
-        let contents = fs::read_to_string(&path).map_err(SearchError::Io)?;
-        let documents: Vec<SeedDocument> =
+        let contents = fs::read_to_string(&path).unwrap_or_else(|error| {
+            log::warn!("Kotisatama search: seed documents not found at {path:?}: {error}");
+            "[]".to_owned()
+        });
+        let mut documents: Vec<SeedDocument> =
             serde_json::from_str(&contents).map_err(SearchError::Json)?;
+        append_whitelist_documents(&mut documents);
+        if documents.is_empty() {
+            return Ok(());
+        }
 
         let url = format!("{}/indexes/{}/documents", self.base_url, INDEX_UID);
-        ureq::post(&url)
+        let task: MeiliTask = ureq::post(&url)
             .set("Content-Type", "application/json")
             .send_json(&documents)
+            .map_err(|error| SearchError::Http(error.to_string()))?
+            .into_json()
             .map_err(|error| SearchError::Http(error.to_string()))?;
+        self.wait_for_task(task.task_uid)?;
         Ok(())
+    }
+
+    fn wait_for_task(&self, task_uid: u64) -> Result<(), SearchError> {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let url = format!("{}/tasks/{task_uid}", self.base_url);
+        loop {
+            let task: MeiliTask = ureq::get(&url)
+                .call()
+                .map_err(|error| SearchError::Http(error.to_string()))?
+                .into_json()
+                .map_err(|error| SearchError::Http(error.to_string()))?;
+            match task.status.as_str() {
+                "succeeded" => return Ok(()),
+                "failed" | "canceled" => {
+                    return Err(SearchError::Http(format!(
+                        "meilisearch indexing task {task_uid} {}",
+                        task.status
+                    )));
+                },
+                _ if Instant::now() >= deadline => return Err(SearchError::Timeout),
+                _ => thread::sleep(Duration::from_millis(100)),
+            }
+        }
     }
 }
 
@@ -221,9 +254,10 @@ struct SearchResponse {
 }
 
 #[derive(Debug, Deserialize)]
-struct IndexStats {
-    #[serde(default, alias = "numberOfDocuments")]
-    number_of_documents: u64,
+struct MeiliTask {
+    #[serde(alias = "taskUid", alias = "uid")]
+    task_uid: u64,
+    status: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -231,6 +265,64 @@ struct SeedDocument {
     id: u64,
     url: String,
     title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    keywords: Option<String>,
+}
+
+fn append_whitelist_documents(documents: &mut Vec<SeedDocument>) {
+    let Some(whitelist) = curated_document() else {
+        return;
+    };
+    let mut seen_urls = documents
+        .iter()
+        .map(|document| document.url.to_ascii_lowercase())
+        .collect::<HashSet<_>>();
+
+    for entry in whitelist.domains {
+        let Some(document) = whitelist_entry_document(1_000_000 + documents.len() as u64, &entry)
+        else {
+            continue;
+        };
+        if seen_urls.insert(document.url.to_ascii_lowercase()) {
+            documents.push(document);
+        }
+    }
+}
+
+fn whitelist_entry_document(id: u64, entry: &WhitelistEntry) -> Option<SeedDocument> {
+    let domain = entry.domain.trim();
+    if domain.is_empty() {
+        return None;
+    }
+
+    let title = entry.label.as_deref().unwrap_or(domain).trim().to_owned();
+    let mut keywords = vec![domain.to_owned()];
+    keywords.extend(entry.tags.iter().cloned());
+    if entry
+        .tags
+        .iter()
+        .any(|tag| tag.eq_ignore_ascii_case("golf"))
+    {
+        keywords.extend(
+            [
+                "golfkenttä",
+                "golfkentät",
+                "golfkenttään",
+                "golfkentän",
+                "golfkenttia",
+                "golfkenttiä",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        );
+    }
+
+    Some(SeedDocument {
+        id,
+        url: format!("https://{domain}/"),
+        title,
+        keywords: Some(keywords.join(" ")),
+    })
 }
 
 #[derive(Debug)]
@@ -241,6 +333,7 @@ pub enum SearchError {
     Http(String),
     Timeout,
     BinaryNotFound,
+    Integrity(String),
 }
 
 impl std::fmt::Display for SearchError {
@@ -255,6 +348,7 @@ impl std::fmt::Display for SearchError {
                 f,
                 "meilisearch binary not found (set KOTISATAMA_MEILISEARCH_BIN or install meilisearch)"
             ),
+            Self::Integrity(msg) => write!(f, "CDN integrity check failed: {msg}"),
         }
     }
 }
@@ -314,5 +408,20 @@ mod tests {
         let docs: Vec<SeedDocument> = serde_json::from_str(json).unwrap();
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].title, "Eläke");
+    }
+
+    #[test]
+    fn whitelist_entry_document_adds_golf_keywords() {
+        let entry = WhitelistEntry {
+            domain: "example-golf.fi".into(),
+            label: Some("Example Golf".into()),
+            category: Some("sports".into()),
+            tags: vec!["golf".into()],
+            entry_type: Some("yellow".into()),
+        };
+        let document = whitelist_entry_document(1, &entry).unwrap();
+        assert_eq!(document.url, "https://example-golf.fi/");
+        assert_eq!(document.title, "Example Golf");
+        assert!(document.keywords.unwrap().contains("golfkenttään"));
     }
 }

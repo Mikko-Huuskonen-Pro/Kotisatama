@@ -33,6 +33,8 @@ pub fn main() {
     };
 
     crate::init_tracing(servoshell_preferences.tracing_filter.as_deref());
+    #[cfg(feature = "kotisatama")]
+    crate::kotisatama::set_avomeri_searchpage(&servoshell_preferences.searchpage);
 
     let clean_shutdown = servoshell_preferences.clean_shutdown;
     let event_loop = match servoshell_preferences.headless {

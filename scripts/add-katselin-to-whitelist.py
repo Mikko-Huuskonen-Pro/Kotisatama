@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add katselin.fi to valkoiset-sivut whitelist with every tag in the unified list."""
+"""Add katselin.fi to valkoiset-sivut whitelist."""
 
 from __future__ import annotations
 
@@ -15,18 +15,11 @@ WHITELIST = (
 
 def main() -> None:
     data = json.loads(WHITELIST.read_text(encoding="utf-8"))
-    all_tags = sorted(
-        {
-            tag
-            for entry in data["domains"]
-            if isinstance(entry, dict)
-            for tag in entry.get("tags", [])
-        }
-    )
     entry = {
         "domain": "katselin.fi",
         "label": "Katselin",
-        "tags": all_tags,
+        "category": "other",
+        "tags": ["katselin", "kotisatama", "selain", "aloitussivu"],
         "type": "white",
     }
     data["domains"] = [
@@ -40,7 +33,7 @@ def main() -> None:
         json.dumps(data, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    print(f"Added katselin.fi with {len(all_tags)} tags ({len(data['domains'])} domains total)")
+    print(f"Added katselin.fi ({len(data['domains'])} domains total)")
 
 
 if __name__ == "__main__":

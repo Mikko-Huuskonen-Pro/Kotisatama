@@ -7,7 +7,8 @@
  *   node crawl.js --whitelist ../config/whitelist.json --output ./output --max-depth 2 --max-pages 40
  */
 
-import { cpSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { createHash, createPrivateKey, sign } from "node:crypto";
+import { cpSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MeiliSearch } from "meilisearch";
@@ -201,6 +202,64 @@ async function ensureIndex(client) {
   }
 }
 
+function sha256File(path) {
+  const data = readFileSync(path);
+  return createHash("sha256").update(data).digest("hex");
+}
+
+function canonicalManifestPayload(manifest) {
+  const files = {};
+  for (const name of Object.keys(manifest.files).sort()) {
+    files[name] = manifest.files[name];
+  }
+  return JSON.stringify({
+    version: manifest.version,
+    updated: manifest.updated,
+    files,
+  });
+}
+
+function signManifest(manifest) {
+  const keyHex = process.env.KOTISATAMA_CDN_SIGNING_KEY_HEX?.trim();
+  if (!keyHex) {
+    console.warn(
+      "KOTISATAMA_CDN_SIGNING_KEY_HEX not set — manifest.json left unsigned (dev only)",
+    );
+    return manifest;
+  }
+  const seed = Buffer.from(keyHex, "hex");
+  if (seed.length !== 32) {
+    throw new Error("KOTISATAMA_CDN_SIGNING_KEY_HEX must be 32 bytes (64 hex chars)");
+  }
+  const derPrefix = Buffer.from("302e020100300506032b657004220420", "hex");
+  const privateKey = createPrivateKey({
+    key: Buffer.concat([derPrefix, seed]),
+    format: "der",
+    type: "pkcs8",
+  });
+  const payload = canonicalManifestPayload(manifest);
+  const signature = sign(null, Buffer.from(payload, "utf8"), privateKey);
+  return { ...manifest, signature: signature.toString("hex") };
+}
+
+function writeManifest(freeDir) {
+  const files = {};
+  for (const name of ["whitelist.json", "index.dump"]) {
+    const filePath = join(freeDir, name);
+    files[name] = { sha256: sha256File(filePath) };
+  }
+  const manifest = signManifest({
+    version: "1",
+    updated: new Date().toISOString().slice(0, 10),
+    files,
+  });
+  writeFileSync(
+    join(freeDir, "manifest.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8",
+  );
+}
+
 async function exportDump(client, outputDir, dumpDir) {
   const { taskUid } = await client.createDump();
   await client.waitForTask(taskUid);
@@ -283,7 +342,9 @@ async function main() {
   cpSync(whitelistPath, join(freeDir, "whitelist.json"));
 
   const dumpPath = await exportDump(client, outputDir, opts["dump-dir"]);
+  writeManifest(freeDir);
   console.log(`Done. CDN bundle:`);
+  console.log(`  ${join(freeDir, "manifest.json")}`);
   console.log(`  ${join(freeDir, "whitelist.json")}`);
   console.log(`  ${dumpPath}`);
 }

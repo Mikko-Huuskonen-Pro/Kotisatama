@@ -132,6 +132,7 @@ flowchart TD
 
 ## Liittyvät dokumentit
 
+- [kotisatama/README.md](kotisatama/README.md) — Katselinin oman kerroksen oppimispolku
 - [telakka/oppimispäiväkirja/2026-06-29-kela-etusivu.md](telakka/oppimispäiväkirja/2026-06-29-kela-etusivu.md) — käytännön debuggausesimerkki
 - [servo/embedder-ja-ports.md](servo/embedder-ja-ports.md) — hookin paikka ketjussa
 - [servo/sivun-lataus.md](servo/sivun-lataus.md) — koko latausketju

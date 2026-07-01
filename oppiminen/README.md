@@ -12,6 +12,7 @@ Tämä hakemisto on suomenkielinen oppimateriaali **Servo-selainmoottorin** ymm�
 | [sanasto.md](sanasto.md) | Keskeiset termit suomeksi ja englanniksi |
 | [linkit.md](linkit.md) | Kuratoitu lista upstream-lähteistä |
 | [kotisatama-vs-servo.md](kotisatama-vs-servo.md) | Miten fork eroaa upstream-Servosta |
+| [kotisatama/](kotisatama/) | Katselinin oma kerros (whitelist, haku, sisäiset sivut) |
 | [servo/](servo/) | Moottorin arkkitehtuuri ja komponentit |
 | [rust/](rust/) | Rust- ja repokohtaiset käytännöt |
 | [telakka/](telakka/) | Debuggaus ja oppimispäiväkirja (Kela-työ) |
@@ -45,6 +46,17 @@ Telakka-malli: Kela testikohteena, yleinen korjaus tuloksena.
 2. [docs/KELA-TELAKKA.md](../docs/KELA-TELAKKA.md)
 3. [telakka/miten-debugataan.md](telakka/miten-debugataan.md)
 4. Kirjaa havainnot [telakka/oppimispäiväkirja/](telakka/oppimispäiväkirja/)
+
+### Polku D — "Haluan ymmärtää Katselinin oman kerroksen"
+
+Kotisatama-kerros ennen moottorin yksityiskohtia.
+
+1. [kotisatama/arkkitehtuuri.md](kotisatama/arkkitehtuuri.md)
+2. [kotisatama/navigointi.md](kotisatama/navigointi.md)
+3. [kotisatama/cratet.md](kotisatama/cratet.md)
+4. [kotisatama/sisaiset-sivut.md](kotisatama/sisaiset-sivut.md)
+5. [kotisatama-vs-servo.md](kotisatama-vs-servo.md) — erot upstreamiin
+6. [servo/sivun-lataus.md](servo/sivun-lataus.md) — mitä tapahtuu whitelistin jälkeen
 
 ## Miten dokumentaatiota täydennetään
 

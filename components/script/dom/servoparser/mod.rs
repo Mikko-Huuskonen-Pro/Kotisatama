@@ -92,7 +92,7 @@ use crate::dom::text::Text;
 use crate::dom::types::{HTMLElement, HTMLMediaElement, HTMLOptionElement};
 use crate::navigation::determine_the_origin;
 use crate::network_listener::FetchResponseListener;
-use crate::realms::{enter_auto_realm, enter_realm};
+use crate::realms::enter_auto_realm;
 use crate::script_runtime::{CanGc, IntroductionType};
 use crate::script_thread::ScriptThread;
 
@@ -249,6 +249,7 @@ impl ServoParser {
             Some(url.clone()),
         );
         let document = Document::new(
+            cx,
             window,
             HasBrowsingContext::No,
             Some(url.clone()),
@@ -269,7 +270,8 @@ impl ServoParser {
             context_document.has_trustworthy_ancestor_or_current_origin(),
             context_document.custom_element_reaction_stack(),
             context_document.creation_sandboxing_flag_set(),
-            CanGc::from_cx(cx),
+            context_document.pipeline_id(),
+            context_document.image_cache(),
         );
 
         // Step 2. If context's node document is in quirks mode, then set document's mode to "quirks".
@@ -686,7 +688,8 @@ impl ServoParser {
     }
 
     fn parse_bytes_chunk(&self, cx: &mut JSContext, input: Vec<u8>) {
-        let _realm = enter_realm(&*self.document);
+        let mut realm = enter_auto_realm(cx, &*self.document);
+        let cx = &mut realm.current_realm();
         self.document.set_current_parser(Some(self));
         self.push_bytes_input_chunk(input);
         if !self.suspended.get() {
@@ -761,18 +764,15 @@ impl ServoParser {
         // Step 1. If the active speculative HTML parser is not null,
         // then stop the speculative HTML parser and return.
         // TODO
-
         // Step 2. Set the insertion point to undefined.
-        self.document.set_current_parser(None);
-
+        self.tokenizer.end(cx);
         // Step 3. Update the current document readiness to "interactive".
         self.document
             .set_ready_state(cx, DocumentReadyState::Interactive);
-
         // Step 4. Pop all the nodes off the stack of open elements.
-        self.tokenizer.end(cx);
-
-        // Steps 5-11 are in another castle, namely finish_load.
+        self.document.set_current_parser(None);
+        // Step 5. While the list of scripts that will execute when the document has finished parsing is not empty:
+        self.document.start_the_end_loading_phase();
         let url = self.tokenizer.url().clone();
         self.document.finish_load(LoadType::PageSource(url), cx);
 
@@ -1249,7 +1249,7 @@ impl ParserContext {
     }
 
     /// Store a PerformanceNavigationTiming entry in the globalscope's Performance buffer
-    fn submit_resource_timing(&mut self) {
+    fn submit_resource_timing(&mut self, cx: &mut JSContext) {
         let Some(parser) = self.parser.as_ref() else {
             return;
         };
@@ -1260,11 +1260,7 @@ impl ParserContext {
 
         let document = &parser.document;
 
-        let performance_entry = PerformanceNavigationTiming::new(
-            &document.global(),
-            document,
-            CanGc::deprecated_note(),
-        );
+        let performance_entry = PerformanceNavigationTiming::new(cx, &document.global(), document);
         self.pushed_entry_index = document
             .global()
             .performance()
@@ -1383,6 +1379,7 @@ impl FetchResponseListener for ParserContext {
         // navigationParams's request, navigationParams's response, navigationParams's policy container's CSP list,
         // cspNavigationType, and navigable is "Blocked";
         policy_container.csp_list.should_navigation_response_to_navigation_request_be_blocked(
+            cx,
             window,
             self.url.clone().into_url(),
             &origin.immutable().clone().into_url_origin(),
@@ -1426,7 +1423,7 @@ impl FetchResponseListener for ParserContext {
             about_base_url: document.about_base_url(),
             resource_header: vec![],
         };
-        self.submit_resource_timing();
+        self.submit_resource_timing(cx);
 
         // Part of https://html.spec.whatwg.org/multipage/#loading-a-document
         //
@@ -1562,7 +1559,7 @@ impl FetchResponseListener for ParserContext {
         if let Some(pushed_index) = self.pushed_entry_index {
             let document = &parser.document;
             let performance_entry =
-                PerformanceNavigationTiming::new(&document.global(), document, CanGc::from_cx(cx));
+                PerformanceNavigationTiming::new(cx, &document.global(), document);
             document
                 .global()
                 .performance()
@@ -1570,7 +1567,7 @@ impl FetchResponseListener for ParserContext {
         }
     }
 
-    fn process_csp_violations(&mut self, _: RequestId, _: Vec<Violation>) {
+    fn process_csp_violations(&mut self, _: &mut JSContext, _: RequestId, _: Vec<Violation>) {
         unreachable!("Script_thread should handle reporting violations for parser contexts");
     }
 }
@@ -2086,8 +2083,7 @@ fn create_element_for_token(
 
     // Step 7. Let definition be the result of looking up a custom element definition
     // given registry, namespace, localName, and is.
-    let definition =
-        document.lookup_custom_element_definition(cx, &name.ns, &name.local, is.as_ref());
+    let definition = document.lookup_custom_element_definition(&name.ns, &name.local, is.as_ref());
 
     // Step 8. Let willExecuteScript be true if definition is non-null and the parser was
     // not created as part of the HTML fragment parsing algorithm; otherwise false.

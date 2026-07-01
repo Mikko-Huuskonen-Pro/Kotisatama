@@ -35,8 +35,7 @@ use js::glue::DumpJSStack;
 use js::jsapi::{GCReason, Heap, JSContext as RawJSContext, JSObject, JSPROP_ENUMERATE};
 use js::jsval::{NullValue, UndefinedValue};
 use js::realm::{AutoRealm, CurrentRealm};
-use js::rust::wrappers::JS_DefineProperty;
-use js::rust::wrappers2::JS_GC;
+use js::rust::wrappers2::{JS_DefineProperty, JS_GC};
 use js::rust::{
     CustomAutoRooter, CustomAutoRooterGuard, HandleObject, HandleValue, MutableHandleObject,
     MutableHandleValue,
@@ -65,7 +64,8 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 use script_bindings::cell::{DomRefCell, Ref};
 use script_bindings::codegen::GenericBindings::WindowBinding::ScrollToOptions;
 use script_bindings::conversions::SafeToJSValConvertible;
-use script_bindings::interfaces::WindowHelpers;
+use script_bindings::dom::UnrootedDom;
+use script_bindings::interfaces::{HasOrigin, WindowHelpers};
 use script_bindings::reflector::DomObject;
 use script_bindings::root::Root;
 use script_traits::{ConstellationInputEvent, ScriptThreadMessage};
@@ -79,8 +79,8 @@ use servo_bluetooth_traits::BluetoothRequest;
 use servo_canvas_traits::webgl::WebGLChan;
 use servo_config::pref;
 use servo_constellation_traits::{
-    LoadData, LoadOrigin, ScreenshotReadinessResponse, ScriptToConstellationChan,
-    ScriptToConstellationMessage, StructuredSerializedData, WindowSizeType,
+    LoadData, LoadOrigin, ScreenshotReadinessResponse, ScriptToConstellationMessage,
+    ScriptToConstellationSender, StructuredSerializedData, WindowSizeType,
 };
 use servo_geometry::DeviceIndependentIntRect;
 use servo_url::{ImmutableOrigin, MutableOrigin, ServoUrl};
@@ -188,12 +188,13 @@ use crate::layout_image::fetch_image_for_layout;
 use crate::messaging::{MainThreadScriptMsg, ScriptEventLoopReceiver, ScriptEventLoopSender};
 use crate::microtask::{Microtask, UserMicrotask};
 use crate::network_listener::{ResourceTimingListener, submit_timing};
-use crate::realms::{enter_auto_realm, enter_realm};
-use crate::script_runtime::{CanGc, JSContext as SafeJSContext, Runtime};
+use crate::realms::enter_auto_realm;
+use crate::script_runtime::{CanGc, Runtime};
 use crate::script_thread::ScriptThread;
 use crate::script_window_proxies::ScriptWindowProxies;
+use crate::task_manager::TaskManager;
 use crate::task_source::SendableTaskSource;
-use crate::timers::{IsInterval, TimerCallback};
+use crate::timers::{IsInterval, OneshotTimers, TimerCallback};
 use crate::unminify::unminified_path;
 use crate::webdriver_handlers::{find_node_by_unique_id_in_document, jsval_to_webdriver};
 use crate::{fetch, window_named_properties};
@@ -288,16 +289,11 @@ pub(crate) struct Window {
     layout: RefCell<Box<dyn Layout>>,
     navigator: MutNullableDom<Navigator>,
     crypto: MutNullableDom<Crypto>,
-    #[ignore_malloc_size_of = "ImageCache"]
-    #[no_trace]
-    image_cache: Arc<dyn ImageCache>,
     #[no_trace]
     image_cache_sender: Sender<ImageCacheResponseMessage>,
     window_proxy: MutNullableDom<WindowProxy>,
     document: MutNullableDom<Document>,
     location: MutNullableDom<Location>,
-    history: MutNullableDom<History>,
-    custom_element_registry: MutNullableDom<CustomElementRegistry>,
     performance: MutNullableDom<Performance>,
     #[no_trace]
     navigation_start: Cell<CrossProcessInstant>,
@@ -551,8 +547,10 @@ impl Window {
         self.globalscope.time_profiler_chan()
     }
 
-    pub(crate) fn origin(&self) -> &MutableOrigin {
-        self.globalscope.origin()
+    /// <https://html.spec.whatwg.org/multipage/#script-settings-for-window-objects:concept-settings-object-origin>
+    pub(crate) fn origin(&self) -> MutableOrigin {
+        // > Return the origin of window's associated Document.
+        self.Document().origin().clone()
     }
 
     pub(crate) fn main_thread_script_chan(&self) -> &Sender<MainThreadScriptMsg> {
@@ -576,7 +574,7 @@ impl Window {
     }
 
     pub(crate) fn image_cache(&self) -> Arc<dyn ImageCache> {
-        self.image_cache.clone()
+        self.Document().image_cache()
     }
 
     /// This can panic if it is called after the browsing context has been discarded
@@ -917,11 +915,11 @@ impl Window {
         self.script_thread().perform_a_microtask_checkpoint(cx);
     }
 
-    pub(crate) fn web_font_context(&self) -> WebFontDocumentContext {
+    pub(crate) fn web_font_context(&self, no_gc: &NoGC) -> WebFontDocumentContext {
         let global = self.as_global_scope();
         WebFontDocumentContext {
             policy_container: global.policy_container(),
-            request_client: global.request_client(),
+            request_client: global.request_client(Some(no_gc)),
             document_url: global.api_base_url(),
             has_trustworthy_ancestor_origin: global.has_trustworthy_ancestor_origin(),
             insecure_requests_policy: global.insecure_requests_policy(),
@@ -944,13 +942,16 @@ impl Window {
 
     #[expect(unsafe_code)]
     pub(crate) fn gc(&self, cx: &mut JSContext) {
-        unsafe {
-            JS_GC(cx, GCReason::API);
-        }
+        unsafe { JS_GC(cx, GCReason::API) };
+    }
+
+    pub(crate) fn with_timers<T>(&self, f: impl FnOnce(&OneshotTimers) -> T) -> T {
+        let document = self.Document();
+        f(document.timers())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, MallocSizeOf)]
 struct FontCspHandler {
     global: Trusted<GlobalScope>,
     task_source: SendableTaskSource,
@@ -959,8 +960,8 @@ struct FontCspHandler {
 impl CspViolationHandler for FontCspHandler {
     fn process_violations(&self, violations: Vec<Violation>) {
         let global = self.global.clone();
-        self.task_source.queue(task!(csp_violation: move || {
-            global.root().report_csp_violations(violations, None, None);
+        self.task_source.queue(task!(csp_violation: move |cx| {
+            global.root().report_csp_violations(cx, violations, None, None);
         }));
     }
 
@@ -972,7 +973,7 @@ impl CspViolationHandler for FontCspHandler {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, MallocSizeOf)]
 struct FontNetworkTimingHandler {
     global: Trusted<GlobalScope>,
     task_source: SendableTaskSource,
@@ -1344,7 +1345,7 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
 
     #[expect(unsafe_code)]
     /// <https://html.spec.whatwg.org/multipage/#dom-opener>
-    fn SetOpener(&self, cx: SafeJSContext, value: HandleValue) -> ErrorResult {
+    fn SetOpener(&self, cx: &mut JSContext, value: HandleValue) -> ErrorResult {
         // Step 1.
         if value.is_null() {
             if let Some(proxy) = self.window_proxy.get() {
@@ -1352,14 +1353,14 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
             }
             return Ok(());
         }
+
         // Step 2.
         let obj = self.reflector().get_jsobject();
-        unsafe {
-            let result =
-                JS_DefineProperty(*cx, obj, c"opener".as_ptr(), value, JSPROP_ENUMERATE as u32);
+        let result = unsafe {
+            JS_DefineProperty(cx, obj, c"opener".as_ptr(), value, JSPROP_ENUMERATE as u32)
+        };
 
-            if result { Ok(()) } else { Err(Error::JSFailed) }
-        }
+        if result { Ok(()) } else { Err(Error::JSFailed) }
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-window-closed>
@@ -1388,9 +1389,9 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
             let is_auxiliary = window_proxy.is_auxiliary();
 
             // https://html.spec.whatwg.org/multipage/#script-closable
-            let is_script_closable = (self.is_top_level() && history_length == 1)
-                || is_auxiliary
-                || pref!(dom_allow_scripts_to_close_windows);
+            let is_script_closable = (self.is_top_level() && history_length == 1) ||
+                is_auxiliary ||
+                pref!(dom_allow_scripts_to_close_windows);
 
             // TODO: rest of Step 3:
             // Is the incumbent settings object's responsible browsing context familiar with current?
@@ -1422,7 +1423,7 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
 
     /// <https://html.spec.whatwg.org/multipage/#dom-history>
     fn History(&self, cx: &mut JSContext) -> DomRoot<History> {
-        self.history.or_init(|| History::new(cx, self))
+        self.Document().history(cx)
     }
 
     /// <https://w3c.github.io/IndexedDB/#factory-interface>
@@ -1432,8 +1433,18 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
 
     /// <https://html.spec.whatwg.org/multipage/#dom-window-customelements>
     fn CustomElements(&self, cx: &mut JSContext) -> DomRoot<CustomElementRegistry> {
-        self.custom_element_registry
-            .or_init(|| CustomElementRegistry::new(cx, self))
+        // Step 1: Assert: this's associated Document's custom element registry is
+        // a CustomElementRegistry object.
+        let document = self.Document();
+        if let Some(registry) = document.custom_element_registry() {
+            return registry;
+        }
+        // A Window's associated Document is always created with
+        // a new CustomElementRegistry object.
+        let registry = CustomElementRegistry::new(cx, self);
+        document.set_custom_element_registry(&registry);
+        // Step 2: Return this's associated Document's custom element registry.
+        registry
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-location>
@@ -1496,15 +1507,15 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
     }
 
     /// <https://cookiestore.spec.whatwg.org/#Window>
-    fn CookieStore(&self, can_gc: CanGc) -> DomRoot<CookieStore> {
+    fn CookieStore(&self, cx: &mut JSContext) -> DomRoot<CookieStore> {
         self.cookie_store
-            .or_init(|| CookieStore::new(self.upcast::<GlobalScope>(), can_gc))
+            .or_init(|| CookieStore::new(cx, self.upcast::<GlobalScope>()))
     }
 
     /// <https://dvcs.w3.org/hg/webcrypto-api/raw-file/tip/spec/Overview.html#dfn-GlobalCrypto>
-    fn Crypto(&self) -> DomRoot<Crypto> {
+    fn Crypto(&self, cx: &mut JSContext) -> DomRoot<Crypto> {
         self.crypto
-            .or_init(|| Crypto::new(self.as_global_scope(), CanGc::deprecated_note()))
+            .or_init(|| Crypto::new(cx, self.as_global_scope()))
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-frameelement>
@@ -1849,8 +1860,8 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
                 iframe
                     .browsing_context_id()
                     .as_ref()
-                    .map(BrowsingContextId::to_string)
-                    == Some(browsing_context_id.to_string())
+                    .map(BrowsingContextId::to_string) ==
+                    Some(browsing_context_id.to_string())
             })
             .and_then(|iframe| iframe.GetContentWindow())
     }
@@ -2213,12 +2224,9 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
     }
 
     /// <https://dom.spec.whatwg.org/#dom-window-event>
-    fn Event(&self, cx: SafeJSContext, rval: MutableHandleValue) {
+    fn Event(&self, cx: &mut JSContext, rval: MutableHandleValue) {
         if let Some(ref event) = *self.current_event.borrow() {
-            event
-                .reflector()
-                .get_jsobject()
-                .safe_to_jsval(cx, rval, CanGc::deprecated_note());
+            event.reflector().get_jsobject().safe_to_jsval(cx, rval);
         }
     }
 
@@ -2297,10 +2305,10 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
                     return true;
                 }
                 match type_ {
-                    HTMLElementTypeId::HTMLEmbedElement
-                    | HTMLElementTypeId::HTMLFormElement
-                    | HTMLElementTypeId::HTMLImageElement
-                    | HTMLElementTypeId::HTMLObjectElement => {
+                    HTMLElementTypeId::HTMLEmbedElement |
+                    HTMLElementTypeId::HTMLFormElement |
+                    HTMLElementTypeId::HTMLImageElement |
+                    HTMLElementTypeId::HTMLObjectElement => {
                         elem.get_name().as_ref() == Some(&self.name)
                     },
                     _ => false,
@@ -2406,23 +2414,10 @@ impl Window {
 
         // Clean up any active promises
         // https://github.com/servo/servo/issues/15318
-        if let Some(custom_elements) = self.custom_element_registry.get() {
-            custom_elements.teardown();
-        }
+        self.Document().teardown_custom_element_registry();
 
         self.current_state.set(WindowState::Zombie);
         *self.js_runtime.borrow_mut() = None;
-
-        // If this is the currently active pipeline,
-        // nullify the window_proxy.
-        if let Some(proxy) = self.window_proxy.get() {
-            let pipeline_id = self.pipeline_id();
-            if let Some(currently_active) = proxy.currently_active()
-                && currently_active == pipeline_id
-            {
-                self.window_proxy.set(None);
-            }
-        }
 
         if let Some(performance) = self.performance.get() {
             performance.clear_and_disable_performance_entry_buffer();
@@ -2569,14 +2564,15 @@ impl Window {
             return Default::default();
         }
 
-        self.Document().ensure_safe_to_run_script_or_layout();
+        self.document_unrooted(cx.no_gc())
+            .ensure_safe_to_run_script_or_layout();
 
         // If layouts are blocked, we block all layouts that are for display only. Other
         // layouts (for queries and scrolling) are not blocked, as they do not display
         // anything and script expects the layout to be up-to-date after they run.
         let pipeline_id = self.pipeline_id();
-        if reflow_goal == ReflowGoal::UpdateTheRendering
-            && self.layout_blocker.get().layout_blocked()
+        if reflow_goal == ReflowGoal::UpdateTheRendering &&
+            self.layout_blocker.get().layout_blocked()
         {
             debug!("Suppressing pre-load-event reflow pipeline {pipeline_id}");
             return Default::default();
@@ -2620,7 +2616,7 @@ impl Window {
         // layout runs, so that the map can gather their elements in DOM order.
         document.id_map().resolve_all(cx.no_gc(), document.upcast());
 
-        let document_context = self.web_font_context();
+        let document_context = self.web_font_context(cx.no_gc());
 
         let rooted_nodes_for_accessibility_integrity_check =
             document.rooted_nodes_for_accessibility_integrity_check();
@@ -2695,8 +2691,8 @@ impl Window {
         // See http://testthewebforward.org/docs/reftests.html
         // and https://web-platform-tests.org/writing-tests/crashtest.html
         if document.GetDocumentElement().is_some_and(|elem| {
-            elem.has_class(&atom!("reftest-wait"), CaseSensitivity::CaseSensitive)
-                || elem.has_class(&Atom::from("test-wait"), CaseSensitivity::CaseSensitive)
+            elem.has_class(&atom!("reftest-wait"), CaseSensitivity::CaseSensitive) ||
+                elem.has_class(&Atom::from("test-wait"), CaseSensitivity::CaseSensitive)
         }) {
             return;
         }
@@ -2709,8 +2705,8 @@ impl Window {
             return;
         }
 
-        if !self.pending_layout_images.borrow().is_empty()
-            || !self.pending_images_for_rasterization.borrow().is_empty()
+        if !self.pending_layout_images.borrow().is_empty() ||
+            !self.pending_images_for_rasterization.borrow().is_empty()
         {
             return;
         }
@@ -2916,6 +2912,13 @@ impl Window {
             .query_current_css_zoom(node.to_trusted_node_address())
     }
 
+    /// <https://html.spec.whatwg.org/multipage/#dom-document-2>
+    pub(crate) fn document_unrooted<'a>(&self, no_gc: &'a NoGC) -> UnrootedDom<'a, Document> {
+        self.document
+            .get_unrooted(no_gc)
+            .expect("Document accessed before initialization.")
+    }
+
     /// Find the scroll area of the given node, if it is not None. If the node
     /// is None, find the scroll area of the viewport.
     pub(crate) fn scrolling_area_query(&self, node: Option<&Node>) -> Rect<i32, CSSPixel> {
@@ -2981,7 +2984,7 @@ impl Window {
         pseudo: Option<PseudoElement>,
         property: PropertyId,
     ) -> DOMString {
-        self.layout_reflow(QueryMsg::ResolvedStyleQuery);
+        self.layout_reflow(QueryMsg::ResolvedStyleQuery(property.clone()));
 
         let document = self.Document();
         let animations = document.animations().sets.clone();
@@ -3198,8 +3201,8 @@ impl Window {
     ) {
         // We doesn't need to do anything if the following condition is fulfilled. Since there are no JS listener
         // to fire and we could reconstruct visual viewport from layout viewport in case JS access it.
-        if pinch_zoom_infos.rect == Rect::from_size(self.viewport_details().size)
-            && self.visual_viewport.get().is_none()
+        if pinch_zoom_infos.rect == Rect::from_size(self.viewport_details().size) &&
+            self.visual_viewport.get().is_none()
         {
             return;
         }
@@ -3282,12 +3285,12 @@ impl Window {
         self.gc(cx);
     }
 
-    pub(crate) fn resume(&self, can_gc: CanGc) {
+    pub(crate) fn resume(&self, cx: &mut JSContext) {
         // Resume timer events.
         self.as_global_scope().resume();
 
         // Set the window proxy to be this object.
-        self.window_proxy().set_currently_active(self, can_gc);
+        self.window_proxy().set_currently_active(cx, self);
 
         // Push the document title to `Paint` since we are
         // activating this document due to a navigation.
@@ -3363,7 +3366,8 @@ impl Window {
             return false;
         }
 
-        let _realm = enter_realm(self);
+        let mut realm = enter_auto_realm(cx, self);
+        let cx = &mut realm.current_realm();
         debug!(
             "Resizing Window for pipeline {:?} from {:?} to {new_size:?}",
             self.pipeline_id(),
@@ -3445,13 +3449,13 @@ impl Window {
         // Sending change events for all changed Media Queries
         for mql in mql_list.iter() {
             let event = MediaQueryListEvent::new(
+                cx,
                 &mql.global(),
                 atom!("change"),
                 false,
                 false,
                 mql.Media(),
                 mql.Matches(),
-                CanGc::from_cx(cx),
             );
             event
                 .upcast::<Event>()
@@ -3530,6 +3534,7 @@ impl Window {
         pending_svg_element_for_serialization: Vec<UntrustedNodeAddress>,
     ) {
         let pipeline_id = self.pipeline_id();
+        let image_cache = self.image_cache();
         for image in pending_images {
             let id = image.id;
             let node = unsafe { from_untrusted_node_address(image.node) };
@@ -3540,7 +3545,7 @@ impl Window {
                     &node,
                     id,
                     image.is_internal_request,
-                    self.image_cache.clone(),
+                    image_cache.clone(),
                 );
             }
 
@@ -3554,8 +3559,7 @@ impl Window {
                         .pending_layout_image_notification(response);
                 });
 
-                self.image_cache
-                    .add_listener(ImageLoadListener::new(sender, pipeline_id, id));
+                image_cache.add_listener(ImageLoadListener::new(sender, pipeline_id, id));
             }
 
             let nodes = images.entry(id).or_default();
@@ -3573,7 +3577,7 @@ impl Window {
             let mut images = self.pending_images_for_rasterization.borrow_mut();
             if !images.contains_key(&(image.id, image.size)) {
                 let image_cache_sender = self.image_cache_sender.clone();
-                self.image_cache.add_rasterization_complete_listener(
+                image_cache.add_rasterization_complete_listener(
                     pipeline_id,
                     image.id,
                     image.size,
@@ -3600,8 +3604,8 @@ impl Window {
     /// <https://html.spec.whatwg.org/multipage/#sticky-activation>
     pub(crate) fn has_sticky_activation(&self) -> bool {
         // > When the current high resolution time given W is greater than or equal to the last activation timestamp in W, W is said to have sticky activation.
-        UserActivationTimestamp::TimeStamp(CrossProcessInstant::now())
-            >= self.last_activation_timestamp.get()
+        UserActivationTimestamp::TimeStamp(CrossProcessInstant::now()) >=
+            self.last_activation_timestamp.get()
     }
 
     /// <https://html.spec.whatwg.org/multipage/#transient-activation>
@@ -3609,9 +3613,10 @@ impl Window {
         // > When the current high resolution time given W is greater than or equal to the last activation timestamp in W, and less than the last activation
         // > timestamp in W plus the transient activation duration, then W is said to have transient activation.
         let current_time = CrossProcessInstant::now();
-        UserActivationTimestamp::TimeStamp(current_time) >= self.last_activation_timestamp.get()
-            && UserActivationTimestamp::TimeStamp(current_time)
-                < self.last_activation_timestamp.get() + pref!(dom_transient_activation_duration_ms)
+        UserActivationTimestamp::TimeStamp(current_time) >= self.last_activation_timestamp.get() &&
+            UserActivationTimestamp::TimeStamp(current_time) <
+                self.last_activation_timestamp.get() +
+                    pref!(dom_transient_activation_duration_ms)
     }
 
     pub(crate) fn consume_last_activation_timestamp(&self) {
@@ -3659,14 +3664,13 @@ impl Window {
         layout: Box<dyn Layout>,
         font_context: Arc<FontContext>,
         image_cache_sender: Sender<ImageCacheResponseMessage>,
-        image_cache: Arc<dyn ImageCache>,
         resource_threads: ResourceThreads,
         storage_threads: StorageThreads,
         #[cfg(feature = "bluetooth")] bluetooth_thread: GenericSender<BluetoothRequest>,
         mem_profiler_chan: MemProfilerChan,
         time_profiler_chan: TimeProfilerChan,
         devtools_chan: Option<GenericCallback<ScriptToDevtoolsControlMsg>>,
-        constellation_chan: ScriptToConstellationChan,
+        script_to_constellation_sender: ScriptToConstellationSender,
         embedder_chan: ScriptToEmbedderChan,
         control_chan: GenericSender<ScriptThreadMessage>,
         pipeline_id: PipelineId,
@@ -3697,15 +3701,13 @@ impl Window {
         let win = Box::new(Self {
             webview_id,
             globalscope: GlobalScope::new_inherited(
-                pipeline_id,
                 devtools_chan,
                 mem_profiler_chan,
                 time_profiler_chan,
-                constellation_chan,
+                script_to_constellation_sender,
                 embedder_chan,
                 resource_threads,
                 storage_threads,
-                origin,
                 creation_url,
                 Some(top_level_creation_url),
                 #[cfg(feature = "webgpu")]
@@ -3718,12 +3720,9 @@ impl Window {
             script_chan,
             layout: RefCell::new(layout),
             image_cache_sender,
-            image_cache,
             navigator: Default::default(),
             crypto: Default::default(),
             location: Default::default(),
-            history: Default::default(),
-            custom_element_registry: Default::default(),
             window_proxy: Default::default(),
             document: Default::default(),
             performance: Default::default(),
@@ -3788,11 +3787,15 @@ impl Window {
             devtools_wants_updates: Default::default(),
         });
 
-        WindowBinding::Wrap::<crate::DomTypeHolder>(cx, win)
+        WindowBinding::Wrap::<crate::DomTypeHolder>(cx, &origin, win)
+    }
+
+    pub(crate) fn task_manager(&self) -> Rc<TaskManager> {
+        self.Document().task_manager()
     }
 
     pub(crate) fn pipeline_id(&self) -> PipelineId {
-        self.as_global_scope().pipeline_id()
+        self.Document().pipeline_id()
     }
 
     pub(crate) fn live_devtools_updates(&self) -> bool {
@@ -3944,10 +3947,10 @@ fn is_named_element_with_name_attribute(elem: &Element) -> bool {
     };
     matches!(
         type_,
-        HTMLElementTypeId::HTMLEmbedElement
-            | HTMLElementTypeId::HTMLFormElement
-            | HTMLElementTypeId::HTMLImageElement
-            | HTMLElementTypeId::HTMLObjectElement
+        HTMLElementTypeId::HTMLEmbedElement |
+            HTMLElementTypeId::HTMLFormElement |
+            HTMLElementTypeId::HTMLImageElement |
+            HTMLElementTypeId::HTMLObjectElement
     )
 }
 
@@ -3971,5 +3974,11 @@ impl WindowHelpers for Window {
         object: MutableHandleObject,
     ) {
         Self::create_named_properties_object(cx, proto, object)
+    }
+}
+
+impl HasOrigin for Window {
+    fn origin(&self) -> MutableOrigin {
+        Window::origin(self)
     }
 }

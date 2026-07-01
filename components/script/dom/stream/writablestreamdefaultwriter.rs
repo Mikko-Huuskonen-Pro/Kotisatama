@@ -19,7 +19,6 @@ use crate::dom::bindings::root::{DomRoot, MutNullableDom};
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::promise::Promise;
 use crate::dom::stream::writablestream::WritableStream;
-use crate::script_runtime::CanGc;
 
 /// <https://streams.spec.whatwg.org/#writablestreamdefaultwriter>
 #[dom_struct]
@@ -88,7 +87,7 @@ impl WritableStreamDefaultWriter {
             } else {
                 // Otherwise, set writer.[[readyPromise]] to a promise resolved with undefined.
                 // Note: new promise created in `new_inherited`.
-                self.ready_promise.borrow().resolve_native_with_cx(cx, &());
+                self.ready_promise.borrow().resolve_native(cx, &());
             }
 
             // Set writer.[[closedPromise]] to a new promise.
@@ -106,7 +105,7 @@ impl WritableStreamDefaultWriter {
             // Note: new promise created in `new_inherited`.
             let ready_promise = self.ready_promise.borrow();
             ready_promise.reject_native(cx, &error.handle());
-            ready_promise.set_promise_is_handled();
+            ready_promise.set_promise_is_handled(cx);
 
             // Set writer.[[closedPromise]] to a new promise.
             // Done in `new_inherited`.
@@ -117,11 +116,11 @@ impl WritableStreamDefaultWriter {
         if stream.is_closed() {
             // Set writer.[[readyPromise]] to a promise resolved with undefined.
             // Note: new promise created in `new_inherited`.
-            self.ready_promise.borrow().resolve_native_with_cx(cx, &());
+            self.ready_promise.borrow().resolve_native(cx, &());
 
             // Set writer.[[closedPromise]] to a promise resolved with undefined.
             // Note: new promise created in `new_inherited`.
-            self.closed_promise.borrow().resolve_native_with_cx(cx, &());
+            self.closed_promise.borrow().resolve_native(cx, &());
             return Ok(());
         }
 
@@ -138,14 +137,14 @@ impl WritableStreamDefaultWriter {
         // Note: new promise created in `new_inherited`.
         let ready_promise = self.ready_promise.borrow();
         ready_promise.reject_native(cx, &error.handle());
-        ready_promise.set_promise_is_handled();
+        ready_promise.set_promise_is_handled(cx);
 
         // Set writer.[[closedPromise]] to a promise rejected with storedError.
         // Set writer.[[closedPromise]].[[PromiseIsHandled]] to true.
         // Note: new promise created in `new_inherited`.
         let ready_promise = self.closed_promise.borrow();
         ready_promise.reject_native(cx, &error.handle());
-        ready_promise.set_promise_is_handled();
+        ready_promise.set_promise_is_handled(cx);
 
         Ok(())
     }
@@ -158,8 +157,8 @@ impl WritableStreamDefaultWriter {
         self.closed_promise.borrow().reject_native(cx, error);
     }
 
-    pub(crate) fn set_close_promise_is_handled(&self) {
-        self.closed_promise.borrow().set_promise_is_handled();
+    pub(crate) fn set_close_promise_is_handled(&self, cx: &mut JSContext) {
+        self.closed_promise.borrow().set_promise_is_handled(cx);
     }
 
     pub(crate) fn set_ready_promise(&self, promise: Rc<Promise>) {
@@ -167,11 +166,11 @@ impl WritableStreamDefaultWriter {
     }
 
     pub(crate) fn resolve_ready_promise_with_undefined(&self, cx: &mut JSContext) {
-        self.ready_promise.borrow().resolve_native_with_cx(cx, &());
+        self.ready_promise.borrow().resolve_native(cx, &());
     }
 
-    pub(crate) fn resolve_closed_promise_with_undefined(&self, can_gc: CanGc) {
-        self.closed_promise.borrow().resolve_native(&(), can_gc);
+    pub(crate) fn resolve_closed_promise_with_undefined(&self, cx: &mut JSContext) {
+        self.closed_promise.borrow().resolve_native(cx, &());
     }
 
     /// <https://streams.spec.whatwg.org/#writable-stream-default-writer-ensure-ready-promise-rejected>
@@ -189,13 +188,13 @@ impl WritableStreamDefaultWriter {
             ready_promise.reject_native(cx, &error);
 
             // Set writer.[[readyPromise]].[[PromiseIsHandled]] to true.
-            ready_promise.set_promise_is_handled();
+            ready_promise.set_promise_is_handled(cx);
         } else {
             // Otherwise, set writer.[[readyPromise]] to a promise rejected with error.
             let promise = Promise::new_rejected(cx, global, error);
 
             // Set writer.[[readyPromise]].[[PromiseIsHandled]] to true.
-            promise.set_promise_is_handled();
+            promise.set_promise_is_handled(cx);
             *self.ready_promise.borrow_mut() = promise;
         }
     }
@@ -215,13 +214,13 @@ impl WritableStreamDefaultWriter {
             closed_promise.reject_native(cx, &error);
 
             // Set writer.[[closedPromise]].[[PromiseIsHandled]] to true.
-            closed_promise.set_promise_is_handled();
+            closed_promise.set_promise_is_handled(cx);
         } else {
             // Otherwise, set writer.[[closedPromise]] to a promise rejected with error.
             let promise = Promise::new_rejected(cx, global, error);
 
             // Set writer.[[closedPromise]].[[PromiseIsHandled]] to true.
-            promise.set_promise_is_handled();
+            promise.set_promise_is_handled(cx);
             *self.closed_promise.borrow_mut() = promise;
         }
     }
@@ -390,7 +389,7 @@ impl WritableStreamDefaultWriter {
         if stream.close_queued_or_in_flight() || stream.is_closed() {
             // return a promise resolved with undefined.
             let promise = Promise::new(cx, global);
-            promise.resolve_native_with_cx(cx, &());
+            promise.resolve_native(cx, &());
             return promise;
         }
 

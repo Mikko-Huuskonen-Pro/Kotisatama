@@ -422,6 +422,7 @@ impl Node {
             // Step 12 & 14.2. Enqueue disconnected custom element reactions.
             if is_parent_connected && let Some(element) = node.as_custom_element() {
                 custom_element_reaction_stack.enqueue_callback_reaction(
+                    cx,
                     &element,
                     CallbackReaction::Disconnected,
                     None,
@@ -1474,7 +1475,7 @@ impl Node {
 
         // Step 14. If node is assigned, then run assign slottables for node’s assigned slot.
         if let Some(slot) = node.assigned_slot() {
-            slot.assign_slottables(cx.no_gc());
+            slot.assign_slottables(cx);
         }
 
         // Step 15. If oldParent’s root is a shadow root, and oldParent is a slot whose assigned
@@ -1494,10 +1495,10 @@ impl Node {
             // Step 16.1. Run assign slottables for a tree with oldParent’s root.
             old_parent
                 .GetRootNode(&GetRootNodeOptions::empty())
-                .assign_slottables_for_a_tree(cx.no_gc(), ForceSlottableNodeReconciliation::Skip);
+                .assign_slottables_for_a_tree(cx, ForceSlottableNodeReconciliation::Skip);
 
             // Step 16.2. Run assign slottables for a tree with node.
-            node.assign_slottables_for_a_tree(cx.no_gc(), ForceSlottableNodeReconciliation::Skip);
+            node.assign_slottables_for_a_tree(cx, ForceSlottableNodeReconciliation::Skip);
         }
 
         // Step 17. If child is non-null:
@@ -1531,7 +1532,7 @@ impl Node {
             && (node.is::<Element>() || node.is::<Text>())
         {
             rooted!(&in(cx) let slottable = Slottable(Dom::from_ref(node)));
-            slottable.assign_a_slot(cx.no_gc());
+            slottable.assign_a_slot(cx);
         }
 
         // Step 22. If newParent’s root is a shadow root, and newParent is a slot whose assigned
@@ -1545,7 +1546,7 @@ impl Node {
 
         // Step 23. Run assign slottables for a tree with node’s root.
         node.GetRootNode(&GetRootNodeOptions::empty())
-            .assign_slottables_for_a_tree(cx.no_gc(), ForceSlottableNodeReconciliation::Skip);
+            .assign_slottables_for_a_tree(cx, ForceSlottableNodeReconciliation::Skip);
 
         // Step 24. For each shadow-including inclusive descendant inclusiveDescendant of node, in
         // shadow-including tree order:
@@ -1569,6 +1570,7 @@ impl Node {
                 // inclusiveDescendant, callback name "connectedMoveCallback", and « ».
                 let custom_element_reaction_stack = ScriptThread::custom_element_reaction_stack();
                 custom_element_reaction_stack.enqueue_callback_reaction(
+                    cx,
                     descendant,
                     CallbackReaction::ConnectedMove,
                     None,
@@ -1635,7 +1637,7 @@ impl Node {
     #[cfg_attr(crown, allow(crown::unrooted_must_root))]
     pub(crate) fn query_selector_all(
         &self,
-        no_gc: &NoGC,
+        cx: &mut JSContext,
         selectors: DOMString,
     ) -> Fallible<DomRoot<NodeList>> {
         // > The querySelectorAll(selectors) method steps are to return the static result of running scope-match
@@ -1646,10 +1648,9 @@ impl Node {
         // layout runs, so that the map can gather their elements in DOM order.
         self.owner_document()
             .id_map()
-            .resolve_all(no_gc, self.owner_doc().upcast());
+            .resolve_all(cx.no_gc(), self.owner_doc().upcast());
 
-        // SAFETY: traced_node is unrooted, but we have a reference to "self" so it won't be freed.
-        let traced_node = Dom::from_ref(self);
+        let traced_node = UnrootedDom::from_dom(Dom::from_ref(self), cx.no_gc());
         let matching_elements = with_layout_state(|| {
             let layout_node: LayoutDom<'_, _> = unsafe { traced_node.to_layout() };
             ServoDangerousStyleNode::from(layout_node)
@@ -1665,7 +1666,7 @@ impl Node {
         Ok(NodeList::new_simple_list(
             &self.owner_window(),
             iter,
-            CanGc::deprecated_note(),
+            CanGc::from_cx(cx),
         ))
     }
 
@@ -1999,7 +2000,7 @@ impl Node {
     /// <https://dom.spec.whatwg.org/#assign-slotables-for-a-tree>
     pub(crate) fn assign_slottables_for_a_tree(
         &self,
-        no_gc: &NoGC,
+        cx: &JSContext,
         force: ForceSlottableNodeReconciliation,
     ) {
         // NOTE: This method traverses all descendants of the node and is potentially very
@@ -2020,9 +2021,9 @@ impl Node {
 
         // > To assign slottables for a tree, given a node root, run assign slottables for each slot
         // > slot in root’s inclusive descendants, in tree order.
-        for node in self.traverse_preorder_non_rooting(no_gc, ShadowIncluding::No) {
+        for node in self.traverse_preorder_non_rooting(cx, ShadowIncluding::No) {
             if let Some(slot) = node.downcast::<HTMLSlotElement>() {
-                slot.assign_slottables(no_gc);
+                slot.assign_slottables(cx);
             }
         }
     }
@@ -2203,7 +2204,7 @@ pub(super) fn as_uintptr<T>(t: &T) -> uintptr_t {
 
 impl Node {
     pub(crate) fn reflect_node<N>(
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         node: Box<N>,
         document: &Document,
     ) -> DomRoot<N>
@@ -2214,7 +2215,7 @@ impl Node {
     }
 
     pub(crate) fn reflect_node_with_proto<N>(
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         node: Box<N>,
         document: &Document,
         proto: Option<HandleObject>,
@@ -2288,10 +2289,11 @@ impl Node {
             // callback name "adoptedCallback", and « oldDocument, document ».
             let custom_element_reaction_stack = ScriptThread::custom_element_reaction_stack();
             for descendant in node
-                .traverse_preorder_non_rooting(cx.no_gc(), ShadowIncluding::Yes)
+                .traverse_preorder(ShadowIncluding::Yes)
                 .filter_map(|d| d.as_custom_element())
             {
                 custom_element_reaction_stack.enqueue_callback_reaction(
+                    cx,
                     &descendant,
                     CallbackReaction::Adopted(old_doc.clone(), DomRoot::from_ref(document)),
                     None,
@@ -2588,7 +2590,7 @@ impl Node {
                 && (kid.is::<Element>() || kid.is::<Text>())
             {
                 rooted!(&in(cx) let slottable = Slottable(Dom::from_ref(kid)));
-                slottable.assign_a_slot(cx.no_gc());
+                slottable.assign_a_slot(cx);
             }
 
             // Step 7.5 If parent’s root is a shadow root, and parent is a slot whose assigned nodes
@@ -2602,7 +2604,7 @@ impl Node {
 
             // Step 7.6 Run assign slottables for a tree with node’s root.
             kid.GetRootNode(&GetRootNodeOptions::empty())
-                .assign_slottables_for_a_tree(cx.no_gc(), ForceSlottableNodeReconciliation::Skip);
+                .assign_slottables_for_a_tree(cx, ForceSlottableNodeReconciliation::Skip);
 
             // Step 7.7. For each shadow-including inclusive descendant inclusiveDescendant of node,
             // in shadow-including tree order:
@@ -2622,13 +2624,14 @@ impl Node {
                     if descendant.is_custom() {
                         if descendant.is_connected() {
                             custom_element_reaction_stack.enqueue_callback_reaction(
+                                cx,
                                 &descendant,
                                 CallbackReaction::Connected,
                                 None,
                             );
                         }
                     } else {
-                        try_upgrade_element(cx, &descendant);
+                        try_upgrade_element(&descendant);
                     }
                 }
             }
@@ -2793,7 +2796,7 @@ impl Node {
 
         // Step 8. If node is assigned, then run assign slottables for node’s assigned slot.
         if let Some(slot) = node.assigned_slot() {
-            slot.assign_slottables(cx.no_gc());
+            slot.assign_slottables(cx);
         }
 
         // Step 9. If parent’s root is a shadow root, and parent is a slot whose assigned nodes is the empty list,
@@ -2813,10 +2816,10 @@ impl Node {
             // Step 10.1 Run assign slottables for a tree with parent’s root.
             parent
                 .GetRootNode(&GetRootNodeOptions::empty())
-                .assign_slottables_for_a_tree(cx.no_gc(), ForceSlottableNodeReconciliation::Skip);
+                .assign_slottables_for_a_tree(cx, ForceSlottableNodeReconciliation::Skip);
 
             // Step 10.2 Run assign slottables for a tree with node.
-            node.assign_slottables_for_a_tree(cx.no_gc(), ForceSlottableNodeReconciliation::Force);
+            node.assign_slottables_for_a_tree(cx, ForceSlottableNodeReconciliation::Force);
         }
 
         // TODO: Step 15. transient registered observers
@@ -2934,6 +2937,7 @@ impl Node {
                 let window = document.window();
                 let loader = DocumentLoader::new(&document.loader());
                 let document = Document::new(
+                    cx,
                     window,
                     HasBrowsingContext::No,
                     Some(document.url()),
@@ -2955,7 +2959,8 @@ impl Node {
                     document.has_trustworthy_ancestor_or_current_origin(),
                     document.custom_element_reaction_stack(),
                     document.creation_sandboxing_flag_set(),
-                    CanGc::from_cx(cx),
+                    document.pipeline_id(),
+                    document.image_cache(),
                 );
                 // Step 2. If node’s custom element registry’s is scoped is true,
                 // then set copy’s custom element registry to node’s custom element registry.
@@ -2972,7 +2977,7 @@ impl Node {
                 // set registry to document’s effective global custom element registry.
                 let registry =
                     if CustomElementRegistry::is_a_global_element_registry(registry.as_deref()) {
-                        Some(document.custom_element_registry(cx))
+                        document.custom_element_registry()
                     } else {
                         registry
                     };
@@ -2994,7 +2999,7 @@ impl Node {
                     None,
                 );
                 // TODO: Move this into `Element::create`
-                element.set_custom_element_registry(registry);
+                element.set_custom_element_registry(registry.as_deref());
                 DomRoot::upcast::<Node>(element)
             },
         };
@@ -3191,7 +3196,7 @@ impl Node {
 
     pub(crate) fn html_serialize(
         &self,
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         traversal_scope: html_serialize::TraversalScope,
         serialize_shadow_roots: bool,
         shadow_roots: Vec<DomRoot<ShadowRoot>>,
@@ -3247,7 +3252,7 @@ impl Node {
     /// <https://html.spec.whatwg.org/multipage/#fragment-serializing-algorithm-steps>
     pub(crate) fn fragment_serialization_algorithm(
         &self,
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         require_well_formed: bool,
     ) -> Fallible<DOMString> {
         // Step 1. Let context document be node's node document.
@@ -4207,7 +4212,7 @@ impl VirtualMethods for Node {
 
     // This handles the ranges mentioned in steps 2-3 when removing a node.
     /// <https://dom.spec.whatwg.org/#concept-node-remove>
-    fn unbind_from_tree(&self, cx: &mut js::context::JSContext, context: &UnbindContext) {
+    fn unbind_from_tree(&self, cx: &mut JSContext, context: &UnbindContext) {
         self.super_type().unwrap().unbind_from_tree(cx, context);
 
         // Ranges should only drain to the parent from inclusive non-shadow
@@ -4246,7 +4251,7 @@ impl VirtualMethods for Node {
         self.owner_doc().content_and_heritage_changed(self);
     }
 
-    fn handle_event(&self, cx: &mut js::context::JSContext, event: &Event) {
+    fn handle_event(&self, cx: &mut JSContext, event: &Event) {
         if event.DefaultPrevented() || event.flags().contains(EventFlags::Handled) {
             return;
         }

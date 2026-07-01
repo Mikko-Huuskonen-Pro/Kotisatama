@@ -24,11 +24,12 @@ use js::rust::wrappers2::{
 use net_traits::image_cache::ImageCache;
 use pixels::PixelFormat;
 use script_bindings::cell::DomRefCell;
+use script_bindings::interfaces::HasOrigin;
 use script_bindings::reflector::DomObject;
 use script_traits::{DrawAPaintImageResult, PaintWorkletError, Painter};
-use servo_base::id::{PipelineId, WebViewId};
+use servo_base::id::PipelineId;
 use servo_config::pref;
-use servo_url::ServoUrl;
+use servo_url::{MutableOrigin, ServoUrl};
 use style_traits::{CSSPixel, SpeculativePainter};
 use stylo_atoms::Atom;
 use webrender_api::units::DevicePixel;
@@ -86,7 +87,6 @@ pub(crate) struct PaintWorkletGlobalScope {
 
 impl PaintWorkletGlobalScope {
     pub(crate) fn new(
-        webview_id: WebViewId,
         pipeline_id: PipelineId,
         base_url: ServoUrl,
         inherited_secure_context: Option<bool>,
@@ -100,7 +100,6 @@ impl PaintWorkletGlobalScope {
         );
         let global = Box::new(PaintWorkletGlobalScope {
             worklet_global: WorkletGlobalScope::new_inherited(
-                webview_id,
                 pipeline_id,
                 base_url,
                 inherited_secure_context,
@@ -123,7 +122,7 @@ impl PaintWorkletGlobalScope {
                 missing_image_urls: Vec::new(),
             }),
         });
-        PaintWorkletGlobalScopeBinding::Wrap::<crate::DomTypeHolder>(cx, global)
+        PaintWorkletGlobalScopeBinding::Wrap::<crate::DomTypeHolder>(cx, &global.origin(), global)
     }
 
     pub(crate) fn image_cache(&self) -> Arc<dyn ImageCache> {
@@ -151,9 +150,9 @@ impl PaintWorkletGlobalScope {
                 } else {
                     debug!("Cache miss on paint worklet {}!", name);
                     let map = StylePropertyMapReadOnly::from_iter(
+                        cx,
                         self.upcast(),
                         properties.iter().cloned(),
-                        CanGc::from_cx(cx),
                     );
                     let result = self.draw_a_paint_image(
                         cx,
@@ -183,9 +182,9 @@ impl PaintWorkletGlobalScope {
                     let size = self.cached_size.get();
                     let device_pixel_ratio = self.cached_device_pixel_ratio.get();
                     let map = StylePropertyMapReadOnly::from_iter(
+                        cx,
                         self.upcast(),
                         properties.iter().cloned(),
-                        CanGc::from_cx(cx),
                     );
                     let result = self.draw_a_paint_image(
                         cx,
@@ -332,8 +331,7 @@ impl PaintWorkletGlobalScope {
         debug!("Invoking paint function {}.", name);
         rooted_vec!(let mut arguments_values);
         for argument in arguments {
-            let style_value =
-                CSSStyleValue::new(self.upcast(), argument.clone(), CanGc::from_cx(cx));
+            let style_value = CSSStyleValue::new(cx, self.upcast(), argument.clone());
             arguments_values.push(ObjectValue(style_value.reflector().get_jsobject().get()));
         }
         let arguments_value_array = HandleValueArray::from(&arguments_values);
@@ -576,7 +574,7 @@ impl PaintWorkletGlobalScopeMethods<crate::DomTypeHolder> for PaintWorkletGlobal
         }
 
         // Step 19.
-        let Some(context) = PaintRenderingContext2D::new(self, CanGc::from_cx(cx)) else {
+        let Some(context) = PaintRenderingContext2D::new(cx, self) else {
             return Err(Error::Operation(None));
         };
         let definition = PaintDefinition::new(
@@ -612,5 +610,11 @@ impl PaintWorkletGlobalScopeMethods<crate::DomTypeHolder> for PaintWorkletGlobal
     /// check-tidy: no specs after this line
     fn Sleep(&self, ms: u64) {
         thread::sleep(Duration::from_millis(ms));
+    }
+}
+
+impl HasOrigin for PaintWorkletGlobalScope {
+    fn origin(&self) -> MutableOrigin {
+        self.upcast::<WorkletGlobalScope>().origin()
     }
 }

@@ -13,10 +13,9 @@ use js::jsapi::{
     JS_GetStringLength, JS_IsArrayBufferViewObject, NewArrayObject1, PropertyKey,
 };
 use js::jsval::{DoubleValue, ObjectValue, UndefinedValue};
-use js::rust::wrappers::SameValue;
 use js::rust::wrappers2::{
     GetArrayLength, IsArrayObject, JS_HasOwnPropertyById, JS_IndexToId, JS_IsIdentifier,
-    JS_NewObject, NewDateObject, ObjectIsDate,
+    JS_NewObject, NewDateObject, ObjectIsDate, SameValue,
 };
 use js::rust::{HandleValue, MutableHandleValue};
 use js::typedarray::{ArrayBuffer, ArrayBufferView, CreateWith};
@@ -125,7 +124,7 @@ pub fn key_type_to_jsval(
                 );
                 let index_property = index_property.unwrap();
                 let status = define_dictionary_property(
-                    cx.into(),
+                    cx,
                     array.handle(),
                     index_property.as_c_str(),
                     entry.handle(),
@@ -234,7 +233,7 @@ pub fn convert_value_to_key(
     // Step 2: If seen contains input, then return "invalid value".
     for seen_input in &seen {
         let mut same = false;
-        if unsafe { !SameValue(cx.raw_cx(), *seen_input, input, &mut same) } {
+        if unsafe { !SameValue(cx, *seen_input, input, &mut same) } {
             return Err(Error::JSFailed);
         }
         if same {
@@ -488,13 +487,8 @@ pub(crate) fn evaluate_key_path_on_value(
                 // Step 1.3.5. Let status be CreateDataProperty(result, p, key).
                 // Step 1.3.6. Assert: status is true.
                 let i_cstr = std::ffi::CString::new(i.to_string()).unwrap();
-                define_dictionary_property(
-                    cx.into(),
-                    result.handle(),
-                    i_cstr.as_c_str(),
-                    key.handle(),
-                )
-                .map_err(|_| Error::JSFailed)?;
+                define_dictionary_property(cx, result.handle(), i_cstr.as_c_str(), key.handle())
+                    .map_err(|_| Error::JSFailed)?;
 
                 // Step 1.3.7. Increase i by 1.
                 // Done by for loop with enumerate()
@@ -549,9 +543,8 @@ pub(crate) fn evaluate_key_path_on_value(
                 }
 
                 // If value is a Blob and identifier is "size"
-                if identifier == "size"
-                    && let Ok(blob) =
-                        root_from_handlevalue::<Blob>(current_value.handle(), cx.into())
+                if identifier == "size" &&
+                    let Ok(blob) = root_from_handlevalue::<Blob>(cx, current_value.handle())
                 {
                     // Let value be a Number equal to value’s size.
                     blob.Size().safe_to_jsval(cx, current_value.handle_mut());
@@ -560,9 +553,8 @@ pub(crate) fn evaluate_key_path_on_value(
                 }
 
                 // If value is a Blob and identifier is "type"
-                if identifier == "type"
-                    && let Ok(blob) =
-                        root_from_handlevalue::<Blob>(current_value.handle(), cx.into())
+                if identifier == "type" &&
+                    let Ok(blob) = root_from_handlevalue::<Blob>(cx, current_value.handle())
                 {
                     // Let value be a String equal to value’s type.
                     blob.Type().safe_to_jsval(cx, current_value.handle_mut());
@@ -571,9 +563,8 @@ pub(crate) fn evaluate_key_path_on_value(
                 }
 
                 // If value is a File and identifier is "name"
-                if identifier == "name"
-                    && let Ok(file) =
-                        root_from_handlevalue::<File>(current_value.handle(), cx.into())
+                if identifier == "name" &&
+                    let Ok(file) = root_from_handlevalue::<File>(cx, current_value.handle())
                 {
                     // Let value be a String equal to value’s name.
                     file.name().safe_to_jsval(cx, current_value.handle_mut());
@@ -582,9 +573,8 @@ pub(crate) fn evaluate_key_path_on_value(
                 }
 
                 // If value is a File and identifier is "lastModified"
-                if identifier == "lastModified"
-                    && let Ok(file) =
-                        root_from_handlevalue::<File>(current_value.handle(), cx.into())
+                if identifier == "lastModified" &&
+                    let Ok(file) = root_from_handlevalue::<File>(cx, current_value.handle())
                 {
                     // Let value be a Number equal to value’s lastModified.
                     file.LastModified()
@@ -594,9 +584,8 @@ pub(crate) fn evaluate_key_path_on_value(
                 }
 
                 // If value is a File and identifier is "lastModifiedDate"
-                if identifier == "lastModifiedDate"
-                    && let Ok(file) =
-                        root_from_handlevalue::<File>(current_value.handle(), cx.into())
+                if identifier == "lastModifiedDate" &&
+                    let Ok(file) = root_from_handlevalue::<File>(cx, current_value.handle())
                 {
                     // Let value be a new Date object with [[DateValue]] internal slot equal to value’s lastModified.
                     let time = ClippedTime {
@@ -620,7 +609,7 @@ pub(crate) fn evaluate_key_path_on_value(
                     CString::new(identifier).expect("Failed to convert str to CString");
 
                 // Let hop be ! HasOwnProperty(value, identifier).
-                let hop = has_own_property(cx.into(), object.handle(), identifier_name.as_c_str())
+                let hop = has_own_property(cx, object.handle(), identifier_name.as_c_str())
                     .map_err(|_| Error::JSFailed)?;
 
                 // If hop is false, return failure.
@@ -690,12 +679,8 @@ pub(crate) fn can_inject_key_into_value(
             CString::new(identifier).expect("Failed to convert key path identifier to CString");
 
         // Step 3.2. Let hop be ? HasOwnProperty(value, identifier).
-        let hop = has_own_property(
-            cx.into(),
-            current_object.handle(),
-            identifier_name.as_c_str(),
-        )
-        .map_err(|_| Error::JSFailed)?;
+        let hop = has_own_property(cx, current_object.handle(), identifier_name.as_c_str())
+            .map_err(|_| Error::JSFailed)?;
 
         // Step 3.3. If hop is false, set value to a new Object created as if by the expression
         // ({}).
@@ -752,12 +737,8 @@ pub(crate) fn inject_key_into_value(
             CString::new(identifier).expect("Failed to convert key path identifier to CString");
 
         // Step 4.2 Let hop be ! HasOwnProperty(value, identifier).
-        let hop = has_own_property(
-            cx.into(),
-            current_object.handle(),
-            identifier_name.as_c_str(),
-        )
-        .map_err(|_| Error::JSFailed)?;
+        let hop = has_own_property(cx, current_object.handle(), identifier_name.as_c_str())
+            .map_err(|_| Error::JSFailed)?;
 
         // Step 4.3 If hop is false, then:
         if !hop {
@@ -768,7 +749,7 @@ pub(crate) fn inject_key_into_value(
 
             // Step 4.3.2 Let status be CreateDataProperty(value, identifier, o).
             define_dictionary_property(
-                cx.into(),
+                cx,
                 current_object.handle(),
                 identifier_name.as_c_str(),
                 o_value.handle(),
@@ -805,7 +786,7 @@ pub(crate) fn inject_key_into_value(
 
     // Step 7. Let status be CreateDataProperty(value, last, keyValue).
     define_dictionary_property(
-        cx.into(),
+        cx,
         parent_object.handle(),
         last_name.as_c_str(),
         key_value.handle(),

@@ -364,7 +364,7 @@ impl Element {
         self.rare_data.borrow_mut()
     }
 
-    fn ensure_rare_data(&self) -> RefMut<'_, Box<ElementRareData>> {
+    pub(crate) fn ensure_rare_data(&self) -> RefMut<'_, Box<ElementRareData>> {
         let mut rare_data = self.rare_data.borrow_mut();
         if rare_data.is_none() {
             *rare_data = Some(Default::default());
@@ -577,6 +577,13 @@ impl Element {
         // The CSS computed value has made sure that either both axes are scrollable or none are scrollable.
         self.upcast::<Node>()
             .effective_overflow()
+            .is_some_and(|overflow| overflow.establishes_scroll_container())
+    }
+
+    /// Like [`Self::establishes_scroll_container`], but without forcing a reflow.
+    pub(crate) fn establishes_scroll_container_without_reflow(&self) -> bool {
+        self.upcast::<Node>()
+            .effective_overflow_without_reflow()
             .is_some_and(|overflow| overflow.establishes_scroll_container())
     }
 
@@ -1694,11 +1701,8 @@ impl Element {
         *self.prefix.borrow_mut() = prefix;
     }
 
-    pub(crate) fn set_custom_element_registry(
-        &self,
-        registry: Option<DomRoot<CustomElementRegistry>>,
-    ) {
-        self.ensure_rare_data().custom_element_registry = registry.as_deref().map(Dom::from_ref);
+    pub(crate) fn set_custom_element_registry(&self, registry: Option<&CustomElementRegistry>) {
+        self.ensure_rare_data().custom_element_registry = registry.map(Dom::from_ref);
     }
 
     pub(crate) fn custom_element_registry(&self) -> Option<DomRoot<CustomElementRegistry>> {
@@ -1998,7 +2002,7 @@ impl Element {
                 new_value,
                 attr.namespace().clone(),
             );
-            ScriptThread::enqueue_callback_reaction(self, reaction, None);
+            ScriptThread::enqueue_callback_reaction(cx, self, reaction, None);
         }
 
         // Step 3. Run the attribute change steps with element, attribute’s local name, oldValue, newValue, and attribute’s namespace.
@@ -2319,7 +2323,12 @@ impl Element {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#the-style-attribute>
-    fn update_style_attribute(&self, attr: AttrRef<'_>, mutation: AttributeMutation) {
+    fn update_style_attribute(
+        &self,
+        cx: &mut JSContext,
+        attr: AttrRef<'_>,
+        mutation: AttributeMutation,
+    ) {
         let doc = self.upcast::<Node>().owner_doc();
         // Modifying the `style` attribute might change style.
         *self.style_attribute.borrow_mut() = match mutation {
@@ -2342,6 +2351,7 @@ impl Element {
                         if global
                             .get_csp_list()
                             .should_elements_inline_type_behavior_be_blocked(
+                                cx,
                                 global,
                                 self,
                                 InlineCheckType::StyleAttribute,
@@ -3818,7 +3828,7 @@ impl ElementMethods<crate::DomTypeHolder> for Element {
         selectors: DOMString,
     ) -> Fallible<DomRoot<NodeList>> {
         let root = self.upcast::<Node>();
-        root.query_selector_all(cx.no_gc(), selectors)
+        root.query_selector_all(cx, selectors)
     }
 
     /// <https://dom.spec.whatwg.org/#dom-childnode-before>
@@ -4485,12 +4495,10 @@ impl ElementMethods<crate::DomTypeHolder> for Element {
     }
 
     /// <https://dom.spec.whatwg.org/#dom-slotable-assignedslot>
-    fn GetAssignedSlot(&self) -> Option<DomRoot<HTMLSlotElement>> {
-        let cx = GlobalScope::get_cx();
-
+    fn GetAssignedSlot(&self, cx: &JSContext) -> Option<DomRoot<HTMLSlotElement>> {
         // > The assignedSlot getter steps are to return the result of
         // > find a slot given this and with the open flag set.
-        rooted!(in(*cx) let slottable = Slottable(Dom::from_ref(self.upcast::<Node>())));
+        rooted!(&in(cx) let slottable = Slottable(Dom::from_ref(self.upcast::<Node>())));
         slottable.find_a_slot(true)
     }
 
@@ -4590,6 +4598,7 @@ impl VirtualMethods for Element {
                         let source = &**attr.value();
                         let source_line = 1; // TODO(#9604) get current JS execution line
                         evtarget.set_event_handler_uncompiled(
+                            cx,
                             self.owner_window().get_url(),
                             source_line,
                             event_name,
@@ -4603,7 +4612,7 @@ impl VirtualMethods for Element {
                     },
                 }
             },
-            local_name!("style") => self.update_style_attribute(attr, mutation),
+            local_name!("style") => self.update_style_attribute(cx, attr, mutation),
             local_name!("id") => {
                 // https://dom.spec.whatwg.org/#ref-for-concept-element-attributes-change-ext%E2%91%A2
                 *self.id_attribute.borrow_mut() = mutation.new_value(attr).and_then(|value| {
@@ -4692,9 +4701,9 @@ impl VirtualMethods for Element {
 
                 // Slottable name change steps from https://dom.spec.whatwg.org/#light-tree-slotables
                 if let Some(assigned_slot) = slottable.assigned_slot() {
-                    assigned_slot.assign_slottables(cx.no_gc());
+                    assigned_slot.assign_slottables(cx);
                 }
-                slottable.assign_a_slot(cx.no_gc());
+                slottable.assign_a_slot(cx);
             },
             _ => {
                 // FIXME(emilio): This is pretty dubious, and should be done in

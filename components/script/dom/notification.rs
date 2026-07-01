@@ -58,7 +58,7 @@ use crate::dom::serviceworkerglobalscope::ServiceWorkerGlobalScope;
 use crate::dom::serviceworkerregistration::ServiceWorkerRegistration;
 use crate::fetch::{RequestWithGlobalScope, create_a_potential_cors_request};
 use crate::network_listener::{self, FetchResponseListener, ResourceTimingListener};
-use crate::script_runtime::{CanGc, JSContext as SafeJSContext};
+use crate::script_runtime::CanGc;
 // TODO: Service Worker API (persistent notification)
 // https://notifications.spec.whatwg.org/#service-worker-api
 
@@ -431,7 +431,7 @@ impl NotificationMethods<crate::DomTypeHolder> for Notification {
                 }
 
                 // Step 3.2.2: Resolve promise with permissionState.
-                promise.resolve_native_with_cx(cx, &notification_permission);
+                promise.resolve_native(cx, &notification_permission);
             }),
         );
 
@@ -515,7 +515,7 @@ impl NotificationMethods<crate::DomTypeHolder> for Notification {
     }
 
     /// <https://notifications.spec.whatwg.org/#dom-notification-data>
-    fn Data(&self, _cx: SafeJSContext, mut retval: MutableHandleValue) {
+    fn Data(&self, mut retval: MutableHandleValue) {
         retval.set(self.data.get());
     }
 
@@ -810,9 +810,14 @@ impl FetchResponseListener for ResourceFetchListener {
         network_listener::submit_timing(cx, &self, &response, &timing);
     }
 
-    fn process_csp_violations(&mut self, _request_id: RequestId, violations: Vec<Violation>) {
+    fn process_csp_violations(
+        &mut self,
+        cx: &mut js::context::JSContext,
+        _request_id: RequestId,
+        violations: Vec<Violation>,
+    ) {
         let global = &self.resource_timing_global();
-        global.report_csp_violations(violations, None, None);
+        global.report_csp_violations(cx, violations, None, None);
     }
 }
 

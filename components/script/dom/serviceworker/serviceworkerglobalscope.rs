@@ -21,13 +21,14 @@ use net_traits::request::{
     CredentialsMode, Destination, InsecureRequestsPolicy, ParserMetadata, Referrer, RequestBuilder,
 };
 use rand::random;
+use script_bindings::interfaces::HasOrigin;
 use servo_base::generic_channel::{GenericReceiver, GenericSend, GenericSender, RoutedReceiver};
 use servo_base::id::{PipelineId, ServiceWorkerId};
 use servo_config::pref;
 use servo_constellation_traits::{
     ScopeThings, ServiceWorkerMsg, WorkerGlobalScopeInit, WorkerScriptLoadOrigin,
 };
-use servo_url::ServoUrl;
+use servo_url::{MutableOrigin, ServoUrl};
 use style::thread_state::{self, ThreadState};
 
 use crate::dom::abstractworker::WorkerScriptMsg;
@@ -50,8 +51,8 @@ use crate::dom::event::Event;
 use crate::dom::eventtarget::EventTarget;
 use crate::dom::extendableevent::ExtendableEvent;
 use crate::dom::extendablemessageevent::{ExtendableMessageEvent, MessageSource};
-use crate::dom::global_scope_script_execution::{ErrorReporting, RethrowErrors};
 use crate::dom::globalscope::GlobalScope;
+use crate::dom::globalscope::script_execution::{ErrorReporting, RethrowErrors};
 #[cfg(feature = "webgpu")]
 use crate::dom::webgpu::identityhub::IdentityHub;
 use crate::dom::worker::TrustedWorkerAddress;
@@ -154,7 +155,7 @@ pub(crate) enum MixedMessage {
 struct ServiceWorkerCspProcessor {}
 
 impl CspViolationsProcessor for ServiceWorkerCspProcessor {
-    fn process_csp_violations(&self, _violations: Vec<Violation>) {}
+    fn process_csp_violations(&self, _cx: &mut JSContext, _violations: Vec<Violation>) {}
 }
 
 #[dom_struct]
@@ -261,6 +262,7 @@ impl ServiceWorkerGlobalScope {
                 // FIXME: investigate what environment this value comes from for service workers.
                 InsecureRequestsPolicy::DoNotUpgrade,
                 Some(font_context),
+                Some(ScriptEventLoopSender::ServiceWorker(own_sender.clone())),
             ),
             task_queue: TaskQueue::new(receiver, own_sender.clone()),
             own_sender,
@@ -305,7 +307,11 @@ impl ServiceWorkerGlobalScope {
             font_context,
             worker_id,
         ));
-        let scope = ServiceWorkerGlobalScopeBinding::Wrap::<crate::DomTypeHolder>(cx, scope);
+        let scope = ServiceWorkerGlobalScopeBinding::Wrap::<crate::DomTypeHolder>(
+            cx,
+            &scope.origin(),
+            scope,
+        );
         scope
             .upcast::<WorkerGlobalScope>()
             .init_debugger_global(debugger_global, cx);
@@ -599,4 +605,10 @@ impl ServiceWorkerGlobalScopeMethods<crate::DomTypeHolder> for ServiceWorkerGlob
 
     // https://w3c.github.io/ServiceWorker/#dom-serviceworkerglobalscope-onmessageerror
     event_handler!(messageerror, GetOnmessageerror, SetOnmessageerror);
+}
+
+impl HasOrigin for ServiceWorkerGlobalScope {
+    fn origin(&self) -> MutableOrigin {
+        self.upcast::<WorkerGlobalScope>().origin()
+    }
 }

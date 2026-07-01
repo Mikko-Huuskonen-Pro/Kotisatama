@@ -72,7 +72,7 @@ use crate::dom::node::{Node, NodeTraits};
 use crate::dom::shadowroot::ShadowRoot;
 use crate::dom::window::Window;
 use crate::dom::workerglobalscope::WorkerGlobalScope;
-use crate::realms::{enter_auto_realm, enter_realm};
+use crate::realms::enter_auto_realm;
 use crate::script_runtime::IntroductionType;
 
 /// <https://html.spec.whatwg.org/multipage/#event-handler-content-attributes>
@@ -223,7 +223,7 @@ impl CompiledEventListener {
                             && (object.is::<Window>() || object.is::<WorkerGlobalScope>())
                         {
                             rooted!(&in(cx) let mut error: JSVal);
-                            event.Error(cx.into(), error.handle_mut());
+                            event.Error(error.handle_mut());
                             rooted!(&in(cx) let mut rooted_return_value: JSVal);
                             let return_value = handler.Call_(
                                 cx,
@@ -598,6 +598,7 @@ impl EventTarget {
     /// <https://html.spec.whatwg.org/multipage/#event-handler-attributes:event-handler-content-attributes-3>
     pub(crate) fn set_event_handler_uncompiled(
         &self,
+        cx: &mut JSContext,
         url: ServoUrl,
         line: usize,
         ty: &str,
@@ -609,6 +610,7 @@ impl EventTarget {
             if global
                 .get_csp_list()
                 .should_elements_inline_type_behavior_be_blocked(
+                    cx,
                     global,
                     element.upcast(),
                     InlineCheckType::ScriptAttribute,
@@ -670,7 +672,8 @@ impl EventTarget {
 
         // Step 3.8 TODO: settings objects not implemented
         let window = document.window();
-        let _ac = enter_realm(window);
+        let mut realm = enter_auto_realm(cx, window);
+        let cx = &mut realm.current_realm();
 
         // Step 3.9
 
@@ -732,15 +735,15 @@ impl EventTarget {
         // Step 1.14
         if is_error {
             Some(CommonEventHandler::ErrorEventHandler(unsafe {
-                OnErrorEventHandlerNonNull::new(cx.into(), funobj)
+                OnErrorEventHandlerNonNull::new(cx, funobj)
             }))
         } else if ty == &atom!("beforeunload") {
             Some(CommonEventHandler::BeforeUnloadEventHandler(unsafe {
-                OnBeforeUnloadEventHandlerNonNull::new(cx.into(), funobj)
+                OnBeforeUnloadEventHandlerNonNull::new(cx, funobj)
             }))
         } else {
             Some(CommonEventHandler::EventHandler(unsafe {
-                EventHandlerNonNull::new(cx.into(), funobj)
+                EventHandlerNonNull::new(cx, funobj)
             }))
         }
     }
@@ -754,7 +757,7 @@ impl EventTarget {
     ) {
         let event_listener = listener.map(|listener| {
             InlineEventListener::Compiled(CommonEventHandler::EventHandler(unsafe {
-                EventHandlerNonNull::new(cx.into(), listener.callback())
+                EventHandlerNonNull::new(cx, listener.callback())
             }))
         });
         self.set_inline_event_listener(Atom::from(ty), event_listener);
@@ -769,7 +772,7 @@ impl EventTarget {
     ) {
         let event_listener = listener.map(|listener| {
             InlineEventListener::Compiled(CommonEventHandler::ErrorEventHandler(unsafe {
-                OnErrorEventHandlerNonNull::new(cx.into(), listener.callback())
+                OnErrorEventHandlerNonNull::new(cx, listener.callback())
             }))
         });
         self.set_inline_event_listener(Atom::from(ty), event_listener);
@@ -784,7 +787,7 @@ impl EventTarget {
     ) {
         let event_listener = listener.map(|listener| {
             InlineEventListener::Compiled(CommonEventHandler::BeforeUnloadEventHandler(unsafe {
-                OnBeforeUnloadEventHandlerNonNull::new(cx.into(), listener.callback())
+                OnBeforeUnloadEventHandlerNonNull::new(cx, listener.callback())
             }))
         });
         self.set_inline_event_listener(Atom::from(ty), event_listener);
@@ -799,7 +802,7 @@ impl EventTarget {
         let listener = self.get_inline_event_listener(cx, &Atom::from(ty));
         unsafe {
             listener.map(|listener| {
-                CallbackContainer::new(cx.into(), listener.parent().callback_holder().get())
+                CallbackContainer::new(cx, listener.parent().callback_holder().get())
             })
         }
     }

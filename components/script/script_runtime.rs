@@ -31,25 +31,24 @@ use js::glue::{
 use js::jsapi::{
     AsmJSOption, BuildIdCharVector, CompilationType, Dispatchable_MaybeShuttingDown, GCDescription,
     GCOptions, GCProgress, GCReason, GetPromiseUserInputEventHandlingState, Handle as RawHandle,
-    HandleObject, HandleString, HandleValue as RawHandleValue, Heap, JS_NewObject,
-    JS_NewStringCopyUTF8N, JS_SetReservedSlot, JSCLASS_RESERVED_SLOTS_MASK,
-    JSCLASS_RESERVED_SLOTS_SHIFT, JSClass, JSClassOps, JSContext as RawJSContext, JSGCParamKey,
-    JSGCStatus, JSJitCompilerOption, JSObject, JSSecurityCallbacks, JSString, JSTracer, JobQueue,
-    MimeType, MutableHandleObject, MutableHandleString, PromiseRejectionHandlingState,
-    PromiseUserInputEventHandlingState, RuntimeCode, ScriptEnvironmentPreparer_Closure,
-    SetProcessBuildIdOp, StreamConsumer as JSStreamConsumer,
+    HandleObject, HandleString, HandleValue as RawHandleValue, Heap, JS_NewStringCopyUTF8N,
+    JS_SetReservedSlot, JSCLASS_RESERVED_SLOTS_MASK, JSCLASS_RESERVED_SLOTS_SHIFT, JSClass,
+    JSClassOps, JSContext as RawJSContext, JSGCParamKey, JSGCStatus, JSJitCompilerOption, JSObject,
+    JSSecurityCallbacks, JSString, JSTracer, JobQueue, MimeType, MutableHandleObject,
+    MutableHandleString, PromiseRejectionHandlingState, PromiseUserInputEventHandlingState,
+    RuntimeCode, ScriptEnvironmentPreparer_Closure, SetProcessBuildIdOp,
+    StreamConsumer as JSStreamConsumer,
 };
 use js::jsval::{JSVal, ObjectValue, UndefinedValue};
 use js::panic::wrap_panic;
 use js::realm::CurrentRealm;
 pub(crate) use js::rust::ThreadSafeJSContext;
-use js::rust::wrappers::{GetPromiseIsHandled, JS_GetPromiseResult};
 use js::rust::wrappers2::{
     CollectServoSizes, ContextOptionsRef, DispatchableRun, InitConsumeStreamCallback,
-    JS_AddExtraGCRootsTracer, JS_InitDestroyPrincipalsCallback, JS_InitReadPrincipalsCallback,
-    JS_SetGCCallback, JS_SetGCParameter, JS_SetGlobalJitCompilerOption,
-    JS_SetOffthreadIonCompilationEnabled, JS_SetSecurityCallbacks, SetDOMCallbacks,
-    SetGCSliceCallback, SetJobQueue, SetPreserveWrapperCallbacks,
+    JS_AddExtraGCRootsTracer, JS_GetPromiseResult, JS_InitDestroyPrincipalsCallback,
+    JS_InitReadPrincipalsCallback, JS_NewObject, JS_SetGCCallback, JS_SetGCParameter,
+    JS_SetGlobalJitCompilerOption, JS_SetOffthreadIonCompilationEnabled, JS_SetSecurityCallbacks,
+    SetDOMCallbacks, SetGCSliceCallback, SetJobQueue, SetPreserveWrapperCallbacks,
     SetPromiseRejectionTrackerCallback, SetUpEventLoopDispatch,
 };
 use js::rust::{
@@ -96,7 +95,7 @@ use crate::dom::response::Response;
 use crate::dom::trustedtypes::trustedscript::TrustedScript;
 use crate::messaging::{CommonScriptMsg, ScriptEventLoopSender};
 use crate::microtask::{EnqueuedPromiseCallback, Microtask, MicrotaskQueue};
-use crate::realms::{enter_auto_realm, enter_realm};
+use crate::realms::enter_auto_realm;
 use crate::script_module::EnsureModuleHooksInitialized;
 use crate::task_source::TaskSourceName;
 use crate::{DomTypeHolder, ScriptThread};
@@ -284,15 +283,22 @@ unsafe extern "C" fn get_host_defined_data(
     cx: *mut RawJSContext,
     data: MutableHandleObject,
 ) -> bool {
+    let mut cx = unsafe {
+        // SAFETY: We are in SM hook
+        js::context::JSContext::from_ptr(
+            NonNull::new(cx).expect("JSContext should not be null in SM hook"),
+        )
+    };
     wrap_panic(&mut || {
         let Some(incumbent_global) = GlobalScope::incumbent() else {
             data.set(ptr::null_mut());
             return;
         };
 
-        let _realm = enter_realm(&*incumbent_global);
+        let mut realm = enter_auto_realm(&mut cx, &*incumbent_global);
+        let cx = &mut realm.current_realm();
 
-        rooted!(in(cx) let result = unsafe { JS_NewObject(cx, &HOST_DEFINED_DATA_CLASS)});
+        rooted!(&in(cx) let result = unsafe { JS_NewObject(cx, &HOST_DEFINED_DATA_CLASS)});
         assert!(!result.is_null());
 
         unsafe {
@@ -415,7 +421,7 @@ unsafe extern "C" fn enqueue_promise_job(
             interaction == PromiseUserInputEventHandlingState::HadUserInteractionAtCreation;
         microtask_queue.enqueue(
             Microtask::Promise(EnqueuedPromiseCallback {
-                callback: unsafe { PromiseJobCallback::new(cx.into(), job.get()) },
+                callback: unsafe { PromiseJobCallback::new(cx, job.get()) },
                 pipeline,
                 is_user_interacting,
             }),
@@ -481,7 +487,7 @@ unsafe extern "C" fn promise_rejection_tracker(
 
                 let target = Trusted::new(global.upcast::<EventTarget>());
                 let promise =
-                    Promise::new_with_js_promise(unsafe { Handle::from_raw(promise) }, cx.into());
+                    Promise::new_with_js_promise(cx, unsafe { Handle::from_raw(promise) });
                 let trusted_promise = TrustedPromise::new(promise);
 
                 // Step 5-4.
@@ -491,7 +497,9 @@ unsafe extern "C" fn promise_rejection_tracker(
                     let root_promise = trusted_promise.root();
 
                     rooted!(&in(cx) let mut reason = UndefinedValue());
-                    unsafe{JS_GetPromiseResult(root_promise.reflector().get_jsobject(), reason.handle_mut())};
+                    unsafe {
+                        JS_GetPromiseResult(root_promise.reflector().get_jsobject(), reason.handle_mut());
+                    }
 
                     let event = PromiseRejectionEvent::new(
                         cx,
@@ -618,7 +626,9 @@ unsafe extern "C" fn content_security_policy_allows(
                         unsafe { HandleValue::from_raw(body_arg) },
                     )
                 },
-                RuntimeCode::WASM => global.get_csp_list().is_wasm_evaluation_allowed(&global),
+                RuntimeCode::WASM => global
+                    .get_csp_list()
+                    .is_wasm_evaluation_allowed(cx, &global),
             };
     });
     unsafe { *can_compile_strings = allowed };
@@ -627,9 +637,10 @@ unsafe extern "C" fn content_security_policy_allows(
 
 #[expect(unsafe_code)]
 /// <https://html.spec.whatwg.org/multipage/#notify-about-rejected-promises>
-pub(crate) fn notify_about_rejected_promises(global: &GlobalScope) {
-    let cx = GlobalScope::get_cx();
-
+pub(crate) fn notify_about_rejected_promises(
+    cx: &mut js::context::JSContext,
+    global: &GlobalScope,
+) {
     // Step 1. Let list be a clone of global's about-to-be-notified rejected promises list.
     let uncaught_rejections: Vec<TrustedPromise> = global
         .get_uncaught_rejections()
@@ -637,7 +648,7 @@ pub(crate) fn notify_about_rejected_promises(global: &GlobalScope) {
         .drain(..)
         .map(|promise| {
             let promise =
-                Promise::new_with_js_promise(unsafe { Handle::from_raw(promise.handle()) }, cx);
+                Promise::new_with_js_promise(cx, unsafe { Handle::from_raw(promise.handle()) });
 
             TrustedPromise::new(promise)
         })
@@ -662,8 +673,7 @@ pub(crate) fn notify_about_rejected_promises(global: &GlobalScope) {
                 let promise = promise.root();
 
                 // 4.1.1 If p.[[PromiseIsHandled]] is true, then continue.
-                let promise_is_handled = unsafe { GetPromiseIsHandled(promise.reflector().get_jsobject()) };
-                if promise_is_handled {
+                if promise.get_promise_is_handled() {
                     continue;
                 }
 
@@ -696,7 +706,7 @@ pub(crate) fn notify_about_rejected_promises(global: &GlobalScope) {
 
                 // Step 4.1.4 If p.[[PromiseIsHandled]] is false, then append p to global's outstanding
                 // rejected promises weak set.
-                if !promise_is_handled {
+                if !promise.get_promise_is_handled() {
                     target.global().add_consumed_rejection(promise.reflector().get_jsobject().into_handle());
                 }
             }

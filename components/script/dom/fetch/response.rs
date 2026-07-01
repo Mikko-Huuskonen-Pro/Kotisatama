@@ -18,7 +18,8 @@ use servo_url::ServoUrl;
 use url::Position;
 
 use crate::body::{
-    BodyMixin, BodyType, Extractable, ExtractedBody, clone_body_stream_for_dom_body, consume_body,
+    BodyMixin, BodyType, Extractable, ExtractedBody, body_text_stream,
+    clone_body_stream_for_dom_body, consume_body,
 };
 use crate::dom::bindings::codegen::Bindings::HeadersBinding::HeadersMethods;
 use crate::dom::bindings::codegen::Bindings::ResponseBinding;
@@ -60,7 +61,6 @@ pub(crate) struct Response {
     stream_consumer: DomRefCell<Option<StreamConsumer>>,
     /// FIXME: This should be removed.
     redirected: Cell<bool>,
-    is_body_empty: Cell<bool>,
 }
 
 impl Response {
@@ -82,7 +82,6 @@ impl Response {
             fetch_body_stream: MutNullableDom::new(Some(&*stream)),
             stream_consumer: DomRefCell::new(None),
             redirected: Cell::new(false),
-            is_body_empty: Cell::new(true),
         }
     }
 
@@ -179,9 +178,6 @@ impl ResponseMethods<crate::DomTypeHolder> for Response {
         // 1. Set this’s response to a new response.
         // Our Response/Body types don't actually hold onto an internal fetch Response.
         let response = Response::new_with_proto(cx, global, proto);
-        if body_init.is_some() {
-            response.is_body_empty.set(false);
-        }
 
         // 2. Set this’s headers to a new Headers object with this’s relevant realm,
         // whose header list is this’s response’s header list and guard is "response".
@@ -195,7 +191,7 @@ impl ResponseMethods<crate::DomTypeHolder> for Response {
         };
 
         // 5. Perform *initialize a response* given this, init, and bodyWithType.
-        initialize_response(cx, global, body_with_type, init, response)
+        initialize_response(cx, body_with_type, init, response)
     }
 
     /// <https://fetch.spec.whatwg.org/#dom-response-error>
@@ -259,7 +255,7 @@ impl ResponseMethods<crate::DomTypeHolder> for Response {
         init: &ResponseBinding::ResponseInit,
     ) -> Fallible<DomRoot<Response>> {
         // 1. Let bytes the result of running serialize a JavaScript value to JSON bytes on data.
-        let json_str = serialize_jsval_to_json_utf8(cx.into(), data)?;
+        let json_str = serialize_jsval_to_json_utf8(cx, data)?;
 
         // 2. Let body be the result of extracting bytes
         // The spec's definition of JSON bytes is a UTF-8 encoding so using a DOMString here handles
@@ -274,7 +270,7 @@ impl ResponseMethods<crate::DomTypeHolder> for Response {
 
         // 4. Perform initialize a response given responseObject, init, and (body, "application/json").
         body.content_type = Some("application/json".into());
-        initialize_response(cx, global, Some(body), init, response)
+        initialize_response(cx, Some(body), init, response)
     }
 
     /// <https://fetch.spec.whatwg.org/#dom-response-type>
@@ -349,7 +345,6 @@ impl ResponseMethods<crate::DomTypeHolder> for Response {
             .url_list
             .borrow_mut()
             .clone_from(&self.url_list.borrow());
-        new_response.is_body_empty.set(self.is_body_empty.get());
 
         // Step 3. Return the result of creating a Response object,
         // given clonedResponse, this’s headers’s guard, and this’s relevant realm.
@@ -362,7 +357,7 @@ impl ResponseMethods<crate::DomTypeHolder> for Response {
 
     /// <https://fetch.spec.whatwg.org/#dom-body-bodyused>
     fn BodyUsed(&self) -> bool {
-        !self.is_body_empty.get() && self.is_body_used()
+        self.is_body_used()
     }
 
     /// <https://fetch.spec.whatwg.org/#dom-body-body>
@@ -399,12 +394,16 @@ impl ResponseMethods<crate::DomTypeHolder> for Response {
     fn Bytes(&self, cx: &mut js::context::JSContext) -> Rc<Promise> {
         consume_body(cx, self, BodyType::Bytes)
     }
+
+    /// <https://fetch.spec.whatwg.org/#dom-body-textstream>
+    fn TextStream(&self, cx: &mut js::context::JSContext) -> Fallible<DomRoot<ReadableStream>> {
+        body_text_stream(cx, self)
+    }
 }
 
 /// <https://fetch.spec.whatwg.org/#initialize-a-response>
 fn initialize_response(
     cx: &mut js::context::JSContext,
-    global: &GlobalScope,
     body: Option<ExtractedBody>,
     init: &ResponseBinding::ResponseInit,
     response: DomRoot<Response>,
@@ -448,7 +447,6 @@ fn initialize_response(
         // 6.2 Set response’s body to body’s body.
         response.body_stream.set(Some(&*body.stream));
         response.fetch_body_stream.set(Some(&*body.stream));
-        response.is_body_empty.set(false);
 
         // 6.3 If body’s type is non-null and response’s header list does not contain `Content-Type`,
         // then append (`Content-Type`, body’s type) to response’s header list.
@@ -464,12 +462,8 @@ fn initialize_response(
             )?;
         };
     } else {
-        // Reset FetchResponse to an in-memory stream with empty byte sequence here for
-        // no-init-body case. This is because the Response/Body types here do not hold onto a
-        // fetch Response object.
-        let stream = ReadableStream::new_from_bytes(cx, global, Vec::with_capacity(0))?;
-        response.body_stream.set(Some(&*stream));
-        response.fetch_body_stream.set(Some(&*stream));
+        response.body_stream.set(None);
+        response.fetch_body_stream.set(None);
     }
 
     Ok(response)
@@ -546,7 +540,6 @@ impl Response {
     }
 
     pub(crate) fn stream_chunk(&self, cx: &mut js::context::JSContext, chunk: Vec<u8>) {
-        self.is_body_empty.set(false);
         // Note, are these two actually mutually exclusive?
         if let Some(stream_consumer) = self.stream_consumer.borrow().as_ref() {
             stream_consumer.consume_chunk(chunk.as_slice());

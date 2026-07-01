@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-use std::cell::{RefCell, RefMut};
+use std::cell::{OnceCell, RefCell, RefMut};
 use std::default::Default;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -31,6 +31,7 @@ use script_bindings::cell::{DomRefCell, Ref};
 use script_bindings::conversions::{SafeToJSValConvertible, root_from_handlevalue};
 use script_bindings::reflector::DomObject;
 use script_bindings::root::rooted_heap_handle;
+use script_bindings::trace::CustomTraceable;
 use servo_base::cross_process_instant::CrossProcessInstant;
 use servo_base::generic_channel::{GenericSend, GenericSender, RoutedReceiver};
 use servo_base::id::{PipelineId, PipelineNamespace};
@@ -65,8 +66,8 @@ use crate::dom::crypto::Crypto;
 use crate::dom::csp::{GlobalCspReporting, Violation, parse_csp_list_from_metadata};
 use crate::dom::debugger::debuggerglobalscope::DebuggerGlobalScope;
 use crate::dom::dedicatedworkerglobalscope::DedicatedWorkerGlobalScope;
-use crate::dom::global_scope_script_execution::{ErrorReporting, RethrowErrors};
 use crate::dom::globalscope::GlobalScope;
+use crate::dom::globalscope::script_execution::{ErrorReporting, RethrowErrors};
 use crate::dom::htmlscriptelement::{SCRIPT_JS_MIMES, Script};
 use crate::dom::idbfactory::IDBFactory;
 use crate::dom::performance::performance::Performance;
@@ -91,7 +92,8 @@ use crate::realms::enter_auto_realm;
 use crate::script_module::ScriptFetchOptions;
 use crate::script_runtime::{CanGc, IntroductionType, Runtime, get_reports};
 use crate::task::TaskCanceller;
-use crate::timers::{IsInterval, TimerCallback};
+use crate::task_manager::TaskManager;
+use crate::timers::{IsInterval, OneshotTimers, TimerCallback};
 
 pub(crate) fn prepare_workerscope_init(
     global: &GlobalScope,
@@ -106,7 +108,7 @@ pub(crate) fn prepare_workerscope_init(
         to_devtools_sender: global.devtools_chan().cloned(),
         time_profiler_chan: global.time_profiler_chan().clone(),
         from_devtools_sender: devtools_sender,
-        script_to_constellation_chan: global.script_to_constellation_chan().clone(),
+        script_to_constellation_chan: global.script_to_constellation_chan().sender,
         script_to_embedder_chan: global.script_to_embedder_chan().clone(),
         worker_id: worker_id.unwrap_or_else(|| WorkerId(Uuid::new_v4())),
         pipeline_id: global.pipeline_id(),
@@ -237,6 +239,7 @@ impl FetchResponseListener for ScriptFetchContext {
 
     fn process_csp_violations(
         &mut self,
+        _cx: &mut JSContext,
         _request_id: RequestId,
         violations: Vec<content_security_policy::Violation>,
     ) {
@@ -309,6 +312,10 @@ pub(crate) struct WorkerGlobalScope {
     #[no_trace]
     timer_scheduler: RefCell<TimerScheduler>,
 
+    /// The mechanism by which time-outs and intervals are scheduled.
+    /// <https://html.spec.whatwg.org/multipage/#timers>
+    timers: OnceCell<OneshotTimers>,
+
     #[no_trace]
     insecure_requests_policy: InsecureRequestsPolicy,
 
@@ -328,6 +335,16 @@ pub(crate) struct WorkerGlobalScope {
     /// this global's compartment.
     #[ignore_malloc_size_of = "Measured by the JS engine"]
     debugger_global: Heap<Value>,
+
+    #[no_trace]
+    pipeline_id: PipelineId,
+
+    /// A [`TaskManager`] for this [`WorkerGlobalScope`].
+    #[conditional_malloc_size_of]
+    task_manager: Rc<TaskManager>,
+
+    #[no_trace]
+    origin: MutableOrigin,
 }
 
 impl WorkerGlobalScope {
@@ -343,6 +360,7 @@ impl WorkerGlobalScope {
         #[cfg(feature = "webgpu")] gpu_id_hub: Arc<IdentityHub>,
         insecure_requests_policy: InsecureRequestsPolicy,
         font_context: Option<Arc<FontContext>>,
+        event_loop_sender: Option<ScriptEventLoopSender>,
     ) -> Self {
         // Install a pipeline-namespace in the current thread.
         PipelineNamespace::auto_install();
@@ -354,7 +372,6 @@ impl WorkerGlobalScope {
 
         Self {
             globalscope: GlobalScope::new_inherited(
-                init.pipeline_id,
                 init.to_devtools_sender,
                 init.mem_profiler_chan,
                 init.time_profiler_chan,
@@ -362,7 +379,6 @@ impl WorkerGlobalScope {
                 init.script_to_embedder_chan,
                 init.resource_threads,
                 init.storage_threads,
-                MutableOrigin::new(init.origin),
                 worker_url.clone(),
                 None,
                 #[cfg(feature = "webgpu")]
@@ -376,7 +392,7 @@ impl WorkerGlobalScope {
             worker_name,
             worker_type,
             worker_url: DomRefCell::new(worker_url),
-            closing,
+            closing: closing.clone(),
             execution_ready: AtomicBool::new(false),
             runtime: DomRefCell::new(Some(runtime)),
             location: Default::default(),
@@ -388,17 +404,30 @@ impl WorkerGlobalScope {
             navigation_start: CrossProcessInstant::now(),
             performance: Default::default(),
             timer_scheduler: RefCell::default(),
+            timers: Default::default(),
             insecure_requests_policy,
             trusted_types: Default::default(),
             reporting_observer_list: Default::default(),
             report_list: Default::default(),
             endpoints_list: Default::default(),
             debugger_global: Default::default(),
+            pipeline_id: init.pipeline_id,
+            task_manager: Rc::new(TaskManager::new(
+                event_loop_sender,
+                init.pipeline_id,
+                Some(TaskCanceller { cancelled: closing }),
+            )),
+            origin: MutableOrigin::new(init.origin),
         }
     }
 
-    pub(crate) fn enqueue_microtask(&self, job: Microtask) {
-        self.microtask_queue.enqueue(job, GlobalScope::get_cx());
+    pub(crate) fn timers(&self) -> &OneshotTimers {
+        self.timers
+            .get_or_init(|| OneshotTimers::new(self.upcast()))
+    }
+
+    pub(crate) fn enqueue_microtask(&self, cx: &mut JSContext, job: Microtask) {
+        self.microtask_queue.enqueue(job, cx.into());
     }
 
     /// Perform a microtask checkpoint.
@@ -465,7 +494,11 @@ impl WorkerGlobalScope {
     }
 
     pub(crate) fn pipeline_id(&self) -> PipelineId {
-        self.globalscope.pipeline_id()
+        self.pipeline_id
+    }
+
+    pub(crate) fn task_manager(&self) -> Rc<TaskManager> {
+        self.task_manager.clone()
     }
 
     pub(crate) fn policy_container(&self) -> Ref<'_, PolicyContainer> {
@@ -532,14 +565,6 @@ impl WorkerGlobalScope {
     /// Get a mutable reference to the [`TimerScheduler`] for this [`ServiceWorkerGlobalScope`].
     pub(crate) fn timer_scheduler(&self) -> RefMut<'_, TimerScheduler> {
         self.timer_scheduler.borrow_mut()
-    }
-
-    /// Return a copy to the shared task canceller that is used to cancel all tasks
-    /// when this worker is closing.
-    pub(crate) fn shared_task_canceller(&self) -> TaskCanceller {
-        TaskCanceller {
-            cancelled: self.closing.clone(),
-        }
     }
 
     /// <https://html.spec.whatwg.org/multipage/#initialize-worker-policy-container> and
@@ -659,6 +684,10 @@ impl WorkerGlobalScope {
             &metadata.final_url.clone(),
             &metadata.headers,
         ));
+    }
+
+    pub(crate) fn origin(&self) -> MutableOrigin {
+        self.origin.clone()
     }
 }
 
@@ -834,9 +863,9 @@ impl WorkerGlobalScopeMethods<crate::DomTypeHolder> for WorkerGlobalScope {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dfn-Crypto>
-    fn Crypto(&self) -> DomRoot<Crypto> {
+    fn Crypto(&self, cx: &mut JSContext) -> DomRoot<Crypto> {
         self.crypto
-            .or_init(|| Crypto::new(self.upcast::<GlobalScope>(), CanGc::deprecated_note()))
+            .or_init(|| Crypto::new(cx, self.upcast::<GlobalScope>()))
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-reporterror>
@@ -918,11 +947,14 @@ impl WorkerGlobalScopeMethods<crate::DomTypeHolder> for WorkerGlobalScope {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-queuemicrotask>
-    fn QueueMicrotask(&self, callback: Rc<VoidFunction>) {
-        self.enqueue_microtask(Microtask::User(UserMicrotask {
-            callback,
-            pipeline: self.pipeline_id(),
-        }));
+    fn QueueMicrotask(&self, cx: &mut JSContext, callback: Rc<VoidFunction>) {
+        self.enqueue_microtask(
+            cx,
+            Microtask::User(UserMicrotask {
+                callback,
+                pipeline: self.pipeline_id(),
+            }),
+        );
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-createimagebitmap>
@@ -1045,7 +1077,7 @@ impl WorkerGlobalScope {
             },
             CommonScriptMsg::ReportCspViolations(_, violations) => {
                 self.upcast::<GlobalScope>()
-                    .report_csp_violations(violations, None, None);
+                    .report_csp_violations(cx, violations, None, None);
             },
         }
         true
@@ -1072,11 +1104,9 @@ impl WorkerGlobalScope {
         // Convert the debugger global’s reflector to a Value, wrapping it from its originating realm (debugger realm)
         // into the active realm (debuggee realm) so that it can be passed across compartments.
         rooted!(&in(cx) let mut wrapped_global: Value);
-        debugger_global.reflector().safe_to_jsval(
-            cx.into(),
-            wrapped_global.handle_mut(),
-            CanGc::from_cx(cx),
-        );
+        debugger_global
+            .reflector()
+            .safe_to_jsval(cx, wrapped_global.handle_mut());
         self.debugger_global.set(*wrapped_global);
     }
 
@@ -1086,7 +1116,7 @@ impl WorkerGlobalScope {
             DevtoolScriptControlMsg::Eval(code, id, frame_actor_id, reply) => {
                 let debugger_global_handle = rooted_heap_handle(self, |this| &this.debugger_global);
                 let debugger_global =
-                    root_from_handlevalue::<DebuggerGlobalScope>(debugger_global_handle, cx.into())
+                    root_from_handlevalue::<DebuggerGlobalScope>(cx, debugger_global_handle)
                         .expect("must be a debugger global scope");
 
                 debugger_global.fire_eval(
@@ -1125,8 +1155,8 @@ struct WorkerCspProcessor {
 }
 
 impl CspViolationsProcessor for WorkerCspProcessor {
-    fn process_csp_violations(&self, violations: Vec<Violation>) {
+    fn process_csp_violations(&self, cx: &mut JSContext, violations: Vec<Violation>) {
         self.global_scope
-            .report_csp_violations(violations, None, None);
+            .report_csp_violations(cx, violations, None, None);
     }
 }

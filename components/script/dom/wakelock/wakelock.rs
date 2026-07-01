@@ -25,7 +25,6 @@ use crate::dom::globalscope::GlobalScope;
 use crate::dom::promise::Promise;
 use crate::dom::wakelock::wakelocksentinel::WakeLockSentinel;
 use crate::routed_promise::{RoutedPromiseListener, callback_promise};
-use crate::script_runtime::CanGc;
 
 /// <https://w3c.github.io/screen-wake-lock/#the-wakelock-interface>
 #[dom_struct]
@@ -84,7 +83,8 @@ impl WakeLockMethods<crate::DomTypeHolder> for WakeLock {
         };
 
         self.type_.set(type_);
-        let task_source = global.task_manager().dom_manipulation_task_source();
+        let task_manager = global.task_manager();
+        let task_source = task_manager.dom_manipulation_task_source();
         let callback = callback_promise(&promise, self, task_source);
         global.send_to_embedder(EmbedderMsg::RequestWakeLockPermission(
             webview_id,
@@ -99,8 +99,6 @@ impl WakeLockMethods<crate::DomTypeHolder> for WakeLock {
 impl RoutedPromiseListener<AllowOrDeny> for WakeLock {
     /// <https://w3c.github.io/screen-wake-lock/#the-request-method>
     fn handle_response(&self, cx: &mut JSContext, response: AllowOrDeny, promise: &Rc<Promise>) {
-        let can_gc = CanGc::from_cx(cx);
-
         match response {
             // Step 7a. If permission is denied, reject with NotAllowedError.
             AllowOrDeny::Deny => {
@@ -119,7 +117,7 @@ impl RoutedPromiseListener<AllowOrDeny> for WakeLock {
                 );
 
                 let sentinel = WakeLockSentinel::new(cx, &global, self.type_.get());
-                promise.resolve_native(&sentinel, can_gc);
+                promise.resolve_native(cx, &sentinel);
             },
         }
     }

@@ -328,7 +328,7 @@ impl ImageBitmap {
                         let promise = trusted_promise.root();
                         let image_bitmap = trusted_image_bitmap.root();
 
-                        promise.resolve_native_with_cx(cx, &image_bitmap);
+                        promise.resolve_native(cx, &image_bitmap);
                     }),
                 );
             };
@@ -377,7 +377,7 @@ impl ImageBitmap {
                 let image_bitmap = Self::new(realm, global_scope, bitmap_data);
                 // Step 6.4. If image is not origin-clean, then set the origin-clean flag
                 // of imageBitmap's bitmap to false.
-                image_bitmap.set_origin_clean(image.same_origin(GlobalScope::entry().origin()));
+                image_bitmap.set_origin_clean(image.same_origin(&GlobalScope::entry().origin()));
 
                 // Step 6.5. Queue a global task, using the bitmap task source,
                 // to resolve promise with imageBitmap.
@@ -560,7 +560,7 @@ impl ImageBitmap {
                 // Step 6.1. Let buffer be image's data attribute value's [[ViewedArrayBuffer]] internal slot.
                 // Step 6.2. If IsDetachedBuffer(buffer) is true, then return a promise rejected
                 // with an "InvalidStateError" DOMException.
-                if image_data.is_detached() {
+                if image_data.is_detached(realm) {
                     p.reject_error(realm, Error::InvalidState(None));
                     return p;
                 }

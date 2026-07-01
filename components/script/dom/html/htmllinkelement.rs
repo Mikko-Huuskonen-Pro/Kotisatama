@@ -521,7 +521,7 @@ impl HTMLLinkElement {
             base_url: document.borrow().base_url(),
             insecure_requests_policy: document.insecure_requests_policy(),
             has_trustworthy_ancestor_origin: document.has_trustworthy_ancestor_or_current_origin(),
-            request_client: global.request_client(),
+            request_client: global.request_client(None),
             referrer: global.get_referrer(),
         };
 
@@ -1300,9 +1300,14 @@ impl FetchResponseListener for FaviconFetchContext {
         submit_timing(cx, &self, &response, &timing);
     }
 
-    fn process_csp_violations(&mut self, _request_id: RequestId, violations: Vec<Violation>) {
+    fn process_csp_violations(
+        &mut self,
+        cx: &mut js::context::JSContext,
+        _request_id: RequestId,
+        violations: Vec<Violation>,
+    ) {
         let global = &self.resource_timing_global();
-        global.report_csp_violations(violations, None, None);
+        global.report_csp_violations(cx, violations, None, None);
     }
 }
 

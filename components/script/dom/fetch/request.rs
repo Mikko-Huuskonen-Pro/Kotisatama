@@ -23,7 +23,10 @@ use script_bindings::cformat;
 use script_bindings::reflector::{Reflector, reflect_dom_object_with_proto};
 use servo_url::ServoUrl;
 
-use crate::body::{BodyMixin, BodyType, Extractable, clone_body_stream_for_dom_body, consume_body};
+use crate::body::{
+    BodyMixin, BodyType, Extractable, body_text_stream, clone_body_stream_for_dom_body,
+    consume_body,
+};
 use crate::conversions::Convert;
 use crate::dom::abortsignal::AbortSignal;
 use crate::dom::bindings::codegen::Bindings::HeadersBinding::{HeadersInit, HeadersMethods};
@@ -149,7 +152,8 @@ impl Request {
         }
 
         // Step 7. Let origin be this’s relevant settings object’s origin.
-        let origin = global.origin().immutable();
+        let origin = global.origin();
+        let origin = origin.immutable();
 
         // Step 8. Let traversableForUserPrompts be "client".
         let mut traversable_for_user_prompts = TraversableForUserPrompts::Client;
@@ -762,6 +766,11 @@ impl RequestMethods<crate::DomTypeHolder> for Request {
     /// <https://fetch.spec.whatwg.org/#dom-body-bytes>
     fn Bytes(&self, cx: &mut js::context::JSContext) -> Rc<Promise> {
         consume_body(cx, self, BodyType::Bytes)
+    }
+
+    /// <https://fetch.spec.whatwg.org/#dom-body-textstream>
+    fn TextStream(&self, cx: &mut js::context::JSContext) -> Fallible<DomRoot<ReadableStream>> {
+        body_text_stream(cx, self)
     }
 }
 

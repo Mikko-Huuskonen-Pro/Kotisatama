@@ -11,13 +11,12 @@ use encoding_rs::Encoding;
 use fonts::{ByteIndex, TextByteRange};
 use html5ever::{LocalName, Prefix, local_name};
 use js::context::JSContext;
-use js::jsapi::{
-    ClippedTime, JS_ClearPendingException, JSObject, NewDateObject, NewUCRegExpObject,
-    RegExpFlag_UnicodeSets, RegExpFlags,
-};
+use js::jsapi::{ClippedTime, JSObject, RegExpFlag_UnicodeSets, RegExpFlags};
 use js::jsval::UndefinedValue;
-use js::rust::wrappers::{CheckRegExpSyntax, ExecuteRegExpNoStatics, ObjectIsRegExp};
-use js::rust::wrappers2::{DateGetMsecSinceEpoch, ObjectIsDate};
+use js::rust::wrappers2::{
+    CheckRegExpSyntax, DateGetMsecSinceEpoch, ExecuteRegExpNoStatics, JS_ClearPendingException,
+    NewDateObject, NewUCRegExpObject, ObjectIsDate, ObjectIsRegExp,
+};
 use js::rust::{HandleObject, MutableHandleObject};
 use layout_api::{ScriptSelection, SharedSelection};
 use num_traits::ToPrimitive;
@@ -56,7 +55,6 @@ use crate::dom::event::Event;
 use crate::dom::event::event::{EventBubbles, EventCancelable, EventComposed};
 use crate::dom::eventtarget::EventTarget;
 use crate::dom::filelist::FileList;
-use crate::dom::globalscope::GlobalScope;
 use crate::dom::html::htmldatalistelement::HTMLDataListElement;
 use crate::dom::html::htmlelement::HTMLElement;
 use crate::dom::html::htmlfieldsetelement::HTMLFieldSetElement;
@@ -78,8 +76,8 @@ use crate::dom::textcontrol::{TextControlElement, TextControlSelection};
 use crate::dom::types::{FocusEvent, MouseEvent};
 use crate::dom::validation::{Validatable, is_barred_by_datalist_ancestor};
 use crate::dom::validitystate::{ValidationFlags, ValidityState};
-use crate::realms::enter_realm;
-use crate::script_runtime::{CanGc, JSContext as SafeJSContext};
+use crate::realms::enter_auto_realm;
+use crate::script_runtime::CanGc;
 use crate::textinput::{ClipboardEventFlags, IsComposing, KeyReaction, Lines, TextInput};
 
 pub(crate) mod button_input_type;
@@ -223,7 +221,7 @@ impl HTMLInputElement {
     }
 
     pub(crate) fn new(
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
@@ -273,28 +271,28 @@ impl HTMLInputElement {
     /// <https://html.spec.whatwg.org/multipage/#concept-input-apply>
     fn value_mode(&self) -> ValueMode {
         match *self.input_type() {
-            InputType::Submit(_)
-            | InputType::Reset(_)
-            | InputType::Button(_)
-            | InputType::Image(_)
-            | InputType::Hidden(_) => ValueMode::Default,
+            InputType::Submit(_) |
+            InputType::Reset(_) |
+            InputType::Button(_) |
+            InputType::Image(_) |
+            InputType::Hidden(_) => ValueMode::Default,
 
             InputType::Checkbox(_) | InputType::Radio(_) => ValueMode::DefaultOn,
 
-            InputType::Color(_)
-            | InputType::Date(_)
-            | InputType::DatetimeLocal(_)
-            | InputType::Email(_)
-            | InputType::Month(_)
-            | InputType::Number(_)
-            | InputType::Password(_)
-            | InputType::Range(_)
-            | InputType::Search(_)
-            | InputType::Tel(_)
-            | InputType::Text(_)
-            | InputType::Time(_)
-            | InputType::Url(_)
-            | InputType::Week(_) => ValueMode::Value,
+            InputType::Color(_) |
+            InputType::Date(_) |
+            InputType::DatetimeLocal(_) |
+            InputType::Email(_) |
+            InputType::Month(_) |
+            InputType::Number(_) |
+            InputType::Password(_) |
+            InputType::Range(_) |
+            InputType::Search(_) |
+            InputType::Tel(_) |
+            InputType::Text(_) |
+            InputType::Time(_) |
+            InputType::Url(_) |
+            InputType::Week(_) => ValueMode::Value,
 
             InputType::File(_) => ValueMode::Filename,
         }
@@ -309,16 +307,16 @@ impl HTMLInputElement {
     pub(crate) fn is_nontypeable(&self) -> bool {
         matches!(
             *self.input_type(),
-            InputType::Button(_)
-                | InputType::Checkbox(_)
-                | InputType::Color(_)
-                | InputType::File(_)
-                | InputType::Hidden(_)
-                | InputType::Image(_)
-                | InputType::Radio(_)
-                | InputType::Range(_)
-                | InputType::Reset(_)
-                | InputType::Submit(_)
+            InputType::Button(_) |
+                InputType::Checkbox(_) |
+                InputType::Color(_) |
+                InputType::File(_) |
+                InputType::Hidden(_) |
+                InputType::Image(_) |
+                InputType::Radio(_) |
+                InputType::Range(_) |
+                InputType::Reset(_) |
+                InputType::Submit(_)
         )
     }
 
@@ -334,40 +332,40 @@ impl HTMLInputElement {
     pub(crate) fn is_auto_directionality_form_associated_element(&self) -> bool {
         matches!(
             *self.input_type(),
-            InputType::Hidden(_)
-                | InputType::Text(_)
-                | InputType::Search(_)
-                | InputType::Tel(_)
-                | InputType::Url(_)
-                | InputType::Email(_)
-                | InputType::Password(_)
-                | InputType::Submit(_)
-                | InputType::Reset(_)
-                | InputType::Button(_)
+            InputType::Hidden(_) |
+                InputType::Text(_) |
+                InputType::Search(_) |
+                InputType::Tel(_) |
+                InputType::Url(_) |
+                InputType::Email(_) |
+                InputType::Password(_) |
+                InputType::Submit(_) |
+                InputType::Reset(_) |
+                InputType::Button(_)
         )
     }
 
     fn does_minmaxlength_apply(&self) -> bool {
         matches!(
             *self.input_type(),
-            InputType::Text(_)
-                | InputType::Search(_)
-                | InputType::Url(_)
-                | InputType::Tel(_)
-                | InputType::Email(_)
-                | InputType::Password(_)
+            InputType::Text(_) |
+                InputType::Search(_) |
+                InputType::Url(_) |
+                InputType::Tel(_) |
+                InputType::Email(_) |
+                InputType::Password(_)
         )
     }
 
     fn does_pattern_apply(&self) -> bool {
         matches!(
             *self.input_type(),
-            InputType::Text(_)
-                | InputType::Search(_)
-                | InputType::Url(_)
-                | InputType::Tel(_)
-                | InputType::Email(_)
-                | InputType::Password(_)
+            InputType::Text(_) |
+                InputType::Search(_) |
+                InputType::Url(_) |
+                InputType::Tel(_) |
+                InputType::Email(_) |
+                InputType::Password(_)
         )
     }
 
@@ -380,13 +378,13 @@ impl HTMLInputElement {
     fn does_value_as_number_apply(&self) -> bool {
         matches!(
             *self.input_type(),
-            InputType::Date(_)
-                | InputType::Month(_)
-                | InputType::Week(_)
-                | InputType::Time(_)
-                | InputType::DatetimeLocal(_)
-                | InputType::Number(_)
-                | InputType::Range(_)
+            InputType::Date(_) |
+                InputType::Month(_) |
+                InputType::Week(_) |
+                InputType::Time(_) |
+                InputType::DatetimeLocal(_) |
+                InputType::Number(_) |
+                InputType::Range(_)
         )
     }
 
@@ -603,8 +601,8 @@ impl HTMLInputElement {
             // Step 4. If the element has a minimum and a maximum and there is no value greater than or equal to the
             // element's minimum and less than or equal to the element's maximum that, when subtracted from the step
             // base, is an integral multiple of the allowed value step, then return.
-            if let Some(stepped_minimum) = self.stepped_minimum()
-                && stepped_minimum > max
+            if let Some(stepped_minimum) = self.stepped_minimum() &&
+                stepped_minimum > max
             {
                 return Ok(());
             }
@@ -655,8 +653,8 @@ impl HTMLInputElement {
         // Step 8. If the element has a minimum, and value is less than that minimum, then set value to the smallest
         // value that, when subtracted from the step base, is an integral multiple of the allowed value step, and that
         // is more than or equal to that minimum.
-        if let Some(min) = minimum
-            && value < min
+        if let Some(min) = minimum &&
+            value < min
         {
             value = self.stepped_minimum().unwrap_or(value);
         }
@@ -664,8 +662,8 @@ impl HTMLInputElement {
         // Step 9. If the element has a maximum, and value is greater than that maximum, then set value to the largest
         // value that, when subtracted from the step base, is an integral multiple of the allowed value step, and that
         // is less than or equal to that maximum.
-        if let Some(max) = maximum
-            && value > max
+        if let Some(max) = maximum &&
+            value > max
         {
             value = self.stepped_maximum().unwrap_or(value);
         }
@@ -734,7 +732,7 @@ impl HTMLInputElement {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#suffering-from-a-pattern-mismatch>
-    fn suffers_from_pattern_mismatch(&self, value: &DOMString, can_gc: CanGc) -> bool {
+    fn suffers_from_pattern_mismatch(&self, cx: &mut JSContext, value: &DOMString) -> bool {
         // https://html.spec.whatwg.org/multipage/#the-pattern-attribute%3Asuffering-from-a-pattern-mismatch
         // https://html.spec.whatwg.org/multipage/#the-pattern-attribute%3Asuffering-from-a-pattern-mismatch-2
         let pattern_str = self.Pattern();
@@ -742,17 +740,17 @@ impl HTMLInputElement {
             return false;
         }
 
-        // Rust's regex is not compatible, we need to use mozjs RegExp.
-        let cx = GlobalScope::get_cx();
-        let _ac = enter_realm(self);
-        rooted!(in(*cx) let mut pattern = ptr::null_mut::<JSObject>());
+        let mut realm = enter_auto_realm(cx, self);
+        let cx = &mut realm;
 
-        if compile_pattern(cx, &pattern_str.str(), pattern.handle_mut(), can_gc) {
+        // Rust's regex is not compatible, we need to use mozjs RegExp.
+        rooted!(&in(cx) let mut pattern = ptr::null_mut::<JSObject>());
+        if compile_pattern(cx, &pattern_str.str(), pattern.handle_mut()) {
             if self.Multiple() && self.does_multiple_apply() {
                 !split_commas(&value.str())
-                    .all(|s| matches_js_regex(cx, pattern.handle(), s, can_gc).unwrap_or(true))
+                    .all(|s| matches_js_regex(cx, pattern.handle(), s).unwrap_or(true))
             } else {
-                !matches_js_regex(cx, pattern.handle(), &value.str(), can_gc).unwrap_or(true)
+                !matches_js_regex(cx, pattern.handle(), &value.str()).unwrap_or(true)
             }
         } else {
             // Element doesn't suffer from pattern mismatch if pattern is invalid.
@@ -830,14 +828,14 @@ impl HTMLInputElement {
             }
         } else {
             // https://html.spec.whatwg.org/multipage/#the-min-and-max-attributes%3Asuffering-from-an-underflow-2
-            if let Some(min_value) = min_value
-                && value_as_number < min_value
+            if let Some(min_value) = min_value &&
+                value_as_number < min_value
             {
                 failed_flags.insert(ValidationFlags::RANGE_UNDERFLOW);
             }
             // https://html.spec.whatwg.org/multipage/#the-min-and-max-attributes%3Asuffering-from-an-overflow-2
-            if let Some(max_value) = max_value
-                && value_as_number > max_value
+            if let Some(max_value) = max_value &&
+                value_as_number > max_value
             {
                 failed_flags.insert(ValidationFlags::RANGE_OVERFLOW);
             }
@@ -867,12 +865,7 @@ impl HTMLInputElement {
         matches!(*self.input_type(), InputType::Color(_)) && !el.disabled_state()
     }
 
-    fn handle_key_reaction(
-        &self,
-        cx: &mut js::context::JSContext,
-        action: KeyReaction,
-        event: &Event,
-    ) {
+    fn handle_key_reaction(&self, cx: &mut JSContext, action: KeyReaction, event: &Event) {
         match action {
             KeyReaction::TriggerDefaultAction => {
                 self.implicit_submission(cx);
@@ -904,11 +897,11 @@ impl HTMLInputElement {
     fn value_for_shadow_dom(&self) -> DOMString {
         let input_type = &*self.input_type();
         match input_type {
-            InputType::Checkbox(_)
-            | InputType::Radio(_)
-            | InputType::Image(_)
-            | InputType::Hidden(_)
-            | InputType::Range(_) => input_type.as_specific().value_for_shadow_dom(self),
+            InputType::Checkbox(_) |
+            InputType::Radio(_) |
+            InputType::Image(_) |
+            InputType::Hidden(_) |
+            InputType::Range(_) => input_type.as_specific().value_for_shadow_dom(self),
             _ => {
                 if let Some(attribute_value) = self
                     .upcast::<Element>()
@@ -988,11 +981,11 @@ impl TextControlElement for HTMLInputElement {
     fn selection_api_applies(&self) -> bool {
         matches!(
             *self.input_type(),
-            InputType::Text(_)
-                | InputType::Search(_)
-                | InputType::Url(_)
-                | InputType::Tel(_)
-                | InputType::Password(_)
+            InputType::Text(_) |
+                InputType::Search(_) |
+                InputType::Url(_) |
+                InputType::Tel(_) |
+                InputType::Password(_)
         )
     }
 
@@ -1110,7 +1103,7 @@ impl HTMLInputElementMethods<crate::DomTypeHolder> for HTMLInputElement {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-input-files>
-    fn SetFiles(&self, _cx: &mut js::context::JSContext, files: Option<&FileList>) {
+    fn SetFiles(&self, _cx: &mut JSContext, files: Option<&FileList>) {
         if let Some(files) = files {
             self.input_type().as_specific().set_files(files)
         }
@@ -1269,7 +1262,7 @@ impl HTMLInputElementMethods<crate::DomTypeHolder> for HTMLInputElement {
 
     // https://html.spec.whatwg.org/multipage/#dom-input-valueasdate
     #[expect(unsafe_code)]
-    fn GetValueAsDate(&self, cx: SafeJSContext, mut return_value: MutableHandleObject) {
+    fn GetValueAsDate(&self, cx: &mut JSContext, mut return_value: MutableHandleObject) {
         if let Some(date_time) = self
             .input_type()
             .as_specific()
@@ -1278,7 +1271,7 @@ impl HTMLInputElementMethods<crate::DomTypeHolder> for HTMLInputElement {
             let time = ClippedTime {
                 t: (date_time - OffsetDateTime::UNIX_EPOCH).whole_milliseconds() as f64,
             };
-            return_value.set(unsafe { NewDateObject(*cx, time) });
+            return_value.set(unsafe { NewDateObject(cx, time) });
         }
     }
 
@@ -1850,7 +1843,7 @@ impl HTMLInputElement {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#implicit-submission>
-    fn implicit_submission(&self, cx: &mut js::context::JSContext) {
+    fn implicit_submission(&self, cx: &mut JSContext) {
         let doc = self.owner_document();
         let node = doc.upcast::<Node>();
         let owner = self.form_owner();
@@ -1882,21 +1875,21 @@ impl HTMLInputElement {
                     .traverse_preorder(ShadowIncluding::No)
                     .filter_map(DomRoot::downcast::<HTMLInputElement>)
                     .filter(|input| {
-                        input.form_owner() == owner
-                            && matches!(
+                        input.form_owner() == owner &&
+                            matches!(
                                 *input.input_type(),
-                                InputType::Text(_)
-                                    | InputType::Search(_)
-                                    | InputType::Url(_)
-                                    | InputType::Tel(_)
-                                    | InputType::Email(_)
-                                    | InputType::Password(_)
-                                    | InputType::Date(_)
-                                    | InputType::Month(_)
-                                    | InputType::Week(_)
-                                    | InputType::Time(_)
-                                    | InputType::DatetimeLocal(_)
-                                    | InputType::Number(_)
+                                InputType::Text(_) |
+                                    InputType::Search(_) |
+                                    InputType::Url(_) |
+                                    InputType::Tel(_) |
+                                    InputType::Email(_) |
+                                    InputType::Password(_) |
+                                    InputType::Date(_) |
+                                    InputType::Month(_) |
+                                    InputType::Week(_) |
+                                    InputType::Time(_) |
+                                    InputType::DatetimeLocal(_) |
+                                    InputType::Number(_)
                             )
                     });
 
@@ -1963,7 +1956,7 @@ impl HTMLInputElement {
 
     pub(crate) fn handle_color_picker_response(
         &self,
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         response: Option<RgbColor>,
     ) {
         if let InputType::Color(ref color_input_type) = *self.input_type() {
@@ -1973,7 +1966,7 @@ impl HTMLInputElement {
 
     pub(crate) fn handle_file_picker_response(
         &self,
-        cx: &mut js::context::JSContext,
+        cx: &mut JSContext,
         response: Option<Vec<SelectedFile>>,
     ) {
         if let InputType::File(ref file_input_type) = *self.input_type() {
@@ -2114,8 +2107,8 @@ impl VirtualMethods for HTMLInputElement {
                         let new_value_mode = self.value_mode();
                         match (&old_value_mode, old_idl_value.is_empty(), new_value_mode) {
                             // Step 1
-                            (&ValueMode::Value, false, ValueMode::Default)
-                            | (&ValueMode::Value, false, ValueMode::DefaultOn) => {
+                            (&ValueMode::Value, false, ValueMode::Default) |
+                            (&ValueMode::Value, false, ValueMode::DefaultOn) => {
                                 self.SetValue(cx, old_idl_value)
                                     .expect("Failed to set input value on type change to a default ValueMode.");
                             },
@@ -2335,9 +2328,9 @@ impl VirtualMethods for HTMLInputElement {
         if let Some(mouse_event) = event.downcast::<MouseEvent>() {
             self.handle_mouse_event(mouse_event);
             event.mark_as_handled();
-        } else if event.type_() == atom!("keydown")
-            && !event.DefaultPrevented()
-            && self.input_type().is_textual_or_password()
+        } else if event.type_() == atom!("keydown") &&
+            !event.DefaultPrevented() &&
+            self.input_type().is_textual_or_password()
         {
             if let Some(keyevent) = event.downcast::<KeyboardEvent>() {
                 // This can't be inlined, as holding on to textinput.borrow_mut()
@@ -2345,10 +2338,10 @@ impl VirtualMethods for HTMLInputElement {
                 let action = self.textinput.borrow_mut().handle_keydown(keyevent);
                 self.handle_key_reaction(cx, action, event);
             }
-        } else if (event.type_() == atom!("compositionstart")
-            || event.type_() == atom!("compositionupdate")
-            || event.type_() == atom!("compositionend"))
-            && self.input_type().is_textual_or_password()
+        } else if (event.type_() == atom!("compositionstart") ||
+            event.type_() == atom!("compositionupdate") ||
+            event.type_() == atom!("compositionend")) &&
+            self.input_type().is_textual_or_password()
         {
             if let Some(compositionevent) = event.downcast::<CompositionEvent>() {
                 if event.type_() == atom!("compositionend") {
@@ -2445,8 +2438,8 @@ impl FormControl for HTMLInputElement {
         self.form_owner.set(form);
     }
 
-    fn to_element(&self) -> &Element {
-        self.upcast::<Element>()
+    fn to_html_element(&self) -> &HTMLElement {
+        self.upcast::<HTMLElement>()
     }
 }
 
@@ -2470,9 +2463,9 @@ impl Validatable for HTMLInputElement {
         match *self.input_type() {
             InputType::Hidden(_) | InputType::Button(_) | InputType::Reset(_) => false,
             _ => {
-                !(self.upcast::<Element>().disabled_state()
-                    || self.ReadOnly()
-                    || is_barred_by_datalist_ancestor(self.upcast()))
+                !(self.upcast::<Element>().disabled_state() ||
+                    self.ReadOnly() ||
+                    is_barred_by_datalist_ancestor(self.upcast()))
             },
         }
     }
@@ -2485,26 +2478,26 @@ impl Validatable for HTMLInputElement {
         let mut failed_flags = ValidationFlags::empty();
         let value = self.Value();
 
-        if validate_flags.contains(ValidationFlags::VALUE_MISSING)
-            && self.suffers_from_being_missing(&value)
+        if validate_flags.contains(ValidationFlags::VALUE_MISSING) &&
+            self.suffers_from_being_missing(&value)
         {
             failed_flags.insert(ValidationFlags::VALUE_MISSING);
         }
 
-        if validate_flags.contains(ValidationFlags::TYPE_MISMATCH)
-            && self.suffers_from_type_mismatch(&value)
+        if validate_flags.contains(ValidationFlags::TYPE_MISMATCH) &&
+            self.suffers_from_type_mismatch(&value)
         {
             failed_flags.insert(ValidationFlags::TYPE_MISMATCH);
         }
 
-        if validate_flags.contains(ValidationFlags::PATTERN_MISMATCH)
-            && self.suffers_from_pattern_mismatch(&value, CanGc::from_cx(cx))
+        if validate_flags.contains(ValidationFlags::PATTERN_MISMATCH) &&
+            self.suffers_from_pattern_mismatch(cx, &value)
         {
             failed_flags.insert(ValidationFlags::PATTERN_MISMATCH);
         }
 
-        if validate_flags.contains(ValidationFlags::BAD_INPUT)
-            && self.suffers_from_bad_input(&value)
+        if validate_flags.contains(ValidationFlags::BAD_INPUT) &&
+            self.suffers_from_bad_input(&value)
         {
             failed_flags.insert(ValidationFlags::BAD_INPUT);
         }
@@ -2514,9 +2507,9 @@ impl Validatable for HTMLInputElement {
         }
 
         if validate_flags.intersects(
-            ValidationFlags::RANGE_UNDERFLOW
-                | ValidationFlags::RANGE_OVERFLOW
-                | ValidationFlags::STEP_MISMATCH,
+            ValidationFlags::RANGE_UNDERFLOW |
+                ValidationFlags::RANGE_OVERFLOW |
+                ValidationFlags::STEP_MISMATCH,
         ) {
             failed_flags |= self.suffers_from_range_issues(&value);
         }
@@ -2538,11 +2531,11 @@ impl Activatable for HTMLInputElement {
             // https://html.spec.whatwg.org/multipage/#image-button-state-(type=image):input-activation-behavior
             //
             // Although they do not have implicit activation behaviors, `type=button` is an activatable input event.
-            InputType::Submit(_)
-            | InputType::Reset(_)
-            | InputType::File(_)
-            | InputType::Image(_)
-            | InputType::Button(_) => self.is_mutable(),
+            InputType::Submit(_) |
+            InputType::Reset(_) |
+            InputType::File(_) |
+            InputType::Image(_) |
+            InputType::Button(_) => self.is_mutable(),
             // https://html.spec.whatwg.org/multipage/#checkbox-state-(type=checkbox):input-activation-behavior
             // https://html.spec.whatwg.org/multipage/#radio-button-state-(type=radio):input-activation-behavior
             // https://html.spec.whatwg.org/multipage/#color-state-(type=color):input-activation-behavior
@@ -2575,8 +2568,8 @@ impl Activatable for HTMLInputElement {
         let ty = self.input_type();
         let cache = match cache {
             Some(cache) => {
-                if (cache.was_radio && !matches!(*ty, InputType::Radio(_)))
-                    || (cache.was_checkbox && !matches!(*ty, InputType::Checkbox(_)))
+                if (cache.was_radio && !matches!(*ty, InputType::Radio(_))) ||
+                    (cache.was_checkbox && !matches!(*ty, InputType::Checkbox(_)))
                 {
                     // Type changed, abandon ship
                     // https://www.w3.org/Bugs/Public/show_bug.cgi?id=27414
@@ -2597,12 +2590,7 @@ impl Activatable for HTMLInputElement {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#input-activation-behavior>
-    fn activation_behavior(
-        &self,
-        cx: &mut js::context::JSContext,
-        event: &Event,
-        target: &EventTarget,
-    ) {
+    fn activation_behavior(&self, cx: &mut JSContext, event: &Event, target: &EventTarget) {
         let input_activation_type = {
             let input_type = self.input_type();
             InputActivationType::new_from_input_type(&input_type)
@@ -2619,20 +2607,15 @@ impl Activatable for HTMLInputElement {
 /// This is used to compile JS-compatible regex provided in pattern attribute
 /// that matches only the entirety of string.
 /// <https://html.spec.whatwg.org/multipage/#compiled-pattern-regular-expression>
-fn compile_pattern(
-    cx: SafeJSContext,
-    pattern_str: &str,
-    out_regex: MutableHandleObject,
-    can_gc: CanGc,
-) -> bool {
+fn compile_pattern(cx: &mut JSContext, pattern_str: &str, out_regex: MutableHandleObject) -> bool {
     // First check if pattern compiles...
-    if check_js_regex_syntax(cx, pattern_str, can_gc) {
+    if check_js_regex_syntax(cx, pattern_str) {
         // ...and if it does make pattern that matches only the entirety of string
         let pattern_str = format!("^(?:{})$", pattern_str);
         let flags = RegExpFlags {
             flags_: RegExpFlag_UnicodeSets,
         };
-        new_js_regex(cx, &pattern_str, flags, out_regex, can_gc)
+        new_js_regex(cx, &pattern_str, flags, out_regex)
     } else {
         false
     }
@@ -2641,89 +2624,77 @@ fn compile_pattern(
 #[expect(unsafe_code)]
 /// Check if the pattern by itself is valid first, and not that it only becomes
 /// valid once we add ^(?: and )$.
-fn check_js_regex_syntax(cx: SafeJSContext, pattern: &str, _can_gc: CanGc) -> bool {
+fn check_js_regex_syntax(cx: &mut JSContext, pattern: &str) -> bool {
     let pattern: Vec<u16> = pattern.encode_utf16().collect();
-    unsafe {
-        rooted!(in(*cx) let mut exception = UndefinedValue());
+    rooted!(&in(cx) let mut exception = UndefinedValue());
 
-        let valid = CheckRegExpSyntax(
-            *cx,
+    let valid = unsafe {
+        CheckRegExpSyntax(
+            cx,
             pattern.as_ptr(),
             pattern.len(),
             RegExpFlags {
                 flags_: RegExpFlag_UnicodeSets,
             },
             exception.handle_mut(),
-        );
+        )
+    };
 
-        if !valid {
-            JS_ClearPendingException(*cx);
-            return false;
-        }
-
-        // TODO(cybai): report `exception` to devtools
-        // exception will be `undefined` if the regex is valid
-        exception.is_undefined()
+    if !valid {
+        unsafe { JS_ClearPendingException(cx) };
+        return false;
     }
+
+    // TODO(cybai): report `exception` to devtools
+    // exception will be `undefined` if the regex is valid
+    exception.is_undefined()
 }
 
 #[expect(unsafe_code)]
-pub(crate) fn new_js_regex(
-    cx: SafeJSContext,
+fn new_js_regex(
+    cx: &mut JSContext,
     pattern: &str,
     flags: RegExpFlags,
     mut out_regex: MutableHandleObject,
-    _can_gc: CanGc,
 ) -> bool {
     let pattern: Vec<u16> = pattern.encode_utf16().collect();
-    unsafe {
-        out_regex.set(NewUCRegExpObject(
-            *cx,
-            pattern.as_ptr(),
-            pattern.len(),
-            flags,
-        ));
-        if out_regex.is_null() {
-            JS_ClearPendingException(*cx);
-            return false;
-        }
+    out_regex.set(unsafe { NewUCRegExpObject(cx, pattern.as_ptr(), pattern.len(), flags) });
+
+    if out_regex.is_null() {
+        unsafe { JS_ClearPendingException(cx) };
+        return false;
     }
     true
 }
 
 #[expect(unsafe_code)]
-fn matches_js_regex(
-    cx: SafeJSContext,
-    regex_obj: HandleObject,
-    value: &str,
-    _can_gc: CanGc,
-) -> Result<bool, ()> {
+fn matches_js_regex(cx: &mut JSContext, regex_obj: HandleObject, value: &str) -> Result<bool, ()> {
     let mut value: Vec<u16> = value.encode_utf16().collect();
 
-    unsafe {
-        let mut is_regex = false;
-        assert!(ObjectIsRegExp(*cx, regex_obj, &mut is_regex));
-        assert!(is_regex);
+    let mut is_regex = false;
+    assert!(unsafe { ObjectIsRegExp(cx, regex_obj, &mut is_regex) });
+    assert!(is_regex);
 
-        rooted!(in(*cx) let mut rval = UndefinedValue());
-        let mut index = 0;
+    rooted!(&in(cx) let mut rval = UndefinedValue());
+    let mut index = 0;
 
-        let ok = ExecuteRegExpNoStatics(
-            *cx,
+    let ok = unsafe {
+        ExecuteRegExpNoStatics(
+            cx,
             regex_obj,
             value.as_mut_ptr(),
             value.len(),
             &mut index,
             true,
             rval.handle_mut(),
-        );
+        )
+    };
 
-        if ok {
-            Ok(!rval.is_null())
-        } else {
-            JS_ClearPendingException(*cx);
-            Err(())
-        }
+    if ok {
+        Ok(!rval.is_null())
+    } else {
+        unsafe { JS_ClearPendingException(cx) };
+        Err(())
     }
 }
 

@@ -67,8 +67,8 @@ use crate::dom::bindings::root::DomRoot;
 use crate::dom::bindings::str::DOMString;
 use crate::dom::bindings::trace::RootedTraceableBox;
 use crate::dom::csp::{GlobalCspReporting, Violation};
-use crate::dom::global_scope_script_execution::{ErrorReporting, fill_compile_options};
 use crate::dom::globalscope::GlobalScope;
+use crate::dom::globalscope::script_execution::{ErrorReporting, fill_compile_options};
 use crate::dom::html::htmlscriptelement::{SCRIPT_JS_MIMES, substitute_with_local_script};
 use crate::dom::performance::performanceresourcetiming::InitiatorType;
 use crate::dom::promise::Promise;
@@ -82,7 +82,7 @@ use crate::module_loading::{
 };
 use crate::network_listener::{self, FetchResponseListener, ResourceTimingListener};
 use crate::realms::enter_auto_realm;
-use crate::script_runtime::{CanGc, IntroductionType};
+use crate::script_runtime::IntroductionType;
 use crate::task::NonSendTaskBox;
 use crate::url::ensure_blob_referenced_by_url_is_kept_alive;
 
@@ -639,7 +639,7 @@ impl Callback for QueueTaskHandler {
 
         global.task_manager().networking_task_source().queue(
             task!(continue_module_loading: move |cx| {
-                promise.root().resolve_native_with_cx(cx, &());
+                promise.root().resolve_native(cx, &());
             }),
         );
     }
@@ -661,7 +661,7 @@ impl ModuleFetchClient {
             insecure_requests_policy: global.insecure_requests_policy(),
             has_trustworthy_ancestor_origin: global.has_trustworthy_ancestor_or_current_origin(),
             policy_container: global.policy_container(),
-            client: global.request_client(),
+            client: global.request_client(None),
             pipeline_id: global.pipeline_id(),
             origin: global.origin().immutable().clone(),
         }
@@ -765,7 +765,7 @@ impl FetchResponseListener for ModuleContext {
         if let (Err(error), _) | (_, Err(error)) = (response.as_ref(), self.status.as_ref()) {
             error!("Fetching module script failed {:?}", error);
             global.set_module_map(self.module_request, ModuleStatus::Loaded(None));
-            return promise.resolve_native_with_cx(cx, &());
+            return promise.resolve_native(cx, &());
         }
 
         let metadata = self.metadata.take().unwrap();
@@ -846,17 +846,22 @@ impl FetchResponseListener for ModuleContext {
         }
         // Step 8. Set moduleMap[(url, moduleType)] to moduleScript, and run onComplete given moduleScript.
         global.set_module_map(self.module_request, ModuleStatus::Loaded(module_script));
-        promise.resolve_native_with_cx(cx, &());
+        promise.resolve_native(cx, &());
     }
 
-    fn process_csp_violations(&mut self, _request_id: RequestId, violations: Vec<Violation>) {
+    fn process_csp_violations(
+        &mut self,
+        cx: &mut js::context::JSContext,
+        _request_id: RequestId,
+        violations: Vec<Violation>,
+    ) {
         let global = self.owner.root();
         if let Some(scope) = global.downcast::<DedicatedWorkerGlobalScope>() {
             scope.report_csp_violations(violations);
         } else if let Some(scope) = global.downcast::<SharedWorkerGlobalScope>() {
             scope.report_csp_violations(violations);
         } else {
-            global.report_csp_violations(violations, None, None);
+            global.report_csp_violations(cx, violations, None, None);
         }
     }
 }
@@ -918,7 +923,7 @@ pub(crate) unsafe extern "C" fn host_import_module_dynamically(
     // SAFETY: it is safe to construct a JSContext from engine hook.
     let mut cx = unsafe { JSContext::from_ptr(NonNull::new(cx).unwrap()) };
     let cx = &mut cx;
-    let promise = Promise::new_with_js_promise(unsafe { Handle::from_raw(promise) }, cx.into());
+    let promise = Promise::new_with_js_promise(cx, unsafe { Handle::from_raw(promise) });
 
     let jsstr = unsafe { GetModuleRequestSpecifier(cx, Handle::from_raw(specifier)) };
     let module_type = unsafe { GetModuleRequestType(cx, Handle::from_raw(specifier)) };
@@ -1157,11 +1162,8 @@ unsafe extern "C" fn import_meta_resolve(cx: *mut RawJSContext, argc: u32, vp: *
     match url {
         Ok(url) => {
             // Step 4.3. Return the serialization of url.
-            url.as_str().safe_to_jsval(
-                cx.into(),
-                unsafe { MutableHandleValue::from_raw(args.rval()) },
-                CanGc::from_cx(cx),
-            );
+            url.as_str()
+                .safe_to_jsval(cx, unsafe { MutableHandleValue::from_raw(args.rval()) });
             true
         },
         Err(error) => {

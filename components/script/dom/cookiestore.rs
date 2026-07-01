@@ -16,8 +16,7 @@ use net_traits::CookieSource::NonHTTP;
 use net_traits::{CookieAsyncResponse, CookieData, CoreResourceMsg};
 use script_bindings::cell::DomRefCell;
 use script_bindings::codegen::GenericBindings::CookieStoreBinding::CookieSameSite;
-use script_bindings::reflector::reflect_dom_object;
-use script_bindings::script_runtime::CanGc;
+use script_bindings::reflector::reflect_dom_object_with_cx;
 use servo_base::generic_channel::{GenericCallback, GenericSend, GenericSender};
 use servo_base::id::CookieStoreId;
 use servo_url::ServoUrl;
@@ -79,7 +78,7 @@ struct CookieListener {
 impl CookieListener {
     pub(crate) fn handle(&self, message: CookieAsyncResponse) {
         let context = self.context.clone();
-        self.task_source.queue(task!(cookie_message: move || {
+        self.task_source.queue(task!(cookie_message: move |cx| {
             let Some(promise) = context.root().in_flight.borrow_mut().pop_front() else {
                 warn!("No promise exists for cookie store response");
                 return;
@@ -90,23 +89,22 @@ impl CookieListener {
                     // (There is currently no way for list to result in failure)
                     if let Some(cookie) = cookie {
                         // Otherwise, resolve p with the first item of list.
-                        promise.resolve_native(&cookie_to_list_item(cookie.into_inner()), CanGc::deprecated_note());
+                        promise.resolve_native(cx, &cookie_to_list_item(cookie.into_inner()));
                     } else {
                         // If list is empty, then resolve p with null.
-                        promise.resolve_native(&NullValue(), CanGc::deprecated_note());
+                        promise.resolve_native(cx, &NullValue());
                     }
                 },
                 CookieData::GetAll(cookies) => {
                     // If list is failure, then reject p with a TypeError and abort these steps.
-                    promise.resolve_native(
+                    promise.resolve_native(cx,
                         &cookies
                         .into_iter()
                         .map(|cookie| cookie_to_list_item(cookie.0))
-                        .collect_vec(),
-                    CanGc::deprecated_note());
+                        .collect_vec(),);
                 },
                 CookieData::Delete(_) | CookieData::Change(_) | CookieData::Set(_) => {
-                    promise.resolve_native(&(), CanGc::deprecated_note());
+                    promise.resolve_native(cx, &());
                 }
             }
         }));
@@ -125,13 +123,13 @@ impl CookieStore {
         }
     }
 
-    pub(crate) fn new(global: &GlobalScope, can_gc: CanGc) -> DomRoot<CookieStore> {
-        let store = reflect_dom_object(
+    pub(crate) fn new(cx: &mut JSContext, global: &GlobalScope) -> DomRoot<CookieStore> {
+        let store = reflect_dom_object_with_cx(
             Box::new(CookieStore::new_inherited(
                 global.resource_threads().core_thread.clone(),
             )),
             global,
-            can_gc,
+            cx,
         );
         store.setup_route();
         store

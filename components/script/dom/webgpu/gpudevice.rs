@@ -7,7 +7,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use dom_struct::dom_struct;
-use js::context::JSContext;
+use js::context::{JSContext, NoGC};
 use js::jsapi::{HandleObject, Heap, JSObject};
 use js::realm::CurrentRealm;
 use script_bindings::cell::DomRefCell;
@@ -182,7 +182,7 @@ impl GPUDevice {
             global,
             cx,
         );
-        queue.set_device(&device);
+        queue.set_device(cx, &device);
         device.extensions.set(*extensions);
         device
     }
@@ -395,12 +395,12 @@ impl GPUDevice {
         // Queue a global task, using the webgpu task source, to resolve device.lost
         // promise with a new GPUDeviceLostInfo with reason and message.
         self.global().task_manager().webgpu_task_source().queue(
-            task!(resolve_device_lost: move || {
+            task!(resolve_device_lost: move |cx| {
                 let this = this.root();
 
                 let lost_promise = &(*this.lost_promise.borrow());
                 let lost = GPUDeviceLostInfo::new(&this.global(), msg.into(), reason, CanGc::deprecated_note());
-                lost_promise.resolve_native(&*lost, CanGc::deprecated_note());
+                lost_promise.resolve_native(cx, &*lost);
             }),
         );
     }
@@ -433,8 +433,8 @@ impl GPUDeviceMethods<crate::DomTypeHolder> for GPUDevice {
     }
 
     /// <https://gpuweb.github.io/gpuweb/#dom-gpuobjectbase-label>
-    fn SetLabel(&self, value: USVString) {
-        *self.label.borrow_mut() = value;
+    fn SetLabel(&self, no_gc: &NoGC, value: USVString) {
+        *self.label.safe_borrow_mut(no_gc) = value;
     }
 
     /// <https://gpuweb.github.io/gpuweb/#dom-gpudevice-lost>
@@ -665,13 +665,11 @@ impl RoutedPromiseListener<WebGPUPoppedErrorScopeResponse> for GPUDevice {
         promise: &Rc<Promise>,
     ) {
         match response {
-            Ok(None) | Err(PopError::Lost) => {
-                promise.resolve_native_with_cx(cx, &None::<Option<GPUError>>)
-            },
+            Ok(None) | Err(PopError::Lost) => promise.resolve_native(cx, &None::<Option<GPUError>>),
             Err(PopError::Empty) => promise.reject_error(cx, Error::Operation(None)),
             Ok(Some(error)) => {
                 let error = GPUError::from_error(cx, &self.global(), error);
-                promise.resolve_native_with_cx(cx, &error);
+                promise.resolve_native(cx, &error);
             },
         }
     }
@@ -693,7 +691,7 @@ impl RoutedPromiseListener<WebGPUComputePipelineResponse> for GPUDevice {
                     pipeline.label.into(),
                     self,
                 );
-                promise.resolve_native_with_cx(cx, &gpu_compute_pipeline)
+                promise.resolve_native(cx, &gpu_compute_pipeline)
             },
             Err(webgpu_traits::Error::Validation(msg)) => {
                 let gpu_pipeline_error = GPUPipelineError::new(
@@ -733,7 +731,7 @@ impl RoutedPromiseListener<WebGPURenderPipelineResponse> for GPUDevice {
                     pipeline.label.into(),
                     self,
                 );
-                promise.resolve_native_with_cx(cx, &gpu_pipeline)
+                promise.resolve_native(cx, &gpu_pipeline)
             },
             Err(webgpu_traits::Error::Validation(msg)) => {
                 let pipeline_error = GPUPipelineError::new(

@@ -362,8 +362,8 @@ impl NavigatorMethods<crate::DomTypeHolder> for Navigator {
     }
 
     /// <https://www.w3.org/TR/geolocation/#navigator_interface>
-    fn Geolocation(&self) -> DomRoot<Geolocation> {
-        Geolocation::new(&self.global(), CanGc::deprecated_note())
+    fn Geolocation(&self, cx: &mut js::context::JSContext) -> DomRoot<Geolocation> {
+        Geolocation::new(cx, &self.global())
     }
 
     /// <https://html.spec.whatwg.org/multipage/#navigatorlanguage>
@@ -708,9 +708,14 @@ impl FetchResponseListener for BeaconFetchListener {
         submit_timing(cx, &self, &response, &timing);
     }
 
-    fn process_csp_violations(&mut self, _request_id: RequestId, violations: Vec<Violation>) {
+    fn process_csp_violations(
+        &mut self,
+        cx: &mut js::context::JSContext,
+        _request_id: RequestId,
+        violations: Vec<Violation>,
+    ) {
         let global = self.resource_timing_global();
-        global.report_csp_violations(violations, None, None);
+        global.report_csp_violations(cx, violations, None, None);
     }
 }
 

@@ -6,6 +6,7 @@
 /.wpt
 /.vs
 /target
+/t
 /bin
 /crawler/node_modules
 /output

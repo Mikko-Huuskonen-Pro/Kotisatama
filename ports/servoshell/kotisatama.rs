@@ -281,7 +281,7 @@ pub fn resolve_address_alias(input: &str) -> Option<Url> {
                 .unwrap_or(false);
             let domain_alias = entry.domain.split('.').next().unwrap_or_default();
             if label_matches || domain_alias.eq_ignore_ascii_case(&query) {
-                Url::parse(&format!("https://{}", entry.domain)).ok()
+                entry.navigation_url()
             } else {
                 None
             }

@@ -159,7 +159,8 @@
       "label": "Kela",
       "category": "health",
       "tags": ["eläke", "sosiaaliturva", "hopeakettu"],
-      "type": "white"
+      "type": "white",
+      "entry_url": "https://www.kela.fi/"
     },
     {
       "domain": "112.fi",

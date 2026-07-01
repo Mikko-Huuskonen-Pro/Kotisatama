@@ -9,6 +9,7 @@ use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::WhitelistError;
 use crate::domain::{host_matches_domain, normalize_domain};
@@ -84,6 +85,31 @@ pub struct WhitelistEntry {
     pub tags: Vec<String>,
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub entry_type: Option<String>,
+    /// Kanoninen navigointi-URL (esim. `https://www.nordea.fi/` kun apex ei toimi).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry_url: Option<String>,
+}
+
+impl WhitelistEntry {
+    /// URL jolla sivu avataan alias-haussa tai kun apex-domain ei ole oikea lähtöosoite.
+    pub fn navigation_url(&self) -> Option<Url> {
+        if let Some(entry_url) = self.entry_url.as_deref() {
+            if let Ok(url) = Url::parse(entry_url.trim()) {
+                if matches!(url.scheme(), "http" | "https") {
+                    if let Some(host) = url.host_str() {
+                        if host_matches_domain(host, &self.domain) {
+                            return Some(url);
+                        }
+                    }
+                }
+            }
+            log::warn!(
+                "Kotisatama whitelist: entry_url ei kelpaa domainille {:?}, käytetään oletusta",
+                self.domain
+            );
+        }
+        Url::parse(&format!("https://{}", self.domain)).ok()
+    }
 }
 
 /// Curated whitelist file (`config/whitelist.json`, CDN `/free/whitelist.json`).
@@ -197,6 +223,7 @@ impl WhitelistDocumentRaw {
                     category: None,
                     tags: Vec::new(),
                     entry_type: None,
+                    entry_url: None,
                 },
                 RawDomain::Entry(entry) => entry,
             };
@@ -305,6 +332,23 @@ mod tests {
             .lookup_entry_for_host("www.kela.fi", &WhitelistProfile::Free)
             .unwrap();
         assert_eq!(entry.label.as_deref(), Some("Kela"));
+    }
+
+    #[test]
+    fn navigation_url_uses_entry_url_when_set() {
+        let doc = WhitelistDocument::from_json_str(
+            r#"{"domains":[{"domain":"nordea.fi","label":"Nordea","entry_url":"https://www.nordea.fi/"}]}"#,
+        )
+        .unwrap();
+        let url = doc.domains[0].navigation_url().unwrap();
+        assert_eq!(url.as_str(), "https://www.nordea.fi/");
+    }
+
+    #[test]
+    fn navigation_url_falls_back_to_https_domain() {
+        let doc = WhitelistDocument::from_json_str(r#"{"domains":[{"domain":"kela.fi"}]}"#).unwrap();
+        let url = doc.domains[0].navigation_url().unwrap();
+        assert_eq!(url.as_str(), "https://kela.fi/");
     }
 
     #[test]

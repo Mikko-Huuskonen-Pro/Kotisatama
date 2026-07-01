@@ -80,6 +80,11 @@
               "type": {
                 "type": "string",
                 "enum": ["white", "yellow"]
+              },
+              "entry_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Kanoninen navigointi-URL (esim. https://www.example.fi/ kun apex ei toimi)."
               }
             }
           }

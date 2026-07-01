@@ -66,8 +66,22 @@ Servon lähdekoodi ja upstream-dokumentaatio ovat englanniksi. Tässä taulukoss
 |----------|-------|-----------|
 | whitelist | whitelist / satama | Sallittujen sivujen lista |
 | Kotisatama | kotisatama | Turvallinen etusivu ja suljettu tila |
+| Katselin | katselin | Tuotteen nimi (Servo-fork) |
+| Satama | satama | Whitelistattujen sivujen alue |
 | Telakka | telakka | Kehitysmalli Servo-puutteiden korjaamiseen |
-| Avomeri | avomeri | Avoin internet (ei whitelist) |
+| Avomeri | avomeri | Avoin internet (tietoinen poikkeus whitelististä) |
+| Varustamo | varustamo | Luotettujen sovellusten jakelupaikka (`servo:varustamo`) |
+| Ruuma | ruuma | Asennetut sovellukset ja paikallinen sisältö |
+| Lokikirja | lokikirja | Ilmoitukset, tapahtumat ja diagnostiikka (`kotisatama-report`) |
+| Majakka | majakka | Ohjeet, opastus ja tuki |
+| Pulloposti | pulloposti | Salattu viestintäsovellus (subprocess-daemon) |
+| Missä olen | missä olen | Paikannussovellus (subprocess-daemon) |
+| sisäinen sivu | sisäinen sivu | `servo:`-protokollan sivu (ei verkko-pyyntöä) |
+| subprocess | subprocess | Erillinen prosessi (Meilisearch, Pulloposti…) |
+| overlay | overlay | Käyttäjän omat whitelist-domainit kuratoidun listan päällä |
+| product profile | tuoteprofiili | Normaali / lapsi / seniori / hopeakettu — oikeudet ja suodatus |
+| protocol handler | protokollakäsittelijä | `servo:`-URL:ien palvelin (`desktop/protocols/servo.rs`) |
+| alias | alias | Osoitepalkin lyhyt nimi → whitelist-domain (esim. `kela`) |
 
 ## Lisää termejä
 

@@ -184,7 +184,7 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Sv, "report_window_title") => "Loggbok",
 
         (Locale::Fi, "report_intro") => {
-            "Lähetä anonyymi ilmoitus GitHub-issueen (Katselin.fi-repo). Ei käyttäjätunnistetta."
+            "Lähetä anonyymi ilmoitus GitHub-issueen (Katselin.fi-repo). Ei käyttäjätunnistetta. Tai lähetä sähköposti: huuskonen92@gmail.com"
         },
         (Locale::Sv, "report_intro") => {
             "Skicka en anonym rapport som GitHub-issue (Katselin.fi-repot). Ingen inloggning."

@@ -3,6 +3,8 @@
 Tämä hakemisto on suomenkielinen oppimateriaali **Servo-selainmoottorin** ymmärtämiseen. Se täydentää tuotedokumentaatiota (`docs/`), joka kuvaa Katselinta ja Kotisatamaa.
 
 > **Servo on moottori, Kotisatama on satama.** Moottorin koodi on englanniksi; tässä kansiossa selitetään käsitteet ja rakenteet suomeksi. Katso [docs/FILOSOFIA.md](../docs/FILOSOFIA.md).
+>
+> Syventävään lukemiseen suomeksi: [Servo-kirja](https://mikko-huuskonen-pro.github.io/Servo-kirja/) ja [Rust-ohjelmointikieli](https://mikko-huuskonen-pro.github.io/Kirja/) — katso myös [linkit.md](linkit.md).
 
 ## Mitä tästä löytyy
 

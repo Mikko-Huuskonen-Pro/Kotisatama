@@ -8,13 +8,13 @@ Tämä sivu auttaa aloittamaan Servo-moottorin opiskelun Katselin-repossa.
 - **Webin perusteet** — HTML, CSS, JavaScript, HTTP (ei tarvitse olla asiantuntija)
 - **Git** — haarat, commitit, upstream-merge
 
-Jos Rust on uutta, lue ensin [rust/käytännöt.md](rust/käytännöt.md) ja palaa sitten tänne.
+Jos Rust on uutta, lue ensin [rust/käytännöt.md](rust/käytännöt.md) tai [Rust-ohjelmointikieli](https://mikko-huuskonen-pro.github.io/Kirja/) suomeksi, ja palaa sitten tänne.
 
 ## Kehitysympäristö
 
 Seuraa Servon virallista asennusohjetta:
 
-- [Setting up your environment](https://book.servo.org/hacking/setting-up-your-environment.html)
+- [Setting up your environment](https://book.servo.org/hacking/setting-up-your-environment.html) — suomeksi: [Servo-kirja](https://mikko-huuskonen-pro.github.io/Servo-kirja/)
 
 Katselin-spesifiset lisäohjeet: [README.md](../README.md#kehitysympäristö).
 

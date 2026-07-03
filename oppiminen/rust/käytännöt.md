@@ -42,6 +42,7 @@ Mitä Rust-taitoja kannattaa olla (tai opetella rinnalla) kun luet Servo-koodia.
 
 ## Resurssit
 
+- [Rust-ohjelmointikieli](https://mikko-huuskonen-pro.github.io/Kirja/) (suomennos)
 - [The Rust Book](https://doc.rust-lang.org/book/) (englanti)
 - [Rust by Example](https://doc.rust-lang.org/rust-by-example/)
 

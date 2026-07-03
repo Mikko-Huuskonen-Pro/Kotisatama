@@ -2,6 +2,17 @@
 
 Kuratoitu lista Servon virallisista ja hyödyllisistä lähteistä. Lue ensin tiivistelmä oppimisdokumenteista, sitten alkuperäinen lähde syventävään lukemiseen.
 
+## Suomenkieliset lähteet (syventävä lukeminen)
+
+Jos haluat syventyä suomeksi:
+
+| Lähde | URL | Milloin lukea |
+|-------|-----|---------------|
+| Servo-kirja (suomennos) | <https://mikko-huuskonen-pro.github.io/Servo-kirja/> | Kun haluat lukea virallisen Servo Bookin sisällön suomeksi |
+| Rust-ohjelmointikieli (suomennos) | <https://mikko-huuskonen-pro.github.io/Kirja/> | Kun Rust on uutta ja haluat opiskella kielen perusteet suomeksi |
+
+Nämä täydentävät tämän repon `oppiminen/`-dokumentteja — ne eivät korvaa niitä kokonaan.
+
 ## Servo Book (päälähde)
 
 <https://book.servo.org>

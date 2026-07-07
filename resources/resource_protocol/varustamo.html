@@ -55,6 +55,7 @@
               return;
             }
             const apps = (registry.apps || []).filter((app) =>
+              app.id !== "pulloposti" &&
               ["testable", "bundled", "installed"].includes(app.status)
             );
             if (!apps.length) {

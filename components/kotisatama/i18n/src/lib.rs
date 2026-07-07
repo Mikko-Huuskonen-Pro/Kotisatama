@@ -202,8 +202,8 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "report_description") => "Kuvaus (valinnainen):",
         (Locale::Sv, "report_description") => "Beskrivning (valfritt):",
 
-        (Locale::Fi, "report_sent") => "Ilmoitus tallennettu (GitHub-issue).",
-        (Locale::Sv, "report_sent") => "Rapporten sparades (GitHub-issue).",
+        (Locale::Fi, "report_sent") => "Ilmoitus tallennettu lokikirjaan.",
+        (Locale::Sv, "report_sent") => "Rapporten sparades i loggboken.",
 
         (Locale::Fi, "report_submit") => "Lähetä",
         (Locale::Sv, "report_submit") => "Skicka",

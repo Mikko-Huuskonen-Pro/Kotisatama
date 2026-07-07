@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+const FIRST_VERSION_HIDDEN_APPS: &[&str] = &["pulloposti"];
+
 /// Varustamo registry file (schema v1).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct VarustamoRegistry {
@@ -124,8 +126,11 @@ pub fn load_registry_from(path: &Path) -> Result<VarustamoRegistry, VarustamoErr
 
 /// Raw registry JSON for `servo:varustamo/registry`.
 pub fn load_registry_json() -> Result<String, VarustamoError> {
-    let path = resolve_registry_path().ok_or(VarustamoError::NotFound)?;
-    fs::read_to_string(path).map_err(VarustamoError::Io)
+    let mut registry = load_registry()?;
+    registry
+        .apps
+        .retain(VarustamoApp::is_visible_in_first_version);
+    serde_json::to_string(&registry).map_err(VarustamoError::Parse)
 }
 
 impl VarustamoRegistry {
@@ -133,13 +138,22 @@ impl VarustamoRegistry {
     pub fn displayable_apps(&self) -> Vec<&VarustamoApp> {
         self.apps
             .iter()
-            .filter(|app| matches!(app.status.as_str(), "testable" | "bundled" | "installed"))
+            .filter(|app| {
+                app.is_visible_in_first_version()
+                    && matches!(app.status.as_str(), "testable" | "bundled" | "installed")
+            })
             .collect()
     }
 
     /// Lookup app by id.
     pub fn find_app(&self, id: &str) -> Option<&VarustamoApp> {
         self.apps.iter().find(|app| app.id == id)
+    }
+}
+
+impl VarustamoApp {
+    fn is_visible_in_first_version(&self) -> bool {
+        !FIRST_VERSION_HIDDEN_APPS.contains(&self.id.as_str())
     }
 }
 
@@ -168,5 +182,46 @@ mod tests {
         let registry = load_registry_from(&path).expect("example registry");
         assert_eq!(registry.schema, 1);
         assert!(!registry.displayable_apps().is_empty());
+    }
+
+    #[test]
+    fn first_version_hides_pulloposti_from_varustamo() {
+        let registry = VarustamoRegistry {
+            schema: 1,
+            name: "Varustamo".into(),
+            description: None,
+            apps: vec![
+                VarustamoApp {
+                    id: "pulloposti".into(),
+                    name: "Pulloposti".into(),
+                    status: "testable".into(),
+                    path: None,
+                    tauri_config: None,
+                    daemon: None,
+                    permissions: Vec::new(),
+                    no_permissions: Vec::new(),
+                    internet_scope: Vec::new(),
+                },
+                VarustamoApp {
+                    id: "missa-olen".into(),
+                    name: "Missä olen".into(),
+                    status: "testable".into(),
+                    path: None,
+                    tauri_config: None,
+                    daemon: None,
+                    permissions: Vec::new(),
+                    no_permissions: Vec::new(),
+                    internet_scope: Vec::new(),
+                },
+            ],
+        };
+
+        let visible: Vec<_> = registry
+            .displayable_apps()
+            .into_iter()
+            .map(|app| app.id.as_str())
+            .collect();
+
+        assert_eq!(visible, vec!["missa-olen"]);
     }
 }

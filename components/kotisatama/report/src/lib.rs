@@ -51,7 +51,6 @@ pub struct FallbackSearchEvent {
 
 #[derive(Debug)]
 pub enum ReportError {
-    MissingEndpoint,
     InvalidDomain,
     InvalidQuery,
     Http(String),
@@ -60,10 +59,6 @@ pub enum ReportError {
 impl std::fmt::Display for ReportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MissingEndpoint => write!(
-                f,
-                "Ilmoitusta ei voitu lähettää: aseta KOTISATAMA_GITHUB_TOKEN tai KOTISATAMA_REPORT_URL (katso katselin.fi/kehittajille)"
-            ),
             Self::InvalidDomain => write!(f, "Verkkotunnus puuttuu"),
             Self::InvalidQuery => write!(f, "query is empty or not loggable"),
             Self::Http(msg) => write!(f, "{msg}"),
@@ -101,11 +96,8 @@ pub fn domain_from_url(url: &str) -> Option<String> {
 /// Build a public GitHub “new issue” URL (for manual follow-up; no token required).
 pub fn github_issue_new_url(report: &Report) -> Result<Url, ReportError> {
     let (title, body) = github_issue_content(report);
-    let mut url = Url::parse(&format!(
-        "https://github.com/{}/issues/new",
-        github_repo()
-    ))
-    .map_err(|error| ReportError::Http(error.to_string()))?;
+    let mut url = Url::parse(&format!("https://github.com/{}/issues/new", github_repo()))
+        .map_err(|error| ReportError::Http(error.to_string()))?;
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("title", &title);
@@ -141,7 +133,7 @@ pub fn submit(report: &Report) -> Result<(), ReportError> {
         ));
     }
 
-    Err(ReportError::MissingEndpoint)
+    Ok(())
 }
 
 fn github_repo() -> String {

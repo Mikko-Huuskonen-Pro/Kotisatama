@@ -767,10 +767,12 @@ impl Gui {
                         ui.label(t("report_domain"));
                         ui.text_edit_singleline(&mut self.report_form.domain);
 
-                        if self.report_form.kind == ReportKind::SiteBroken {
-                            ui.label(t("report_description"));
-                            ui.text_edit_multiline(&mut self.report_form.message);
-                        }
+                        ui.label(t("report_description"));
+                        ui.add(
+                            egui::TextEdit::multiline(&mut self.report_form.message)
+                                .desired_rows(4)
+                                .desired_width(f32::INFINITY),
+                        );
 
                         if let Some(status) = &self.report_status {
                             match status {

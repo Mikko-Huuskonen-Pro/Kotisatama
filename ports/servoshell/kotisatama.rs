@@ -19,9 +19,9 @@ pub use kotisatama_search::{
 use kotisatama_varustamo::gateway_url as varustamo_gateway_url;
 pub use kotisatama_varustamo::{VarustamoRegistry, app_gateway_url, load_registry};
 use kotisatama_whitelist::{
-    CategoryMeta, RegionMeta, TypeMeta, WhitelistDocument, avomeri_gateway_url, blocked_page_url,
-    curated_document, effective_whitelist_profile, init_with_fallback, is_avomeri_gateway,
-    is_navigation_allowed, ProductProfile,
+    CategoryMeta, ProductProfile, RegionMeta, TypeMeta, WhitelistDocument, avomeri_gateway_url,
+    blocked_page_url, curated_document, effective_whitelist_profile, init_with_fallback,
+    is_avomeri_gateway, is_navigation_allowed,
 };
 use log::{info, warn};
 use serde::Serialize;
@@ -110,8 +110,7 @@ pub fn check_url(url: &Url) -> bool {
 /// Avomeri is an internal port; it does not grant open-web navigation by itself.
 pub fn should_allow_navigation(webview: &WebView, target: &Url) -> bool {
     let _ = webview;
-    check_url(target)
-        || (avomeri_mode_enabled() && ProductProfile::current().can_enter_avomeri())
+    check_url(target) || (avomeri_mode_enabled() && ProductProfile::current().can_enter_avomeri())
 }
 
 /// Track allowed navigations.
@@ -178,12 +177,7 @@ pub fn submit_report(
     form: &KotisatamaReportForm,
     context_url: Option<String>,
 ) -> Result<(), ReportError> {
-    let message = match form.kind {
-        ReportKind::SiteBroken if !form.message.trim().is_empty() => {
-            Some(form.message.trim().to_string())
-        },
-        _ => None,
-    };
+    let message = (!form.message.trim().is_empty()).then(|| form.message.trim().to_string());
 
     kotisatama_report::submit(&Report {
         kind: form.kind,

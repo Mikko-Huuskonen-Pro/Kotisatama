@@ -118,6 +118,10 @@ Kun käyttäjä klikkaa linkkiä sivulla, `request_navigation`-hook (`running_ap
 
 Lisäksi `load_url_or_blocked` käytetään suorissa latauksissa (osoitepalkki, webdriver).
 
+### Iframe-erikoistapaus
+
+Upotettu `<iframe src="…">` **ei** käy `request_navigation`-hookia — lataus menee suoraan constellationille. JS-navigointi iframessa (`location.href`) käy hookin kautta. Katso [servo/iframe-ja-upotetut-kontekstit.md](../servo/iframe-ja-upotetut-kontekstit.md).
+
 ## Avomeri-tila
 
 Avomeri on tietoinen poikkeus whitelististä. Se **ei** avaa internetiä automaattisesti — käyttäjän täytyy vahvistaa siirtyminen.
@@ -174,4 +178,5 @@ Katso myös [kotisatama-vs-servo.md](../kotisatama-vs-servo.md) — päätöspuu
 
 - [sisaiset-sivut.md](sisaiset-sivut.md) — `servo:blocked`, `servo:haku` jne.
 - [cratet.md](cratet.md) — whitelist- ja search-cratejen yksityiskohdat
+- [servo/iframe-ja-upotetut-kontekstit.md](../servo/iframe-ja-upotetut-kontekstit.md) — iframe ja whitelist-aukko
 - [servo/sivun-lataus.md](../servo/sivun-lataus.md) — mitä tapahtuu `webview.load()`:n jälkeen

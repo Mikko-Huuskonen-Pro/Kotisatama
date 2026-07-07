@@ -19,7 +19,7 @@ pub use kotisatama_search::{
 use kotisatama_varustamo::gateway_url as varustamo_gateway_url;
 pub use kotisatama_varustamo::{VarustamoRegistry, app_gateway_url, load_registry};
 use kotisatama_whitelist::{
-    CategoryMeta, TypeMeta, WhitelistDocument, avomeri_gateway_url, blocked_page_url,
+    CategoryMeta, RegionMeta, TypeMeta, WhitelistDocument, avomeri_gateway_url, blocked_page_url,
     curated_document, effective_whitelist_profile, init_with_fallback, is_avomeri_gateway,
     is_navigation_allowed, ProductProfile,
 };
@@ -439,6 +439,7 @@ struct SearchResultsData {
     hits: Vec<EnrichedSearchHit>,
     categories: Vec<CategoryMeta>,
     types: Vec<TypeMeta>,
+    regions: Vec<RegionMeta>,
 }
 
 /// JSON payload for `servo:haku/data?q=...`.
@@ -454,6 +455,10 @@ pub fn search_results_json(query: &str) -> String {
         .as_ref()
         .map(|doc| doc.types.clone())
         .unwrap_or_default();
+    let regions = document
+        .as_ref()
+        .map(|doc| doc.regions.clone())
+        .unwrap_or_default();
 
     let (status, message, hits) = match enriched {
         EnrichedSearchOutcome::Hits(hits) => ("hits", None, hits),
@@ -468,6 +473,7 @@ pub fn search_results_json(query: &str) -> String {
         hits,
         categories,
         types,
+        regions,
     })
     .unwrap_or_else(|_| {
         r#"{"status":"error","message":"JSON serialisointi epäonnistui"}"#.to_owned()

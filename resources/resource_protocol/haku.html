@@ -80,6 +80,15 @@
           emptyEl.classList.add("hidden");
         }
 
+        const INTERNAL_TAGS = ["hopeakettu", "lapsi"];
+
+        function isInternalTag(tag) {
+          const normalized = String(tag).toLowerCase();
+          return INTERNAL_TAGS.some(function (internal) {
+            return internal === normalized;
+          });
+        }
+
         function categoryLabel(id, categories) {
           const found = categories.find(function (item) {
             return item.id === id;
@@ -87,15 +96,33 @@
           return found ? found.label : id;
         }
 
-        function renderTags(tags, categoryId, categories) {
+        function regionLabel(id, regions) {
+          if (!id) {
+            return null;
+          }
+          const found = (regions || []).find(function (item) {
+            return item.id === id;
+          });
+          return found ? found.label : id;
+        }
+
+        function renderTags(tags, categoryId, categories, regionId, regions) {
           const chips = [];
+          const region = regionLabel(regionId, regions);
+          if (region) {
+            chips.push(region);
+          }
           if (categoryId) {
-            chips.push(categoryLabel(categoryId, categories));
+            const category = categoryLabel(categoryId, categories);
+            if (!chips.includes(category)) {
+              chips.push(category);
+            }
           }
           tags.forEach(function (tag) {
-            if (!chips.includes(tag)) {
-              chips.push(tag);
+            if (isInternalTag(tag) || chips.includes(tag)) {
+              return;
             }
+            chips.push(tag);
           });
           return chips
             .map(function (tag) {
@@ -146,7 +173,13 @@
                 ? '<p class="result-snippet">' + escapeHtml(hit.title) + "</p>"
                 : "") +
               '<div class="tags">' +
-              renderTags(hit.tags || [], hit.category, data.categories || []) +
+              renderTags(
+                hit.tags || [],
+                hit.category,
+                data.categories || [],
+                hit.region,
+                data.regions || []
+              ) +
               "</div>";
             li.appendChild(link);
             resultsEl.appendChild(li);

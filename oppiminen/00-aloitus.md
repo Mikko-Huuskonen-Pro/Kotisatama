@@ -32,7 +32,7 @@ Jos build onnistuu ja selain avautuu, ympäristö on kunnossa.
 1. Lue [sanasto.md](sanasto.md) — tutustu termeihin ennen koodin lukemista.
 2. Valitse polku tavoitteesi mukaan:
    - **Katselinin oma kerros** (whitelist, haku): [kotisatama/README.md](kotisatama/README.md)
-   - **Servo-moottori** (sivun lataus, layout, JS): [servo/sivun-lataus.md](servo/sivun-lataus.md)
+   - **Servo-moottori** (sivun lataus, layout, JS): [servo/README.md](servo/README.md) tai [servo/sivun-lataus.md](servo/sivun-lataus.md)
 3. Selaa [servo/komponentit.md](servo/komponentit.md) tai [kotisatama/cratet.md](kotisatama/cratet.md) — löydä oikea hakemisto.
 4. Avaa lähdekoodi rinnalla — aloita esim. `ports/servoshell/kotisatama.rs` tai `components/constellation/`.
 
@@ -62,6 +62,6 @@ Lisää: [servo/testaus-wpt.md](servo/testaus-wpt.md), [linkit.md](linkit.md).
 ## Seuraavaksi
 
 - **Katselinin kerros:** [kotisatama/README.md](kotisatama/README.md)
-- **Käytännönläheinen (moottori):** [servo/sivun-lataus.md](servo/sivun-lataus.md)
+- **Käytännönläheinen (moottori):** [servo/README.md](servo/README.md) tai [servo/sivun-lataus.md](servo/sivun-lataus.md)
 - **Teoreettinen:** [servo/arkkitehtuuri.md](servo/arkkitehtuuri.md)
 - **Kela-debuggaus:** [telakka/miten-debugataan.md](telakka/miten-debugataan.md)

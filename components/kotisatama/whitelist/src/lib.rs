@@ -12,7 +12,8 @@ mod state;
 mod user;
 
 pub use document::{
-    CategoryMeta, TypeMeta, WhitelistDocument, WhitelistEntry, WhitelistProfile,
+    CategoryMeta, RegionMeta, TypeMeta, WhitelistDocument, WhitelistEntry, WhitelistProfile,
+    INTERNAL_PROFILE_TAGS, display_tags, is_internal_tag, public_tags,
 };
 pub use domain::{host_matches_domain, normalize_domain};
 pub use product_profile::{ProductProfile, effective_whitelist_profile};

@@ -19,7 +19,7 @@ use kotisatama_subprocess_app::{
     HealthCheckConfig, ManagedSubprocess, SubprocessError, find_binary, find_on_path, is_healthy,
     wait_for_health,
 };
-use kotisatama_whitelist::{WhitelistEntry, curated_document};
+use kotisatama_whitelist::{WhitelistDocument, WhitelistEntry, curated_document};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -278,8 +278,9 @@ fn append_whitelist_documents(documents: &mut Vec<SeedDocument>) {
         .map(|document| document.url.to_ascii_lowercase())
         .collect::<HashSet<_>>();
 
-    for entry in whitelist.domains {
-        let Some(document) = whitelist_entry_document(1_000_000 + documents.len() as u64, &entry)
+    for entry in &whitelist.domains {
+        let Some(document) =
+            whitelist_entry_document(1_000_000 + documents.len() as u64, entry, &whitelist)
         else {
             continue;
         };
@@ -289,17 +290,28 @@ fn append_whitelist_documents(documents: &mut Vec<SeedDocument>) {
     }
 }
 
-fn whitelist_entry_document(id: u64, entry: &WhitelistEntry) -> Option<SeedDocument> {
+fn whitelist_entry_document(
+    id: u64,
+    entry: &WhitelistEntry,
+    document: &WhitelistDocument,
+) -> Option<SeedDocument> {
     let domain = entry.domain.trim();
     if domain.is_empty() {
         return None;
     }
 
     let title = entry.label.as_deref().unwrap_or(domain).trim().to_owned();
+    let visible_tags = document.display_tags_for_entry(entry);
     let mut keywords = vec![domain.to_owned()];
-    keywords.extend(entry.tags.iter().cloned());
-    if entry
-        .tags
+    keywords.extend(visible_tags.iter().cloned());
+    if let Some(region_id) = document.resolve_entry_region(entry) {
+        if let Some(meta) = document.region_meta(&region_id) {
+            keywords.extend(meta.search_keywords());
+        } else {
+            keywords.push(region_id);
+        }
+    }
+    if visible_tags
         .iter()
         .any(|tag| tag.eq_ignore_ascii_case("golf"))
     {
@@ -412,16 +424,49 @@ mod tests {
 
     #[test]
     fn whitelist_entry_document_adds_golf_keywords() {
-        let entry = WhitelistEntry {
-            domain: "example-golf.fi".into(),
-            label: Some("Example Golf".into()),
-            category: Some("sports".into()),
-            tags: vec!["golf".into()],
-            entry_type: Some("yellow".into()),
-        };
-        let document = whitelist_entry_document(1, &entry).unwrap();
+        let doc = WhitelistDocument::from_json_str(
+            r#"{"domains":[{"domain":"example-golf.fi","label":"Example Golf","tags":["golf"]}]}"#,
+        )
+        .unwrap();
+        let entry = doc.domains[0].clone();
+        let document = whitelist_entry_document(1, &entry, &doc).unwrap();
         assert_eq!(document.url, "https://example-golf.fi/");
         assert_eq!(document.title, "Example Golf");
         assert!(document.keywords.unwrap().contains("golfkenttään"));
+    }
+
+    #[test]
+    fn whitelist_entry_document_indexes_region_aliases() {
+        let doc = WhitelistDocument::from_json_str(
+            r#"{
+              "regions":[{"id":"paijat-hame","label":"Päijät-Häme","aliases":["päijät häme"]}],
+              "domains":[{"domain":"hartola.fi","label":"Hartola","tags":["kunta","paijat-hame"]}]
+            }"#,
+        )
+        .unwrap();
+        let document = whitelist_entry_document(1, &doc.domains[0], &doc).unwrap();
+        let keywords = document.keywords.unwrap();
+        assert!(keywords.contains("päijät häme"));
+        assert!(keywords.contains("Päijät-Häme"));
+        assert!(keywords.contains("paijat-hame"));
+    }
+
+    #[test]
+    fn whitelist_entry_document_omits_internal_profile_tags_from_keywords() {
+        let doc = WhitelistDocument::from_json_str(r#"{"domains":[]}"#).unwrap();
+        let entry = WhitelistEntry {
+            domain: "kela.fi".into(),
+            label: Some("Kela".into()),
+            category: None,
+            region: None,
+            tags: vec!["eläke".into(), "hopeakettu".into(), "lapsi".into()],
+            entry_type: None,
+            entry_url: None,
+        };
+        let document = whitelist_entry_document(1, &entry, &doc).unwrap();
+        let keywords = document.keywords.unwrap();
+        assert!(keywords.contains("eläke"));
+        assert!(!keywords.contains("hopeakettu"));
+        assert!(!keywords.contains("lapsi"));
     }
 }

@@ -4,7 +4,7 @@
 
 //! Rikastaa Meilisearch-osumat whitelist 2.1 -metadatalla.
 
-use kotisatama_whitelist::lookup_curated_entry;
+use kotisatama_whitelist::{curated_document, lookup_curated_entry};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -20,6 +20,8 @@ pub struct EnrichedSearchHit {
     pub category: Option<String>,
     #[serde(rename = "type")]
     pub entry_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
     pub tags: Vec<String>,
 }
 
@@ -29,6 +31,22 @@ pub fn enrich_hit(hit: &SearchHit) -> EnrichedSearchHit {
         .ok()
         .and_then(|url| url.host_str().map(str::to_ascii_lowercase));
     let curated = host.as_deref().and_then(lookup_curated_entry);
+    let document = curated_document();
+
+    let region = curated.as_ref().and_then(|entry| {
+        document
+            .as_ref()
+            .and_then(|doc| doc.resolve_entry_region(entry))
+    });
+    let tags = curated
+        .as_ref()
+        .map(|entry| {
+            document
+                .as_ref()
+                .map(|doc| doc.display_tags_for_entry(entry))
+                .unwrap_or_else(|| kotisatama_whitelist::public_tags(&entry.tags))
+        })
+        .unwrap_or_default();
 
     EnrichedSearchHit {
         url: hit.url.clone(),
@@ -37,7 +55,8 @@ pub fn enrich_hit(hit: &SearchHit) -> EnrichedSearchHit {
         domain: host.or_else(|| curated.as_ref().map(|entry| entry.domain.clone())),
         category: curated.as_ref().and_then(|entry| entry.category.clone()),
         entry_type: curated.as_ref().and_then(|entry| entry.entry_type.clone()),
-        tags: curated.map(|entry| entry.tags).unwrap_or_default(),
+        region,
+        tags,
     }
 }
 
@@ -67,6 +86,27 @@ pub enum EnrichedSearchOutcome {
 mod tests {
     use super::*;
     use kotisatama_whitelist::WhitelistProfile;
+    use std::path::PathBuf;
+    use std::sync::OnceLock;
+
+    fn init_test_whitelist() {
+        static INIT: OnceLock<PathBuf> = OnceLock::new();
+        INIT.get_or_init(|| {
+            let json = r#"{
+              "regions":[{"id":"paijat-hame","label":"Päijät-Häme","aliases":["päijät häme"]}],
+              "categories":[{"id":"health","label":"Terveys","icon":"health"}],
+              "types":[{"id":"white","label":"Valkoinen","icon":"white"}],
+              "domains":[
+                {"domain":"kela.fi","label":"Kela","category":"health","type":"white","tags":["eläke","hopeakettu","lapsi"]},
+                {"domain":"hartola.fi","label":"Hartola","tags":["kunta","paijat-hame"]}
+              ]
+            }"#;
+            let temp = std::env::temp_dir().join("kotisatama-whitelist-enrich-test.json");
+            std::fs::write(&temp, json).unwrap();
+            kotisatama_whitelist::init(&temp, WhitelistProfile::Free).unwrap();
+            temp
+        });
+    }
 
     #[test]
     fn enrich_hit_without_whitelist_uses_title_and_url() {
@@ -83,14 +123,7 @@ mod tests {
 
     #[test]
     fn enrich_hit_uses_whitelist_metadata_when_initialized() {
-        let json = r#"{
-          "categories":[{"id":"health","label":"Terveys","icon":"health"}],
-          "types":[{"id":"white","label":"Valkoinen","icon":"white"}],
-          "domains":[{"domain":"kela.fi","label":"Kela","category":"health","type":"white","tags":["eläke"]}]
-        }"#;
-        let temp = std::env::temp_dir().join("kotisatama-whitelist-enrich-test.json");
-        std::fs::write(&temp, json).unwrap();
-        kotisatama_whitelist::init(&temp, WhitelistProfile::Free).unwrap();
+        init_test_whitelist();
 
         let hit = SearchHit {
             id: 1,
@@ -102,6 +135,32 @@ mod tests {
         assert_eq!(enriched.category.as_deref(), Some("health"));
         assert_eq!(enriched.entry_type.as_deref(), Some("white"));
         assert_eq!(enriched.tags, vec!["eläke"]);
-        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn enrich_hit_strips_internal_profile_tags() {
+        init_test_whitelist();
+
+        let hit = SearchHit {
+            id: 1,
+            url: "https://kela.fi/".into(),
+            title: "Kela".into(),
+        };
+        let enriched = enrich_hit(&hit);
+        assert_eq!(enriched.tags, vec!["eläke"]);
+    }
+
+    #[test]
+    fn enrich_hit_includes_region_and_strips_region_slug_from_tags() {
+        init_test_whitelist();
+
+        let hit = SearchHit {
+            id: 1,
+            url: "https://hartola.fi/".into(),
+            title: "Hartola".into(),
+        };
+        let enriched = enrich_hit(&hit);
+        assert_eq!(enriched.region.as_deref(), Some("paijat-hame"));
+        assert_eq!(enriched.tags, vec!["kunta"]);
     }
 }

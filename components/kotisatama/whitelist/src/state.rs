@@ -105,6 +105,7 @@ pub fn init_empty(profile: WhitelistProfile) -> Result<(), WhitelistError> {
         description: None,
         categories: Vec::new(),
         types: Vec::new(),
+        regions: Vec::new(),
         domains: Vec::new(),
     };
     let user = UserWhitelist::load_from_path(&user_whitelist_path())?;

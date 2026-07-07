@@ -87,7 +87,16 @@ Layout-puu muutetaan pikseleiksi: tekstit, taustat, kuvat. Tulos välitetään e
 3. Avaa vastaava komponentti [komponentit.md](komponentit.md) -taulukosta.
 4. Kirjaa havainnot [telakka/oppimispäiväkirja/](../telakka/oppimispäiväkirja/).
 
-## Seuraavaksi
+## Seuraavaksi (syvemmälle)
 
-- [embedder-ja-ports.md](embedder-ja-ports.md) — whitelist-hookin paikka
-- [telakka/miten-debugataan.md](../telakka/miten-debugataan.md) — käytännön debuggaus
+Tämä sivu on yleiskuva. Jokainen vaihe on omassa dokumentissaan:
+
+1. [constellation-ja-navigointi.md](constellation-ja-navigointi.md) — vaiheet 3 (orkestrointi)
+2. [verkko-ja-piirto.md](verkko-ja-piirto.md) — vaihe 4 (verkko)
+3. [javascript-moottori.md](javascript-moottori.md) — vaihe 5 (script)
+4. [script-layout-ja-reflow.md](script-layout-ja-reflow.md) + [css-flex-ja-grid.md](css-flex-ja-grid.md) — vaihe 6 (layout)
+5. [verkko-ja-piirto.md](verkko-ja-piirto.md) — vaihe 7 (piirto)
+6. [iframe-ja-upotetut-kontekstit.md](iframe-ja-upotetut-kontekstit.md) — upotetut sivut
+7. [embedder-ja-ports.md](embedder-ja-ports.md) — vaihe 8 (embedder)
+
+Käytännön debuggaus: [telakka/miten-debugataan.md](../telakka/miten-debugataan.md)

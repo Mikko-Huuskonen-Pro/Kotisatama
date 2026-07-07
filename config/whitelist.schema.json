@@ -6,7 +6,7 @@
   "properties": {
     "version": {
       "type": "string",
-      "description": "Document version (2.1 for unified whitelist with categories and types)."
+      "description": "Document version (2.2 adds regions; 2.1 unified whitelist with categories and types)."
     },
     "updated": {
       "type": "string",
@@ -47,6 +47,23 @@
         }
       }
     },
+    "regions": {
+      "type": "array",
+      "description": "Maakuntien metatiedot (v2.2). UI näyttää labelin; aliasit indeksoidaan hakuun.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string" },
+          "aliases": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
     "domains": {
       "type": "array",
       "description": "Kuratoidut whitelist-merkinnät. v1: plain domain strings. v2+: objects with metadata.",
@@ -72,6 +89,10 @@
               "category": {
                 "type": "string",
                 "description": "Viittaa categories[].id-kenttään."
+              },
+              "region": {
+                "type": "string",
+                "description": "Viittaa regions[].id-kenttään (maakunta)."
               },
               "tags": {
                 "type": "array",

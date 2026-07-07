@@ -52,5 +52,8 @@ Servo käyttää useita prosesseja turvallisuuden ja vakauden vuoksi. Yksityisko
 ## Seuraavaksi
 
 - [sivun-lataus.md](sivun-lataus.md) — mitä tapahtuu kun avaat URL:n
+- [constellation-ja-navigointi.md](constellation-ja-navigointi.md) — pipeline ja IPC
+- [script-layout-ja-reflow.md](script-layout-ja-reflow.md) — DOM ja reflow
+- [verkko-ja-piirto.md](verkko-ja-piirto.md) — verkko ja WebRender
 - [komponentit.md](komponentit.md) — taulukko kaikista `components/`-hakemistoista
 - [embedder-ja-ports.md](embedder-ja-ports.md) — servoshell ja Katselin-hookit

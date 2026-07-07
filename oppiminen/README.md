@@ -13,7 +13,7 @@ Tämä hakemisto on suomenkielinen oppimateriaali **Servo-selainmoottorin** ymm�
 | [linkit.md](linkit.md) | Kuratoitu lista upstream-lähteistä |
 | [kotisatama-vs-servo.md](kotisatama-vs-servo.md) | Miten fork eroaa upstream-Servosta |
 | [kotisatama/](kotisatama/) | Katselinin oma kerros (whitelist, haku, sisäiset sivut) |
-| [servo/](servo/) | Moottorin arkkitehtuuri ja komponentit |
+| [servo/](servo/) | Moottorin arkkitehtuuri ja komponentit ([servo/README.md](servo/README.md)) |
 | [rust/](rust/) | Rust- ja repokohtaiset käytännöt |
 | [telakka/](telakka/) | Debuggaus ja oppimispäiväkirja (Kela-työ) |
 
@@ -25,9 +25,12 @@ Valitse polku lähtötasosi mukaan. Voit yhdistää polkuja vapaasti.
 
 Käytännönläheinen polku: yksi URL, koko ketju selitettynä.
 
-1. [servo/sivun-lataus.md](servo/sivun-lataus.md)
-2. [servo/embedder-ja-ports.md](servo/embedder-ja-ports.md)
-3. [telakka/miten-debugataan.md](telakka/miten-debugataan.md)
+1. [servo/sivun-lataus.md](servo/sivun-lataus.md) — kokonaiskuva
+2. [servo/constellation-ja-navigointi.md](servo/constellation-ja-navigointi.md) — navigointi ja pipeline
+3. [servo/script-layout-ja-reflow.md](servo/script-layout-ja-reflow.md) — DOM ja asettelu
+4. [servo/verkko-ja-piirto.md](servo/verkko-ja-piirto.md) — verkko ja pikselit
+5. [servo/embedder-ja-ports.md](servo/embedder-ja-ports.md) — embedder-hook
+6. [telakka/miten-debugataan.md](telakka/miten-debugataan.md)
 
 ### Polku B — "Haluan lukea koodia järjestelmällisesti"
 
@@ -36,7 +39,14 @@ Rakenne ensin, sitten yksityiskohdat.
 1. [servo/arkkitehtuuri.md](servo/arkkitehtuuri.md)
 2. [servo/komponentit.md](servo/komponentit.md)
 3. [servo/prosessit-ja-säikeet.md](servo/prosessit-ja-säikeet.md)
-4. Valitse yksi komponentti `components/`-hakemistosta ja lue lähdekoodi rinnalla
+4. Syvä sukellus (järjestyksessä):
+   - [servo/constellation-ja-navigointi.md](servo/constellation-ja-navigointi.md)
+   - [servo/javascript-moottori.md](servo/javascript-moottori.md)
+   - [servo/script-layout-ja-reflow.md](servo/script-layout-ja-reflow.md)
+   - [servo/css-flex-ja-grid.md](servo/css-flex-ja-grid.md)
+   - [servo/iframe-ja-upotetut-kontekstit.md](servo/iframe-ja-upotetut-kontekstit.md)
+   - [servo/verkko-ja-piirto.md](servo/verkko-ja-piirto.md)
+5. Valitse yksi komponentti `components/`-hakemistosta ja lue lähdekoodi rinnalla
 
 ### Polku C — "Haluan korjata ensimmäisen upstream-bugin"
 
@@ -58,6 +68,19 @@ Kotisatama-kerros ennen moottorin yksityiskohtia.
 5. [kotisatama-vs-servo.md](kotisatama-vs-servo.md) — erot upstreamiin
 6. [servo/sivun-lataus.md](servo/sivun-lataus.md) — mitä tapahtuu whitelistin jälkeen
 
+### Polku E — "Syvä sukellus moottoriin"
+
+Järjestelmällinen syväoppiminen — kaikki syvädokumentit:
+
+1. [servo/README.md](servo/README.md) — indeksi
+2. [servo/prosessit-ja-säikeet.md](servo/prosessit-ja-säikeet.md)
+3. [servo/constellation-ja-navigointi.md](servo/constellation-ja-navigointi.md)
+4. [servo/javascript-moottori.md](servo/javascript-moottori.md)
+5. [servo/script-layout-ja-reflow.md](servo/script-layout-ja-reflow.md)
+6. [servo/css-flex-ja-grid.md](servo/css-flex-ja-grid.md)
+7. [servo/iframe-ja-upotetut-kontekstit.md](servo/iframe-ja-upotetut-kontekstit.md)
+8. [servo/verkko-ja-piirto.md](servo/verkko-ja-piirto.md)
+
 ## Miten dokumentaatiota täydennetään
 
 - **Älä kopioi** [book.servo.org](https://book.servo.org) kokonaan — tee tiivistelmiä ja linkitä alkuperäiseen.
@@ -71,6 +94,7 @@ Kotisatama-kerros ennen moottorin yksityiskohtia.
 
 ## Liittyvät dokumentit
 
+- [katselin.fi/fi/kehittajille-oppimispolut.html](https://katselin.fi/fi/kehittajille-oppimispolut.html) — julkinen ohjaus polkuihin (tämä repo)
 - [AGENT.md](../AGENT.md) — kehityssäännöt (älä koske upstreamia suoraan)
 - [docs/FILOSOFIA.md](../docs/FILOSOFIA.md) — Servo vs. Kotisatama
 - [docs/KELA-TELAKKA.md](../docs/KELA-TELAKKA.md) — ensimmäinen Telakka-kierros

@@ -56,6 +56,7 @@ Kun bugi on "sivu latautuu mutta näyttää väärältä", syy on harvoin embedd
 
 ## Seuraavaksi
 
+- [constellation-ja-navigointi.md](constellation-ja-navigointi.md) — mitä tapahtuu allow/deny:n jälkeen
 - [komponentit.md](komponentit.md) — moottorin cratet hookin jälkeen
 - [kotisatama-vs-servo.md](../kotisatama-vs-servo.md) — kaikki fork-erot yhdessä
 - [telakka/miten-debugataan.md](../telakka/miten-debugataan.md)

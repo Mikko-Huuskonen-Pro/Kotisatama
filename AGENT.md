@@ -120,7 +120,7 @@ Android-build käyttää Servon omaa polkua:
 
 ---
 
-## Tauri — hallintapaneeli, ei selain
+## Tauri — hallintapaneeli, ei selain (Ei totoutuksessa tällä hetkellä) 
 
 Tauri-app on täysin erillinen hakemisto. Se **ei onnistuneena wrappaa Servo-moottoria** — se on vanhemman hallintapaneeli whitelistin ja asetuksien hallintaan (web/desktop).
 

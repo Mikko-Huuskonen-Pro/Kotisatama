@@ -1,7 +1,5 @@
 # Katselin
 
-# Katselin
-
 > Finnish-first browser built on Servo.
 
 ## What is Katselin?

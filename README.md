@@ -1,5 +1,48 @@
 # Katselin
 
+# Katselin
+
+> Finnish-first browser built on Servo.
+
+## What is Katselin?
+
+Katselin is a Servo-based browser focused on a curated browsing experience.
+
+Instead of relying on a traditional search engine, Katselin uses a locally stored
+search index and a whitelist of trusted websites. The goal is to make everyday
+browsing simple, predictable and safe while remaining fully open source.
+
+The browser is developed in Finnish first. Community translations are welcome,
+but Finnish is considered the primary language of the project.
+
+---
+
+## Why another Servo fork?
+
+Katselin experiments with a different browser philosophy rather than a different
+rendering engine.
+
+Servo remains responsible for rendering the web.
+
+Katselin builds user experience on top of Servo:
+- curated search
+- locally indexed content
+- harbour-based navigation model
+- Brave's ad-block
+- simple UI designed for all ages
+
+Whenever possible, fixes are intended to be contributed upstream to Servo.
+
+---
+
+## Project status
+
+- Adblock integration is on process
+- First win 11 test user aqruired
+- Android version is broken mess, try to find time to fix it to the working state. Win11 version is working
+
+
+
 Katselin on Servo-pohjainen selain whitelist-pohjaisella hakumallilla. Selain ja
 esiladattu hakuindeksi muodostavat suljetun ympäristön: käyttäjä löytää kaiken
 tarvitsemansa ilman että eksyy avomerelle.

@@ -65,9 +65,6 @@ rikota yhdellä isolla uudelleennimeämisellä.
 [Android — servoshell EGL]
     └── support/android/apk + JNI-host    ← ei Tauri; Servon oma Android-polku
 
-[Tauri 2.0 — erillinen hallintapaneeli]
-    └── Vanhempi hallinnoi whitelistia (web/desktop), ei selainmoottori
-
 [CDN — staattinen]
     ├── /free/whitelist.json
     └── /pro/whitelist.json  (API-avain vaaditaan)

@@ -232,9 +232,9 @@ cargo build  # Pitää myös toimia ilman featurea
 Upstream-synkronointi (`git merge upstream/main`) tehdään **Agentilla**,
 ei manuaalisesti, jotta ei tuhota kaikki puhdistuksessa muutettuja tiedostoja.
 
-### Ennen muutoksia: tarkista suljetun repon Docs/Puhdistukset.md
+### Ennen muutoksia: tarkista tämän repon Docs/Puhdistukset (1).md
 
-Suljetun repon `Docs/Puhdistukset.md` on rekisteri kaikista tehdyistä Servo-siivousmuutoksista.
+Repon `Docs/Puhdistukset.md` on rekisteri kaikista tehdyistä Servo-siivousmuutoksista.
 Ennen kuin muutat tiedostoa joka sisältää Servo-viittauksen, tarkista:
 onko tämä tiedosto jo käsitelty ja onko muutos tarkoituksellinen?
 
@@ -291,4 +291,4 @@ näyttäisi upstream:ista poikkeavalta — se on todennäköisesti tarkoituksell
 
 ---
 
-*Päivitetty: kesäkuu 2026*
+*Päivitetty: heinäkuu 2026*

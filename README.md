@@ -39,7 +39,7 @@ Whenever possible, fixes are intended to be contributed upstream to Servo.
 - First win 11 test user aqruired
 - Android version is broken mess, try to find time to fix it to the working state. Win11 version is working
 
-
+## Mikä on katselin? 
 
 Katselin on Servo-pohjainen selain whitelist-pohjaisella hakumallilla. Selain ja
 esiladattu hakuindeksi muodostavat suljetun ympäristön: käyttäjä löytää kaiken

@@ -51,7 +51,7 @@ components/script/kotisatama_whitelist.rs  ← upstream-hakemisto
 
 ### Whitelist: embedder-hook (ensisijainen polku)
 
-Servo tarjoaa navigointihook embedder-kerroksessa (`NavigationRequest::allow()` / `deny()`). **Älä toteuta whitelistia `components/net/` tai `components/script/` -tasolla** — käytä `ports/servoshell/`.
+Servo tarjoaa navigointihook embedder-kerroksessa (`NavigationRequest::allow()` / `deny()`). **Älä toteuta whitelistia tai muita moduulien lisäystä `components/net/` tai `components/script/` -tasolla** — käytä `ports/servoshell/`.
 
 Logiikka pysyy `kotisatama-whitelist`-cratessa. Servoshell kutsuu sitä `WebViewDelegate::request_navigation`-metodissa:
 

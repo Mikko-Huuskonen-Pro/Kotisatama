@@ -42,8 +42,8 @@ use servo::protocol_handler::{
 #[cfg(feature = "kotisatama")]
 use kotisatama_i18n::parse_locale_choice;
 
-use crate::desktop::protocols::resource::ResourceProtocolHandler;
 use crate::prefs::EXPERIMENTAL_PREFS;
+use crate::protocols::resource::ResourceProtocolHandler;
 
 #[derive(Default)]
 pub struct ServoProtocolHandler {}
@@ -137,6 +137,9 @@ impl ProtocolHandler for ServoProtocolHandler {
 
             #[cfg(feature = "kotisatama")]
             "varustamo/registry" => {
+                if !crate::kotisatama::varustamo_enabled() {
+                    return json_response(request, r#"{"apps":[],"parked":true}"#.to_string());
+                }
                 let body = kotisatama_varustamo::load_registry_json()
                     .unwrap_or_else(|error| format!(r#"{{"error":"{error}"}}"#));
                 json_response(request, body)
@@ -144,6 +147,9 @@ impl ProtocolHandler for ServoProtocolHandler {
 
             #[cfg(feature = "kotisatama")]
             "varustamo/app" => {
+                if !crate::kotisatama::varustamo_enabled() {
+                    return redirect_response(request, "servo:newtab");
+                }
                 let app_id = query_param(url.as_url(), "id").unwrap_or_default();
                 let target = match app_id.as_str() {
                     "pulloposti" => {
@@ -159,12 +165,18 @@ impl ProtocolHandler for ServoProtocolHandler {
                 return redirect_response(request, target);
             },
 
-            "varustamo" => ResourceProtocolHandler::response_for_path(
-                request,
-                done_chan,
-                context,
-                "/varustamo.html",
-            ),
+            #[cfg(feature = "kotisatama")]
+            "varustamo" => {
+                if !crate::kotisatama::varustamo_enabled() {
+                    return redirect_response(request, "servo:newtab");
+                }
+                ResourceProtocolHandler::response_for_path(
+                    request,
+                    done_chan,
+                    context,
+                    "/varustamo.html",
+                )
+            },
 
             "missa-olen" => ResourceProtocolHandler::response_for_path(
                 request,

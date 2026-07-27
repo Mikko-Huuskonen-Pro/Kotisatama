@@ -38,6 +38,10 @@ public final class KotisatamaAssets {
         File indexDump = extractAssetIfPresent(context, ASSET_PREFIX + "index.dump", new File(base, "index.dump"));
         File meilisearch = extractAssetIfPresent(context, ASSET_PREFIX + "bin/meilisearch", new File(base, "bin/meilisearch"));
 
+        // servo:haku ym. — sama resource_protocol kuin desktopissa.
+        File resourcesRoot = new File(base, "resources");
+        extractAssetTree(context.getAssets(), ASSET_PREFIX + "resources", resourcesRoot);
+
         File dbDir = new File(base, "meilisearch-db");
         if (!dbDir.exists()) {
             dbDir.mkdirs();
@@ -55,6 +59,11 @@ public final class KotisatamaAssets {
                 Os.setenv("KOTISATAMA_INDEX_DUMP", indexDump.getAbsolutePath(), true);
             }
             Os.setenv("KOTISATAMA_MEILISEARCH_DB", dbDir.getAbsolutePath(), true);
+            if (new File(resourcesRoot, "resource_protocol/haku.html").exists()) {
+                Os.setenv("KOTISATAMA_RESOURCES_DIR", resourcesRoot.getAbsolutePath(), true);
+            } else {
+                Log.w(TAG, "resource_protocol/haku.html missing — servo:haku will fail");
+            }
             if (meilisearch != null) {
                 meilisearch.setExecutable(true, false);
                 Os.setenv("KOTISATAMA_MEILISEARCH_BIN", meilisearch.getAbsolutePath(), true);
@@ -93,6 +102,38 @@ public final class KotisatamaAssets {
             return dest;
         }
         return null;
+    }
+
+    /** Copy an asset directory tree (overwrites files so APK updates apply). */
+    private static void extractAssetTree(AssetManager assets, String assetPath, File destDir) {
+        try {
+            String[] children = assets.list(assetPath);
+            if (children == null || children.length == 0) {
+                return;
+            }
+            if (!destDir.exists() && !destDir.mkdirs()) {
+                Log.e(TAG, "Failed to create " + destDir.getAbsolutePath());
+                return;
+            }
+            for (String child : children) {
+                String childAsset = assetPath + "/" + child;
+                File childDest = new File(destDir, child);
+                String[] grandchildren = assets.list(childAsset);
+                if (grandchildren != null && grandchildren.length > 0) {
+                    extractAssetTree(assets, childAsset, childDest);
+                } else {
+                    File parent = childDest.getParentFile();
+                    if (parent != null && !parent.exists()) {
+                        parent.mkdirs();
+                    }
+                    if (!copyAsset(assets, childAsset, childDest)) {
+                        Log.w(TAG, "Failed to copy asset file: " + childAsset);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to extract asset tree: " + assetPath, e);
+        }
     }
 
     private static boolean copyAsset(AssetManager assets, String assetPath, File dest) {

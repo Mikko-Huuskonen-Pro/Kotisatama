@@ -9,6 +9,8 @@ use euclid::{Rect, Scale};
 use keyboard_types::{CompositionEvent, CompositionState, Key, KeyState, NamedKey};
 use log::{info, warn};
 use raw_window_handle::{DisplayHandle, RawWindowHandle, WindowHandle};
+#[cfg(all(feature = "kotisatama", not(target_env = "ohos")))]
+use servo::protocol_handler::ProtocolRegistry;
 use servo::{
     DeviceIndependentIntRect, DeviceIndependentPixel, DeviceIntSize, DevicePixel, DevicePoint,
     DeviceVector2D, EmbedderControl, EmbedderControlId, EventLoopWaker, ImeEvent, InputEvent,
@@ -306,10 +308,41 @@ pub struct App {
 impl App {
     #[servo::servo_tracing::instrument(skip_all, name = "App::new", level = "info")]
     pub(super) fn new(init: AppInitOptions) -> Rc<Self> {
+        // KOTISATAMA-PATCH: Android tarvitsee samat servo:/resource:-handlerit kuin desktop
+        // (muuten servo:haku → Unsupported scheme).
+        #[cfg(all(feature = "kotisatama", target_os = "android"))]
+        if let Ok(dir) = std::env::var("KOTISATAMA_RESOURCES_DIR") {
+            let path = std::path::PathBuf::from(dir);
+            if path.is_dir() {
+                crate::resources::set_resources_path(path);
+            } else {
+                warn!(
+                    "KOTISATAMA_RESOURCES_DIR is set but not a directory: {}",
+                    path.display()
+                );
+            }
+        }
+
         let mut servo_builder = ServoBuilder::default()
             .opts(init.opts)
             .preferences(init.preferences.clone())
             .event_loop_waker(init.event_loop_waker.clone());
+
+        // KOTISATAMA-PATCH: rekisteröi protokollat EGL:ssä (desktop tekee tämän app.rs:ssä).
+        #[cfg(all(feature = "kotisatama", not(target_env = "ohos")))]
+        {
+            let mut protocol_registry = ProtocolRegistry::default();
+            let _ = protocol_registry.register(
+                "servo",
+                crate::protocols::servo::ServoProtocolHandler::default(),
+            );
+            let _ = protocol_registry.register(
+                "resource",
+                crate::protocols::resource::ResourceProtocolHandler::default(),
+            );
+            servo_builder = servo_builder.protocol_registry(protocol_registry);
+        }
+
         let servo = servo_builder.build();
         #[cfg(feature = "webxr")]
         servo.register_webxr_registry(Box::new(XrDiscoveryWebXrRegistry::new(init.xr_discovery)));

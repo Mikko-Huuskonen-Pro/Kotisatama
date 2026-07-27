@@ -3,7 +3,12 @@
 **Tila:** hyväksytty toteutettavaksi  
 **Ensimmäinen kohde:** nykyinen Katselin (Windows + Android)  
 **Myöhempi kohde:** Kotisatama OS  
-**Päivitetty:** 17.7.2026
+**Päivitetty:** 27.7.2026
+
+**Lukitut päätökset (27.7.2026):**
+
+- Moottori on Katselimen fork [adblock-Katselin](https://github.com/Mikko-Huuskonen-Pro/adblock-Katselin) (`adblock` crate), ei crates.io:n Brave-upstream suoraan.
+- Integraatio sijoitetaan Kotisatama-malliin (`components/kotisatama/`, feature-flag, minimaaliset `KOTISATAMA-PATCH`-hookit) niin, että nykyinen whitelist/haku/UI-polku ei rikkoudu.
 
 > **Tavoite ei ole lisätä selaimeen yhtä ominaisuutta lisää.**  
 > Tavoite on tehdä verkosta rauhallisempi, nopeampi ja turvallisempi oletuksena.
@@ -12,17 +17,22 @@
 
 ## 1. Päätös
 
-Katselimeen integroidaan Braven avoimen lähdekoodin **adblock-rust**-moottori. https://github.com/Mikko-Huuskonen-Pro/adblock-Katselin
+Katselimeen integroidaan Braven avoimen lähdekoodin **adblock-rust**-moottorin fork **adblock-Katselin**:
+
+- Fork-repo: https://github.com/Mikko-Huuskonen-Pro/adblock-Katselin  
+- Package-nimi Cargo:ssa: `adblock` (nykyinen fork-versio esim. `0.13.2`)  
+- Riippuvuus: **git** forkkiseen (paikallisessa kehityksessä voi käyttää `path = "../adblock-Katselin"`)
 
 Ensimmäinen julkaistava versio keskittyy verkkopyyntöjen estämiseen. Kosmeettinen suodatus, resurssien korvaukset ja tarkempi käyttöliittymä lisätään vasta vakaan verkkosuodatuksen jälkeen.
 
-Integraatio tehdään omana Katselin-moduulina niin, että:
+Integraatio tehdään omana Kotisatama-cratena niin, että:
 
 - Servo ei tunne käyttöliittymän asetuksia
 - käyttöliittymä ei tunne suodatinmoottorin yksityiskohtia
 - Android, Windows ja myöhemmin Linux käyttävät samaa suodatusydintä
-- adblock-rust voidaan päivittää ilman laajoja muutoksia Katselimeen
+- forkkia voidaan päivittää ilman laajoja muutoksia Katselimeen
 - suodatus voidaan myöhemmin korvata toisella toteutuksella muuttamatta selaimen muita osia
+- ilman featurea / moottorin epäonnistuessa selain käyttäytyy kuten nykyinen toimiva malli (**fail-open**)
 
 ---
 
@@ -49,7 +59,7 @@ Mainostenesto ei ole Katselimessa erillinen lisäosa. Se on osa rauhallista verk
 
 MVP sisältää:
 
-1. adblock-rust-kirjaston lisäämisen Rust-riippuvuudeksi
+1. `adblock`-riippuvuuden (adblock-Katselin-fork) lisäämisen Rust-workspaceen
 2. yhden valitun suodatinlistan lataamisen paikallisesta paketista
 3. suodatinmoottorin alustamisen selaimen käynnistyessä
 4. HTTP- ja HTTPS-alipyyntöjen tarkistamisen ennen verkkoon lähettämistä
@@ -78,35 +88,34 @@ Näin ensimmäinen versio todistaa yhden asian luotettavasti: **estetäänkö ve
 
 ## 4. Ehdotettu arkkitehtuuri
 
+Sovitetaan AGENT.md:n malliin: logiikka `components/kotisatama/`-cratessa, UI/asetukset servoshellissa, mahdollinen verkko-hook minimaalisena `KOTISATAMA-PATCH`-kohtana.
+
 ```text
-Katselin UI
-   │
-   │ asetukset, sivustokohtainen poikkeus, laskuri
-   ▼
-PrivacyController
+Servoshell UI (asetukset / sivustopoikkeus / laskuri)
    │
    ▼
-ContentBlockingService
+kotisatama-content-blocking  (ContentBlockingService)
    ├── FilterListStore
    ├── SiteExceptionStore
    ├── BlockingStatistics
-   └── adblock-rust Engine
+   └── adblock-Katselin Engine  (crate: adblock)
              │
              ▼
-Servo-verkkopyynnön tarkistuspiste
+Servo-verkkopyynnön tarkistuspiste  #[cfg(feature = "kotisatama")]
              │
-       ┌─────┴─────┐
-       │           │
-     salli        estä
-       │           │
-       ▼           ▼
-   verkkoon     paikallinen
-                estovastaus
+       ┌─────┼─────┐
+       │     │     │
+     salli  estä  fail-open
+       │     │     │
+       ▼     ▼     ▼
+   verkko  esto  verkko (nykyinen polku)
 ```
+
+Whitelist-navigointihook (`request_navigation` / `ports/servoshell`) **ei korvaa** alipyyntösuodatusta. Navigointirajoitus ja sisältösuodatus ovat erilliset kerrokset.
 
 ### Moduulien vastuut
 
-#### `ContentBlockingService`
+#### `ContentBlockingService` (`kotisatama-content-blocking`)
 
 Katselimen oma julkinen rajapinta suodatukselle.
 
@@ -118,7 +127,7 @@ Vastaa:
 - sivustokohtaisten poikkeusten huomioimisesta
 - tilastojen välittämisestä
 
-Muu Katselin ei käytä adblock-rustin tyyppejä suoraan.
+Muu Katselin ei käytä `adblock`-craten tyyppejä suoraan — vain adapteri (`adblock_adapter.rs`).
 
 #### `FilterListStore`
 
@@ -152,11 +161,49 @@ Vastaa vain käyttöliittymälle tarpeellisista lyhytikäisistä tiedoista:
 
 Tilastot pidetään muistissa eikä niitä lähetetä palvelimelle.
 
+#### Käyttöliittymä / asetukset (ei erillinen Servo-komponentti)
+
+“PrivacyController”-rooli toteutetaan olemassa olevan servoshell-UI:n ja asetusten laajennuksena (desktop egui / Android Compose), ei uutena Servo-upstream-komponenttina.
+
+---
+
+## 4.1 Feature-flag ja nykyisen mallin säilytys
+
+Noudatetaan AGENT.md:tä:
+
+| Tilanne | Käyttäytyminen |
+|---|---|
+| `kotisatama`-feature pois | ei content-blocking-riippuvuutta; nykyinen Servo/Kotisatama-polku |
+| Feature päällä, moottori OK | alipyynnöt tarkistetaan ennen lähetystä |
+| Feature päällä, alustus epäonnistuu | **fail-open**: whitelist, haku, raportti, navigointi toimivat kuten nyt; UI ei väitä suojausta päälle |
+| Verkkohook puuttuu vielä (Vaihe 0–1) | crate ja testit olemassa; selainbuild toimii ilman estoa |
+
+Suositeltu kytkentä `ports/servoshell/Cargo.toml`:ssa:
+
+- uusi valinnainen workspace-dep `kotisatama-content-blocking`
+- joko osa olemassa olevaa `kotisatama`-featurea, tai alifeature `kotisatama-adblock` joka sisällytetään `kotisatama`-featureen
+
+Workspace-merkintä samaan tapaan kuin muut Kotisatama-cratet:
+
+```toml
+kotisatama-content-blocking = { path = "components/kotisatama/content-blocking" }
+```
+
+Fork-riippuvuus craten `Cargo.toml`:ssa (esimerkki):
+
+```toml
+adblock = { git = "https://github.com/Mikko-Huuskonen-Pro/adblock-Katselin", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
+# paikallinen kehitys:
+# adblock = { path = "../../../adblock-Katselin", default-features = false, features = ["..."] }
+```
+
+`single-thread`-feature forkin oletuksissa: säiemalli päätetään Vaihe 1:ssä forkin todellisen `Send`/`Sync`-tuen mukaan (§9).
+
 ---
 
 ## 5. Katselimen sisäinen rajapinta
 
-Suositeltu oma abstraktio:
+Suositeltu oma abstraktio (`kotisatama-content-blocking`):
 
 ```rust
 pub trait RequestBlocker {
@@ -180,7 +227,7 @@ Ensimmäisessä MVP:ssä käytetään vain päätöksiä `Allow` ja `Block`. `Re
 
 Tämän rajapinnan hyöty:
 
-- Servo-integraatio pysyy riippumattomana adblock-rustin API-muutoksista
+- Servo-integraatio pysyy riippumattomana forkin API-muutoksista
 - testit voivat käyttää vale-estäjää
 - Android ja työpöytä käyttävät samaa sovelluslogiikkaa
 - moottori voidaan tulevaisuudessa vaihtaa
@@ -202,9 +249,9 @@ Servo muodostaa pyynnön
         ↓
 Katselin muodostaa BlockingRequestin
         ↓
-adblock-rust tarkistaa pyynnön
+adblock-Katselin (Engine) tarkistaa pyynnön
         ↓
-Allow → normaali lataus
+Allow / fail-open → normaali lataus
 Block → pyyntöä ei lähetetä
 ```
 
@@ -221,15 +268,17 @@ Etsi ensisijaisesti kohta, jossa:
 
 Älä aloita DOM-tasolta tai JavaScript-injektiolla. Verkkosuodatus kuuluu verkkokerrokseen.
 
+Jos hook tarvitaan `components/net/`-tasolla: vain minimaalinen `#[cfg(feature = "kotisatama")]`-kutsu + `KOTISATAMA-PATCH`-kommentti; logiikka pysyy `kotisatama-content-blocking`-cratessa. Älä muokkaa upstreamia ennen Vaihe 0 -auditointia.
+
 ---
 
 ## 7. Resurssityyppien muunnos
 
-Servon resurssityyppi muunnetaan adblock-rustin tuntemaan tyyppiin yhdessä paikassa.
+Servon resurssityyppi muunnetaan forkin tuntemaan tyyppiin yhdessä paikassa (`adblock_adapter.rs`).
 
 Esimerkkitaulukko:
 
-| Servo/Katselin | adblock-rust | Huomio |
+| Servo/Katselin | adblock (fork) | Huomio |
 |---|---|---|
 | päädokumentti | document | ei oletuksena estetä ilman vahvaa sääntöä |
 | iframe | subdocument | säilytä lähdesivun tieto |
@@ -268,6 +317,8 @@ Selaimen mukana toimitetaan toimiva lista, jotta:
 - ensimmäinen käynnistys ei riipu verkkoyhteydestä
 - epäonnistunut päivitys ei poista suojausta
 
+Lista elää craten `assets/`-hakemistossa (§19), ei forkin repossa.
+
 ### Myöhempi päivitysmalli
 
 ```text
@@ -294,9 +345,9 @@ Moottori rakennetaan uudelleen listan vaihtuessa. Sääntöjä ei lisätä yksit
 
 ## 9. Säikeistys ja suorituskyky
 
-adblock-rustin `Engine`-tyypin säieominaisuudet voivat riippua crate-versiosta ja feature-valinnoista. Toteutuksessa ei oleteta sokkona, että sama moottori voidaan jakaa kaikille säikeille.
+Forkin `Engine`-tyypin säieominaisuudet riippuvat crate-versiosta ja feature-valinnoista. Toteutuksessa ei oleteta sokkona, että sama moottori voidaan jakaa kaikille säikeille.
 
-Ennen integraatiota tarkistetaan käytetyn version:
+Ennen integraatiota tarkistetaan käytetyn fork-version:
 
 - `Send`-tuki
 - `Sync`-tuki
@@ -334,7 +385,7 @@ Tavoite on, ettei suodatus aiheuta käyttäjän havaittavaa viivettä.
 
 ### Oletus
 
-Suojaus on oletuksena päällä.
+Suojaus on oletuksena päällä (kun moottori on alustettu onnistuneesti).
 
 Käyttäjän ei tarvitse:
 
@@ -360,7 +411,7 @@ Kun käyttäjä sallii sivuston:
 - sivu ladataan uudelleen
 - valinta voidaan perua samasta paikasta
 
-Sanastossa vältetään teknisiä termejä kuten “filter engine”, “third-party request” ja “cosmetic rule”.
+Sanastossa vältetään teknisiä termejä kuten “filter engine”, “third-party request” ja “cosmetic rule”. Käyttäjätekstit suomeksi; crate- ja koodinimet englanniksi (`content-blocking`), kuten muissa Kotisatama-crateissa.
 
 ### Sivuston rikkoutuessa
 
@@ -392,7 +443,7 @@ Android-toteutuksessa tarkistetaan lisäksi:
 - suodatinmoottorin palautuminen prosessin uudelleenkäynnistyksen jälkeen
 - listan tallennus sovelluksen yksityiseen hakemistoon
 
-Ensimmäisen version ei pidä vaatia Androidin VPN- tai saavutettavuuspalvelua. Suodatus tapahtuu Katselimen oman Servo-liikenteen sisällä.
+Ensimmäisen version ei pidä vaatia Androidin VPN- tai saavutettavuuspalvelua. Suodatus tapahtuu Katselimen oman Servo-liikenteen sisällä (servoshell EGL), sama `kotisatama-content-blocking`-ydin kuin desktopilla.
 
 ---
 
@@ -400,7 +451,7 @@ Ensimmäisen version ei pidä vaatia Androidin VPN- tai saavutettavuuspalvelua. 
 
 Verkkosuodatus estää resurssin lataamisen, mutta sivulle voi jäädä tyhjiä mainosalueita. Kosmeettinen suodatus ratkaisee tämän.
 
-adblock-rust tarjoaa URL-kohtaisia kosmeettisia resursseja sekä dynaamisten luokkien ja tunnisteiden perusteella tuotettavia piilotussääntöjä.
+Fork tarjoaa URL-kohtaisia kosmeettisia resursseja sekä dynaamisten luokkien ja tunnisteiden perusteella tuotettavia piilotussääntöjä.
 
 Ehdotettu eteneminen:
 
@@ -434,18 +485,18 @@ Jos telemetriaa joskus lisätään, se suunnitellaan erillisenä päätöksenä 
 
 ## 14. Lisenssit ja ilmoitukset
 
-adblock-rust on MPL-2.0-lisensoitu. Katselimen on säilytettävä kirjaston lisenssi- ja tekijänoikeustiedot jakelussa.
+adblock-rust / adblock-Katselin on MPL-2.0-lisensoitu. Katselimen on säilytettävä kirjaston lisenssi- ja tekijänoikeustiedot jakelussa.
 
 Tehtävät:
 
-- lisää adblock-rust kolmansien osapuolten lisenssiluetteloon
+- lisää forkin `adblock` kolmansien osapuolten lisenssiluetteloon
 - toimita MPL-2.0-lisenssiteksti jakelun mukana
-- dokumentoi käytetty crate-versio
-- julkaise adblock-rustin MPL-tiedostoihin tehdyt muutokset MPL-2.0:n mukaisesti
-- pidä Katselimen oma integraatiokoodi erillään upstream-kirjaston lähdetiedostoista
+- dokumentoi käytetty fork-commit / crate-versio
+- julkaise forkin MPL-tiedostoihin tehdyt muutokset MPL-2.0:n mukaisesti **fork-repon kautta**
+- pidä Katselimen oma integraatiokoodi (`kotisatama-content-blocking`) erillään forkin lähdetiedostoista
 - tarkista jokaisen mukana toimitettavan suodatinlistan oma lisenssi erikseen
 
-Suositus: älä forkkaa adblock-rustia ensimmäisessä toteutuksessa. Käytä virallista cratea ja tee tarvittavat sovitukset Katselimen omassa adapterikerroksessa.
+**Päätös:** käytetään Katselimen forkkia `adblock-Katselin`, ei crates.io:n Brave-upstreamia suoraan. Fork elää omassa repossaan; sitä ei kopioida `components/`-alle. Tarvittavat Servo/Kotisatama-sovitukset tehdään adapterikerroksessa.
 
 Tämä dokumentti ei korvaa oikeudellista neuvontaa.
 
@@ -457,13 +508,13 @@ Tämä dokumentti ei korvaa oikeudellista neuvontaa.
 |---|---|
 | Paketoitu lista puuttuu | käynnistä selain ilman suodatusta ja näytä kehittäjäloki |
 | Päivitetty lista vioittunut | käytä edellistä toimivaa listaa |
-| Moottorin alustus epäonnistuu | selain toimii, suojaustila ilmoittaa virheestä |
+| Moottorin alustus epäonnistuu | selain toimii (whitelist/haku/UI ennallaan), suojaustila ilmoittaa virheestä |
 | Pyynnön URL ei jäsenny | salli pyyntö ja kirjaa kehittäjätilassa |
 | Resurssityyppi tuntematon | käsittele tyyppinä `other` |
 | Poikkeustietokanta vioittunut | älä kaada selainta; palauta tyhjä poikkeuslista |
-| Suodatuspalvelu ei vastaa | valitse dokumentoitu fail-open-käytäntö |
+| Suodatuspalvelu ei vastaa | **fail-open**: salli pyyntö, älä väitä suojausta päälle |
 
-Ensimmäisessä versiossa käytetään **fail-open**-periaatetta teknisissä virheissä: selain ei lakkaa toimimasta suodatinmoottorin virheen vuoksi. Käyttäjälle ei kuitenkaan väitetä suojauksen olevan päällä, jos se ei ole.
+Ensimmäisessä versiossa käytetään **fail-open**-periaatetta teknisissä virheissä: selain ei lakkaa toimimasta suodatinmoottorin virheen vuoksi. Käyttäjälle ei kuitenkaan väitetä suojauksen olevan päällä, jos se ei ole. Nykyinen toimiva malli on turvallinen oletus.
 
 ---
 
@@ -478,6 +529,7 @@ Ensimmäisessä versiossa käytetään **fail-open**-periaatetta teknisissä vir
 - virheellinen URL ei kaada palvelua
 - sivuston normalisointi toimii aliverkkotunnuksilla
 - moottorin vaihto ei kadota toimivaa versiota epäonnistuessa
+- `cargo test -p kotisatama-content-blocking` (ilman Servoa)
 
 ### Integraatiotestit
 
@@ -497,6 +549,7 @@ Testi varmistaa, että:
 - päädokumentti avautuu
 - laskuri päivittyy
 - sivustokohtainen sallinta toimii uudelleenlatauksen jälkeen
+- whitelist-/haku-/raporttipolut eivät regressoidu
 
 ### Regressiotestit suomalaisilla palveluilla
 
@@ -525,33 +578,36 @@ Valkoisiin sivuihin hyväksytyille palveluille voidaan myöhemmin rakentaa autom
 - tarkista resurssityyppien saatavuus
 - tarkista Android- ja Windows-polkujen erot
 - kirjaa sopiva keskeytysmekanismi
+- varmista, ettei ehdotettu hook riko whitelist/`request_navigation`-polkua
 
 **Valmis, kun:** yksi dokumentoitu kytkentäpiste on valittu.
 
-### Vaihe 1 — erillinen suodatusmoduuli
+### Vaihe 1 — erillinen suodatusmoduuli (ei Servo-hookia)
 
-- lisää riippuvuus lukitulla versiolla
-- luo `ContentBlockingService`
-- luo oma `BlockingRequest` ja `BlockingDecision`
+- lisää `kotisatama-content-blocking` workspaceen
+- lisää git-/path-riippuvuus forkkiseen `adblock-Katselin`
+- luo `ContentBlockingService`, `BlockingRequest`, `BlockingDecision`
 - lataa pieni testisääntöjoukko
-- kirjoita yksikkötestit
+- kirjoita yksikkötestit: `cargo test -p kotisatama-content-blocking`
+- älä kytke vielä verkko-hookia — selainbuild säilyy ennallaan
 
 **Valmis, kun:** Rust-testi estää tunnetun testipyynnön ilman Servoa.
 
 ### Vaihe 2 — Servo-verkkosuodatus
 
 - muodosta pyyntöadapteri
-- tarkista pyyntö ennen lähettämistä
-- toteuta turvallinen estovastaus
+- tarkista pyyntö ennen lähettämistä (`#[cfg(feature = "kotisatama")]`)
+- toteuta turvallinen estovastaus + fail-open
 - varmista, ettei estetty pyyntö lähde verkkoon
 - lisää kehittäjäloki
+- regressiotarkistus: whitelist, haku, raportti
 
-**Valmis, kun:** paikallinen integraatiotesti todistaa eston.
+**Valmis, kun:** paikallinen integraatiotesti todistaa eston eikä nykyinen malli regressoidu.
 
 ### Vaihe 3 — tuotantolista ja välimuisti
 
 - valitse lisenssiltään sopiva oletuslista
-- paketoi lista sovellukseen
+- paketoi lista craten `assets/`-hakemistoon
 - rakenna Engine käynnistyksessä
 - serialisoi tai välimuistita moottori, jos mittaukset osoittavat tarpeen
 - varmista palautuminen versiomuunnoksissa
@@ -560,11 +616,11 @@ Valkoisiin sivuihin hyväksytyille palveluille voidaan myöhemmin rakentaa autom
 
 ### Vaihe 4 — käyttöliittymä
 
-- suojaus oletuksena päälle
+- suojaus oletuksena päälle (kun moottori OK)
 - estettyjen määrä nykyisellä sivulla
 - “Salli tällä sivustolla”
 - poikkeuksen poistaminen
-- selkeä virhetila
+- selkeä virhetila (fail-open näkyy rehellisesti)
 
 **Valmis, kun:** tavallinen käyttäjä pystyy korjaamaan rikkoutuneen sivun ilman teknisiä käsitteitä.
 
@@ -602,7 +658,7 @@ Valkoisiin sivuihin hyväksytyille palveluille voidaan myöhemmin rakentaa autom
 
 Integraatio voidaan julkaista, kun kaikki seuraavat täyttyvät:
 
-- [ ] adblock-rust on eristetty Katselimen adapterikerroksen taakse
+- [ ] adblock-Katselin on eristetty `kotisatama-content-blocking`-adapterin taakse
 - [ ] paketoitu suodatinlista toimii ilman verkkoyhteyttä
 - [ ] estettyä pyyntöä ei lähetetä verkkoon
 - [ ] sallittu ensimmäisen osapuolen resurssi latautuu normaalisti
@@ -610,8 +666,9 @@ Integraatio voidaan julkaista, kun kaikki seuraavat täyttyvät:
 - [ ] suojaus toimii Windowsissa
 - [ ] suojaus toimii Androidissa
 - [ ] sivustokohtainen sallinta toimii
-- [ ] suodatusvirhe ei kaada selainta
+- [ ] suodatusvirhe ei kaada selainta (fail-open)
 - [ ] käyttäjälle ei näytetä väärää suojaustilaa
+- [ ] whitelist / haku / raportti / navigointi eivät regressoidu
 - [ ] lisenssitiedot toimitetaan jakelun mukana
 - [ ] suodatinlistan lisenssi on tarkistettu
 - [ ] suorituskykymittaukset on kirjattu
@@ -621,42 +678,47 @@ Integraatio voidaan julkaista, kun kaikki seuraavat täyttyvät:
 
 ## 19. Ehdotettu hakemistorakenne
 
-Sovita nimet nykyiseen repoon; rakenne kuvaa vastuunjakoa.
+AGENT.md:n mukainen sijoitus:
 
 ```text
-katselin/
-├── content-blocking/
-│   ├── Cargo.toml
-│   ├── src/
-│   │   ├── lib.rs
-│   │   ├── service.rs
-│   │   ├── request.rs
-│   │   ├── decision.rs
-│   │   ├── adblock_adapter.rs
-│   │   ├── filter_store.rs
-│   │   ├── exceptions.rs
-│   │   └── statistics.rs
-│   ├── assets/
-│   │   ├── filters.txt
-│   │   └── FILTER-LICENSES.md
-│   └── tests/
-│       ├── network_rules.rs
-│       └── exception_rules.rs
-├── servo-integration/
-│   └── content_blocking_hook.rs
-└── third_party/
-    └── LICENSES.md
+components/kotisatama/
+├── whitelist/              ← olemassa
+├── search/                 ← olemassa
+├── report/                 ← olemassa
+├── ...
+└── content-blocking/       ← uusi: kotisatama-content-blocking
+    ├── Cargo.toml
+    ├── src/
+    │   ├── lib.rs
+    │   ├── service.rs
+    │   ├── request.rs
+    │   ├── decision.rs
+    │   ├── adblock_adapter.rs   ← ainoa paikka joka tuntee crate:n adblock
+    │   ├── filter_store.rs
+    │   ├── exceptions.rs
+    │   └── statistics.rs
+    ├── assets/
+    │   ├── filters.txt
+    │   └── FILTER-LICENSES.md
+    └── tests/
+        ├── network_rules.rs
+        └── exception_rules.rs
+
+ports/servoshell/           ← UI-asetukset + mahdollinen init-kutsu
+components/net/             ← vain jos audit vaatii: minimaalinen KOTISATAMA-PATCH
 ```
 
-Pidä upstream-koodi riippuvuutena. Älä kopioi adblock-rustin lähdetiedostoja Katselimen omiin moduuleihin.
+Fork `adblock-Katselin` elää erillisessä repossa (git-riippuvuus). Älä kopioi forkin lähdetiedostoja Katselimen `components/`-alle.
+
+Kolmansien osapuolten lisenssit: olemassa oleva / uusi kohta jakelun lisenssiluettelossa (esim. `third_party/LICENSES.md` tai vastaava).
 
 ---
 
 ## 20. Ensimmäinen tehtävä Cursorille tai Codexille
 
 ```text
-Audit Katselin's current Servo network loading path for an adblock-rust
-integration. Do not implement blocking yet.
+Audit Katselin's current Servo network loading path for kotisatama-content-blocking
+(adblock-Katselin fork). Do not implement blocking yet.
 
 Deliver:
 1. The exact code path used for top-level and subresource HTTP(S) requests.
@@ -665,18 +727,25 @@ Deliver:
    resource type, method, headers and tab/webview identity.
 4. How a request can be cancelled without crashing or hanging the load.
 5. Differences between Windows and Android paths.
-6. A proposed minimal RequestBlocker trait and adapter boundary.
-7. Tests that can prove a blocked request never reaches a local test server.
+6. A proposed minimal RequestBlocker trait and adapter boundary for
+   components/kotisatama/content-blocking.
+7. How the hook stays behind #[cfg(feature = "kotisatama")] / fail-open so
+   whitelist, search and report paths keep working unchanged.
+8. Tests that can later prove a blocked request never reaches a local test server.
 
 Constraints:
+- Depend on Mikko-Huuskonen-Pro/adblock-Katselin (git/path), not crates.io adblock.
+- Do not copy fork sources into components/.
 - Do not copy code from Brave or other browsers.
-- Do not modify Servo upstream code unless no public embedding hook exists.
-- Prefer a small Katselin-owned adapter layer.
+- Do not modify Servo upstream code unless no public embedding hook exists;
+  if needed, only a minimal KOTISATAMA-PATCH.
+- Prefer a small Kotisatama-owned adapter layer.
+- Do not break existing whitelist / search / report / navigation behaviour.
 - Do not add UI, list downloads or cosmetic filtering in this task.
 - Document uncertainties instead of guessing APIs.
 ```
 
-Auditin jälkeen varsinainen integraatio voidaan jakaa pieniin, tarkistettaviin muutoksiin.
+Auditin jälkeen varsinainen integraatio voidaan jakaa pieniin, tarkistettaviin muutoksiin (ensin Vaihe 1 crate + testit ilman hookia).
 
 ---
 
@@ -696,8 +765,16 @@ Torjunta:
 Torjunta:
 
 - auditointi ennen toteutusta
-- tarvittaessa pieni upstream-ystävällinen hook
+- tarvittaessa pieni upstream-ystävällinen hook (`KOTISATAMA-PATCH`)
 - vältä laajaa Servo-forkkia
+
+### Nykyinen Kotisatama-malli regressoituu
+
+Torjunta:
+
+- feature-flag + fail-open
+- Vaihe 1 ilman verkko-hookia
+- regressiotestit whitelist/haku/raportti
 
 ### Suodatinlista kasvattaa käynnistysaikaa
 
@@ -723,6 +800,7 @@ Torjunta:
 - kolmansien osapuolten lisenssit osaksi buildia
 - suodatinlistojen lisenssit omassa tiedostossa
 - riippuvuusauditointi julkaisuprosessiin
+- forkin MPL-muutokset julkaistaan fork-repon kautta
 
 ---
 
@@ -730,27 +808,30 @@ Torjunta:
 
 Katselin ei rakenna omaa mainostenestomoottoria.
 
-Katselin käyttää adblock-rustia infrastruktuurina ja rakentaa itse sen ympärille:
+Katselin käyttää **adblock-Katselin**-forkkia infrastruktuurina ja rakentaa itse sen ympärille Kotisatama-malliin sopivan kerroksen:
 
-- selkeät oletukset
-- Servo-integraation
+- `kotisatama-content-blocking`-crate
+- feature-flag ja fail-open (nykyinen malli säilyy)
+- Servo-integraation (minimaalinen patch tarvittaessa)
 - Android-kokemuksen
 - sivustokohtaisen hallinnan
 - suomalaisiin palveluihin sopivan laadunvarmistuksen
 
-> **adblock-rust tekee suodatuksen. Katselin tekee verkosta rauhallisen.**
+> **adblock-Katselin tekee suodatuksen. Katselin tekee verkosta rauhallisen — rikkomatta nykyistä satamaa.**
 
 ---
 
 ## 23. Tekniset lähteet tarkistusta varten
 
-- Brave Software: `brave/adblock-rust`
-- Rust crate: `adblock`
+- Katselin-fork: `Mikko-Huuskonen-Pro/adblock-Katselin`
+- Upstream-viite: Brave Software `brave/adblock-rust`
+- Rust crate (forkissa): `adblock`
 - Päärajapinta: `adblock::Engine`
 - Verkkotarkistus: `Engine::check_network_request`
 - Listojen kokoaminen: `FilterSet` ja `Engine::from_filter_set`
 - Kosmeettinen suodatus: `Engine::url_cosmetic_resources` ja `Engine::hidden_class_id_selectors`
 - Moottorin välimuisti: `Engine::serialize` ja `Engine::deserialize`
 - Lisenssi: MPL-2.0
+- Kotisatama-ohje: `AGENT.md` (`components/kotisatama/`, `KOTISATAMA-PATCH`)
 
-API:t ja featuret tarkistetaan uudelleen toteutushetkellä käytettävästä crate-versiosta.
+API:t ja featuret tarkistetaan uudelleen toteutushetkellä käytettävästä fork-versiosta.

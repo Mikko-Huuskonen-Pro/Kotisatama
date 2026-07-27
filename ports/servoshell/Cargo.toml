@@ -63,7 +63,7 @@ webgl_backtrace = ["servo/webgl_backtrace"]
 webgpu = ["servo/webgpu"]
 webxr = ["servo/webxr"]
 # KOTISATAMA-PATCH: feature flag Kotisatama-cratesille.
-kotisatama = ["dep:kotisatama-whitelist", "dep:kotisatama-search", "dep:kotisatama-report", "dep:kotisatama-pulloposti", "dep:kotisatama-varustamo", "dep:kotisatama-missa-olen", "dep:kotisatama-i18n"]
+kotisatama = ["dep:kotisatama-whitelist", "dep:kotisatama-search", "dep:kotisatama-report", "dep:kotisatama-pulloposti", "dep:kotisatama-varustamo", "dep:kotisatama-missa-olen", "dep:kotisatama-i18n", "dep:kotisatama-content-blocking"]
 
 [dependencies]
 accesskit = { workspace = true }
@@ -83,6 +83,7 @@ kotisatama-pulloposti = { workspace = true, optional = true }
 kotisatama-varustamo = { workspace = true, optional = true }
 kotisatama-missa-olen = { workspace = true, optional = true }
 kotisatama-i18n = { workspace = true, optional = true }
+kotisatama-content-blocking = { workspace = true, optional = true }
 libc = { workspace = true }
 log = { workspace = true }
 mime_guess = { workspace = true }

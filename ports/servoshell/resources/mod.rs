@@ -10,6 +10,11 @@ use cfg_if::cfg_if;
 
 static CMD_RESOURCE_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
 
+/// Override the resources root directory (used on Android after asset extract).
+pub(crate) fn set_resources_path(path: PathBuf) {
+    *CMD_RESOURCE_DIR.lock().unwrap() = Some(path);
+}
+
 pub(crate) fn resource_protocol_dir_path() -> PathBuf {
     resource_root_dir_path().join("resource_protocol")
 }

@@ -153,6 +153,9 @@ tasks.register<Copy>("copyKotisatamaAssets") {
         into("kotisatama")
         rename { "documents.json" }
     }
+    from("$repoRoot/resources/resource_protocol") {
+        into("kotisatama/resources/resource_protocol")
+    }
     val indexDump = File("$repoRoot/index-data/index.dump")
     if (indexDump.exists()) {
         from(indexDump) {

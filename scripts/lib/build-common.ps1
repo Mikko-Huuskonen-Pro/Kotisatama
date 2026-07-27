@@ -73,13 +73,21 @@ function Sync-Whitelist {
     $closed = Get-ClosedRepoRoot -RepoRoot $RepoRoot
     $source = Join-Path $closed "valkoiset-sivut\whitelist-unified.json"
     $dest = Join-Path $RepoRoot "index-data\cache\whitelist.json"
-    if (-not (Test-Path $source)) {
-        Write-Warning "Suljettu whitelist ei loydy - kaytetaan config/whitelist.json tai CDN-cachea."
+    if (Test-Path $source) {
+        & (Join-Path $RepoRoot "scripts\sync-whitelist.ps1") -ClosedRepoRoot $closed -DestFile $dest
+    } elseif (Test-Path $dest) {
+        Write-Warning "Suljettu whitelist ei loydy ($source) - kaytetaan cachea: $dest"
+    } else {
+        Write-Warning "Suljettu whitelist ei loydy - eika cachea ($dest). Stub config/whitelist.json voi jaada kayttoon."
         return $null
     }
-    & (Join-Path $RepoRoot "scripts\sync-whitelist.ps1") -ClosedRepoRoot $closed -DestFile $dest
+    if (-not (Test-Path $dest)) {
+        Write-Warning "Whitelist-cache puuttuu synkin jalkeen: $dest"
+        return $null
+    }
     $env:KOTISATAMA_WHITELIST_PATH = $dest
-    Write-Host "KOTISATAMA_WHITELIST_PATH=$env:KOTISATAMA_WHITELIST_PATH"
+    $bytes = (Get-Item -LiteralPath $dest).Length
+    Write-Host ('KOTISATAMA_WHITELIST_PATH={0} size={1}' -f $env:KOTISATAMA_WHITELIST_PATH, $bytes)
     return $dest
 }
 

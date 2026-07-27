@@ -1,0 +1,78 @@
+! Title: Kotisatama default network filters (moderate)
+! Version: 2026-07-27
+! License: see FILTER-LICENSES.md
+! Purpose: Maltillinen oletuslista — mainokset ja yleinen seuranta, ei aggressiivisia häirintäsääntöjä.
+!
+! Unit-test compatibility (do not remove):
+-advertisement-icon.
+-advertisement-management/
+-advertisement.
+-advertisement/script.
+
+! --- Google Ads / DoubleClick ---
+||doubleclick.net^
+||googlesyndication.com^
+||googleadservices.com^
+||pagead2.googlesyndication.com^
+||adservice.google.com^
+||adservice.google.fi^
+
+! --- Common ad networks ---
+||adnxs.com^
+||adsrvr.org^
+||adform.net^
+||advertising.com^
+||adsafeprotected.com^
+||adsymptotic.com^
+||bidswitch.net^
+||casalemedia.com^
+||criteo.com^
+||criteo.net^
+||outbrain.com^
+||taboola.com^
+||pubmatic.com^
+||rubiconproject.com^
+||openx.net^
+||smartadserver.com^
+||yieldmo.com^
+||moatads.com^
+||2mdn.net^
+||media.net^
+
+! --- Tracking / analytics (kolmas osapuoli) ---
+||google-analytics.com^
+||googletagmanager.com^
+||googletagservices.com^
+||scorecardresearch.com^
+||quantserve.com^
+||hotjar.com^
+||hotjar.io^
+||mixpanel.com^
+||segment.io^
+||segment.com^
+||amplitude.com^
+||newrelic.com^
+||nr-data.net^
+||sentry-cdn.com^$third-party
+||facebook.net^*/fbevents.js
+||connect.facebook.net^*/fbevents.js
+||pixel.facebook.com^
+||analytics.twitter.com^
+||static.ads-twitter.com^
+||ads-twitter.com^
+||bat.bing.com^
+||clarity.ms^
+
+! --- Path / keyword patterns (maltilliset) ---
+/ads.js$script
+/ad.js$script
+/pagead.js$script
+/pagead/
+/adsense/
+/adserver/
+/advertisement/
+/bannerad
+/sponsorad
+||ads.
+||adserver.
+||adn.

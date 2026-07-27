@@ -35,7 +35,7 @@ use servo::{
     JSValue, LoadStatus, MediaSessionEvent, PermissionRequest, PrefValue, Preferences,
     ScreenshotCaptureError, Servo, ServoDelegate, ServoError, TraversalId, UserContentManager,
     WebDriverCommandMsg, WebDriverJSResult, WebDriverLoadStatus, WebDriverScriptCommand,
-    WebDriverSenders, WebView, WebViewDelegate, WebViewId,
+    WebDriverSenders, WebResourceLoad, WebResourceResponse, WebView, WebViewDelegate, WebViewId,
 };
 // KOTISATAMA-PATCH: whitelist-navigointi WebViewDelegate-hookissa (ks. AGENT.md).
 #[cfg(feature = "kotisatama")]
@@ -924,6 +924,43 @@ impl WebViewDelegate for RunningAppState {
             request.deny();
             webview.load(crate::kotisatama::blocked_url_for(&blocked_target));
         }
+    }
+
+    // KOTISATAMA-PATCH: alipyyntöjen mainostenesto ennen verkkoa (WebResourceLoad).
+    #[cfg(feature = "kotisatama")]
+    fn load_web_resource(&self, webview: WebView, load: WebResourceLoad) {
+        let (url, source_url, destination_name, is_for_main_frame) = {
+            let request = load.request();
+            let source_url = request
+                .referrer_url
+                .as_ref()
+                .map(|u| u.as_str().to_string())
+                .or_else(|| webview.url().map(|u| u.as_str().to_string()))
+                .unwrap_or_default();
+            (
+                request.url.clone(),
+                source_url,
+                format!("{:?}", request.destination),
+                request.is_for_main_frame,
+            )
+        };
+
+        if crate::kotisatama::should_block_web_resource(
+            url.as_str(),
+            &source_url,
+            &destination_name,
+            is_for_main_frame,
+        ) {
+            log::debug!(
+                "Kotisatama content-blocking: estetty {} ({})",
+                url,
+                destination_name
+            );
+            load.intercept(WebResourceResponse::new(url)).cancel();
+            return;
+        }
+        // Salli: pudota load → DoNotIntercept (fail-open oletus).
+        let _ = load;
     }
 }
 

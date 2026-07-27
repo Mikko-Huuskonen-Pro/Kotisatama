@@ -4,12 +4,12 @@
 
 use std::collections::hash_map::HashMap;
 use std::convert::TryFrom;
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, LazyLock, Once};
 use std::time::Duration;
 use std::{fmt, io};
 
 use futures::task::{Context, Poll};
-use futures::{Future, TryFutureExt};
+use futures::Future;
 use http::uri::{Authority, Uri as Destination};
 use http_body_util::combinators::BoxBody;
 use hyper::body::Bytes;
@@ -21,7 +21,7 @@ use hyper_util::client::legacy::connect::{
     Connected, Connection, HttpConnector as HyperHttpConnector,
 };
 use hyper_util::rt::TokioIo;
-use log::warn;
+use log::{info, warn};
 use parking_lot::Mutex;
 use rustls::client::danger::ServerCertVerifier;
 use rustls::client::{ClientConnection, EchStatus};
@@ -30,6 +30,7 @@ use rustls::{ClientConfig, ProtocolVersion};
 use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
 use servo_config::pref;
 use tokio::net::TcpStream;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tower::Service;
 
 use crate::async_runtime::spawn_task;
@@ -55,11 +56,119 @@ impl ServoHttpConnector {
     }
 }
 
+// KOTISATAMA-PATCH: selainmainen TCP-yhteysraja per host.
+//
+// Syy: Next.js-sivut (esim. www.kela.fi) avaavat kymmeniä chunk-GETejä kerralla.
+// Hyper avaa ilman rajaa yhtä monta HTTP/1.1-TCP-yhteyttä → CDN/Windows 10054
+// (ConnectionReset) → JS ei hydratoi → "yksinkertainen tila".
+//
+// Miksi juuri täällä (eikä components/kotisatama/ + servoshell):
+// WebResourceLoad voi vain salli/estä — ei jonottaa (ks. ADBLOCK-VERKKOPOLKU-AUDIT).
+// Yhteyden elinkaari elää hyper-connectorissa, joten pieni patch tähän tiedostoon
+// on ainoa toimiva paikka ilman laajempaa net-/script-diffiä.
+//
+// Permit pidetään stream-Dropiin asti (= idle-poolissa oleva yhteys varaa slotin),
+// kuten selaimen ~6 yhteyttä/host HTTP/1.1:lle. Säätö: KOTISATAMA_MAX_CONN_PER_HOST.
+
+const DEFAULT_MAX_CONN_PER_HOST: usize = 6;
+
+fn max_conn_per_host() -> usize {
+    static LIMIT: LazyLock<usize> = LazyLock::new(|| {
+        let limit = std::env::var("KOTISATAMA_MAX_CONN_PER_HOST")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .filter(|&n| n > 0)
+            .unwrap_or(DEFAULT_MAX_CONN_PER_HOST);
+        static LOG_ONCE: Once = Once::new();
+        LOG_ONCE.call_once(|| {
+            info!(
+                "Kotisatama: enintään {limit} TCP-yhteyttä per host \
+                 (KOTISATAMA_MAX_CONN_PER_HOST)"
+            );
+        });
+        limit
+    });
+    *LIMIT
+}
+
+fn host_connect_semaphore(host_key: &str) -> Arc<Semaphore> {
+    static SEMAPHORES: LazyLock<Mutex<HashMap<String, Arc<Semaphore>>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+    let mut map = SEMAPHORES.lock();
+    map.entry(host_key.to_owned())
+        .or_insert_with(|| Arc::new(Semaphore::new(max_conn_per_host())))
+        .clone()
+}
+
+fn host_key_for(dest: &Destination) -> String {
+    dest.authority()
+        .map(|a| a.as_str().to_owned())
+        .unwrap_or_else(|| dest.to_string())
+}
+
+/// TCP-stream joka vapauttaa host-slotin vasta kun yhteys suljetaan / poistuu poolista.
+pub struct LimitedTcpStream {
+    inner: TokioIo<TcpStream>,
+    _permit: OwnedSemaphorePermit,
+}
+
+impl Connection for LimitedTcpStream {
+    fn connected(&self) -> Connected {
+        self.inner.connected()
+    }
+}
+
+impl hyper::rt::Read for LimitedTcpStream {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: hyper::rt::ReadBufCursor<'_>,
+    ) -> Poll<Result<(), io::Error>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_read(cx, buf)
+    }
+}
+
+impl hyper::rt::Write for LimitedTcpStream {
+    fn poll_write(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, io::Error>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_write(cx, buf)
+    }
+
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), io::Error>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), io::Error>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_shutdown(cx)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.inner.is_write_vectored()
+    }
+
+    fn poll_write_vectored(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[io::IoSlice<'_>],
+    ) -> Poll<Result<usize, io::Error>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_write_vectored(cx, bufs)
+    }
+}
+
 impl Service<Destination> for ServoHttpConnector {
-    type Response = TokioIo<TcpStream>;
+    type Response = LimitedTcpStream;
     type Error = ConnectionError;
     type Future =
-        std::pin::Pin<Box<dyn Future<Output = Result<TokioIo<TcpStream>, ConnectionError>> + Send>>;
+        std::pin::Pin<Box<dyn Future<Output = Result<LimitedTcpStream, ConnectionError>> + Send>>;
 
     fn call(&mut self, dest: Destination) -> Self::Future {
         // Perform host replacement when making the actual TCP connection.
@@ -84,11 +193,23 @@ impl Service<Destination> for ServoHttpConnector {
             }
         }
 
-        Box::pin(
-            self.inner
+        let host_key = host_key_for(&new_dest);
+        let mut inner = self.inner.clone();
+        Box::pin(async move {
+            let semaphore = host_connect_semaphore(&host_key);
+            let permit = semaphore
+                .acquire_owned()
+                .await
+                .map_err(|e| ConnectionError::HttpError(format!("host connect limit: {e}")))?;
+            let stream = inner
                 .call(new_dest)
-                .map_err(|e| ConnectionError::HttpError(format!("{e}"))),
-        )
+                .await
+                .map_err(|e| ConnectionError::HttpError(format!("{e}")))?;
+            Ok(LimitedTcpStream {
+                inner: stream,
+                _permit: permit,
+            })
+        })
     }
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -632,10 +753,10 @@ impl ProxyConnector {
 
 // Just forward everything to the inner type except that we modify the errors returned.
 impl Service<Destination> for ProxyConnector {
-    type Response = TokioIo<TcpStream>;
+    type Response = LimitedTcpStream;
     type Error = ConnectionError;
     type Future =
-        std::pin::Pin<Box<dyn Future<Output = Result<TokioIo<TcpStream>, ConnectionError>> + Send>>;
+        std::pin::Pin<Box<dyn Future<Output = Result<LimitedTcpStream, ConnectionError>> + Send>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.client
@@ -647,20 +768,25 @@ impl Service<Destination> for ProxyConnector {
         match self.matcher.intercept(&req) {
             Some(intercept) => {
                 let mut tunnel = Tunnel::new(intercept.uri().clone(), self.client.clone());
-                let final_tunnel = if let Some(auth) = intercept.basic_auth() {
-                    tunnel.with_auth(auth.clone())
-                } else {
-                    tunnel
+                if let Some(auth) = intercept.basic_auth() {
+                    tunnel = tunnel.with_auth(auth.clone());
                 }
-                .call(req)
-                .map_err(|e| ConnectionError::ProxyError(format!("{e}")));
-                Box::pin(final_tunnel)
+                Box::pin(async move {
+                    tunnel
+                        .call(req)
+                        .await
+                        .map_err(|e| ConnectionError::ProxyError(format!("{e}")))
+                })
             },
-            None => Box::pin(
-                self.client
-                    .call(req)
-                    .map_err(|e| ConnectionError::ProxyError(format!("{e}"))),
-            ),
+            None => {
+                let mut client = self.client.clone();
+                Box::pin(async move {
+                    client
+                        .call(req)
+                        .await
+                        .map_err(|e| ConnectionError::ProxyError(format!("{e}")))
+                })
+            },
         }
     }
 }

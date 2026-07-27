@@ -510,6 +510,46 @@ impl Gui {
                             }
                             ui.add_space(2.0);
 
+                            // KOTISATAMA-PATCH: mainosteneston laskuri + sivustopoikkeus.
+                            #[cfg(feature = "kotisatama")]
+                            {
+                                if crate::kotisatama::content_blocking_active() {
+                                    let blocked = crate::kotisatama::blocked_count_on_page();
+                                    ui.label(format!("{}: {blocked}", t("protection_blocked")));
+
+                                    let exception_on =
+                                        crate::kotisatama::site_protection_disabled(location);
+                                    let label = if exception_on {
+                                        t("protection_block_site")
+                                    } else {
+                                        t("protection_allow_site")
+                                    };
+                                    let protect_button = ui.add(Gui::toolbar_button(label));
+                                    protect_button.widget_info(|| {
+                                        let mut info = WidgetInfo::new(WidgetType::Button);
+                                        info.label = Some(t("protection_allow_a11y").into());
+                                        info
+                                    });
+                                    if protect_button.clicked() {
+                                        if exception_on {
+                                            let _ = crate::kotisatama::remove_site_protection_exception(
+                                                location,
+                                            );
+                                        } else {
+                                            let _ = crate::kotisatama::allow_site_protection_exception(
+                                                location,
+                                            );
+                                        }
+                                        *location_dirty = false;
+                                        window.queue_user_interface_command(
+                                            UserInterfaceCommand::Reload,
+                                        );
+                                    }
+                                } else {
+                                    ui.label(t("protection_inactive"));
+                                }
+                            }
+
                             // KOTISATAMA-PATCH: "Ilmoita"-painike työkalupalkissa.
                             #[cfg(feature = "kotisatama")]
                             if crate::kotisatama::should_show_report_button(location) {
@@ -527,8 +567,9 @@ impl Gui {
                                     window.set_needs_repaint();
                                 }
                             }
+                            // KOTISATAMA-PATCH: Varustamo parkkeerattu — ei ydintoimintoa.
                             #[cfg(feature = "kotisatama")]
-                            {
+                            if crate::kotisatama::varustamo_enabled() {
                                 let varustamo_button =
                                     ui.add(Gui::toolbar_button(t("varustamo_button")));
                                 varustamo_button.widget_info(|| {

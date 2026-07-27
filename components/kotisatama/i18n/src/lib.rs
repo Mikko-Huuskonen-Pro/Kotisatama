@@ -152,6 +152,21 @@ pub fn t_for(locale: Locale, key: &str) -> &str {
         (Locale::Fi, "varustamo_button") => "Varustamo",
         (Locale::Sv, "varustamo_button") => "Varustamo",
 
+        (Locale::Fi, "protection_blocked") => "Estetty",
+        (Locale::Sv, "protection_blocked") => "Blockerade",
+
+        (Locale::Fi, "protection_allow_site") => "Salli sivusto",
+        (Locale::Sv, "protection_allow_site") => "Tillåt webbplats",
+
+        (Locale::Fi, "protection_block_site") => "Estä sivusto",
+        (Locale::Sv, "protection_block_site") => "Blockera webbplats",
+
+        (Locale::Fi, "protection_inactive") => "Suojaus pois",
+        (Locale::Sv, "protection_inactive") => "Skydd av",
+
+        (Locale::Fi, "protection_allow_a11y") => "Salli sisältö tällä sivustolla",
+        (Locale::Sv, "protection_allow_a11y") => "Tillåt innehåll på den här webbplatsen",
+
         (Locale::Fi, "search_button") => "🔍",
         (Locale::Sv, "search_button") => "🔍",
 

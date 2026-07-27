@@ -19,7 +19,10 @@ mod egl;
 mod panic_hook;
 mod parser;
 mod prefs;
-#[cfg(not(any(target_os = "android", target_env = "ohos")))]
+// KOTISATAMA-PATCH: servo:/resource:-protokollat myös Androidilla (haku ym.).
+#[cfg(not(target_env = "ohos"))]
+mod protocols;
+#[cfg(not(target_env = "ohos"))]
 mod resources;
 mod running_app_state;
 mod webdriver;

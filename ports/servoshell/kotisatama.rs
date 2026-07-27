@@ -33,6 +33,8 @@ const AVOMERI_DEFAULT_SEARCHPAGE: &str = "https://www.qwant.com/?q=%s";
 static SEARCH: OnceLock<Option<SearchClient>> = OnceLock::new();
 static PULLOPOSTI: OnceLock<Option<PullopostiClient>> = OnceLock::new();
 static MISSA_OLEN: OnceLock<Option<MissaOlenClient>> = OnceLock::new();
+static CONTENT_BLOCKING: OnceLock<kotisatama_content_blocking::ContentBlockingService> =
+    OnceLock::new();
 static AVOMERI_MODE: AtomicBool = AtomicBool::new(false);
 static AVOMERI_SEARCHPAGE: OnceLock<String> = OnceLock::new();
 
@@ -91,18 +93,81 @@ pub fn init() {
     }
 
     // Meilisearch, Pulloposti and Varustamo apps start lazily on first use.
-    match load_registry() {
-        Ok(registry) => info!(
-            "Varustamo: {} apps loaded from registry",
-            registry.displayable_apps().len()
-        ),
-        Err(error) => warn!("Varustamo registry not loaded: {error}"),
+    // KOTISATAMA-PATCH: Varustamo parkkeerattu (ei ydintoimintoa).
+    if varustamo_enabled() {
+        match load_registry() {
+            Ok(registry) => info!(
+                "Varustamo: {} apps loaded from registry",
+                registry.displayable_apps().len()
+            ),
+            Err(error) => warn!("Varustamo registry not loaded: {error}"),
+        }
+    } else {
+        info!("Varustamo: pois käytöstä (parkkeerattu)");
     }
+
+    // KOTISATAMA-PATCH: mainostenesto (adblock-Katselin) — fail-open jos lista puuttuu.
+    let blocking = kotisatama_content_blocking::ContentBlockingService::from_bundled_filters();
+    info!("Kotisatama content-blocking: {:?}", blocking.status());
+    let _ = CONTENT_BLOCKING.set(blocking);
 }
 
 /// Whether navigation to `url` is allowed.
 pub fn check_url(url: &Url) -> bool {
     is_navigation_allowed(url)
+}
+
+/// Content-blocking service (fail-open inactive if not initialized).
+pub fn content_blocking() -> &'static kotisatama_content_blocking::ContentBlockingService {
+    CONTENT_BLOCKING.get_or_init(kotisatama_content_blocking::ContentBlockingService::inactive)
+}
+
+/// Map Servo CSP Destination debug name → ResourceType.
+pub fn resource_type_from_destination_name(name: &str) -> kotisatama_content_blocking::ResourceType {
+    use kotisatama_content_blocking::ResourceType;
+    match name {
+        "Document" => ResourceType::Document,
+        "IFrame" | "Frame" => ResourceType::Subdocument,
+        "Script" | "ServiceWorker" | "SharedWorker" | "Worker" | "AudioWorklet" | "PaintWorklet" => {
+            ResourceType::Script
+        },
+        "Style" => ResourceType::Stylesheet,
+        "Image" => ResourceType::Image,
+        "Font" => ResourceType::Font,
+        "Json" | "Report" => ResourceType::XmlHttpRequest,
+        "Audio" | "Video" | "Track" => ResourceType::Media,
+        _ => ResourceType::Other,
+    }
+}
+
+/// Returns true if the subresource should be blocked (never blocks main documents here —
+/// navigations stay on the whitelist path).
+pub fn should_block_web_resource(
+    url: &str,
+    source_url: &str,
+    destination_name: &str,
+    is_for_main_frame: bool,
+) -> bool {
+    use kotisatama_content_blocking::{BlockingDecision, BlockingRequest, RequestBlocker, ResourceType};
+
+    if is_for_main_frame || destination_name == "Document" {
+        return false;
+    }
+
+    let resource_type = resource_type_from_destination_name(destination_name);
+    if resource_type == ResourceType::Document {
+        return false;
+    }
+
+    let request = BlockingRequest {
+        url,
+        source_url,
+        resource_type,
+    };
+    matches!(
+        content_blocking().check(&request),
+        BlockingDecision::Block
+    )
 }
 
 /// Whether a navigation should be allowed in this webview.
@@ -117,6 +182,43 @@ pub fn should_allow_navigation(webview: &WebView, target: &Url) -> bool {
 /// Track allowed navigations.
 pub fn on_allowed_navigation(url: &Url) {
     let _ = url;
+    // KOTISATAMA-PATCH: nollaa sivukohtainen estolaskuri uudella sivulla.
+    content_blocking().reset_page_stats();
+}
+
+/// Estettyjen pyyntöjen määrä nykyisellä sivulla.
+pub fn blocked_count_on_page() -> u64 {
+    content_blocking().statistics().blocked_count()
+}
+
+/// Onko suodatusmoottori aktiivinen.
+pub fn content_blocking_active() -> bool {
+    use kotisatama_content_blocking::ContentBlockingStatus;
+    content_blocking().status() == ContentBlockingStatus::Active
+}
+
+/// Onko sivustolle (URL tai domain) poikkeus.
+pub fn site_protection_disabled(url_or_domain: &str) -> bool {
+    content_blocking().exceptions().is_allowed(url_or_domain)
+}
+
+/// Salli sisältö nykyisellä sivustolla (poikkeus) ja palauta normalisoitu domain.
+pub fn allow_site_protection_exception(page_url: &str) -> Option<String> {
+    let domain = domain_from_url_str(page_url)?;
+    content_blocking().exceptions().allow_site(&domain);
+    Some(domain)
+}
+
+/// Poista sivustopoikkeus.
+pub fn remove_site_protection_exception(page_url: &str) -> Option<String> {
+    let domain = domain_from_url_str(page_url)?;
+    content_blocking().exceptions().remove_site(&domain);
+    Some(domain)
+}
+
+fn domain_from_url_str(page_url: &str) -> Option<String> {
+    let url = Url::parse(page_url).ok()?;
+    url.host_str().map(|h| h.to_ascii_lowercase())
 }
 
 /// Load `url` or show the blocked page if not whitelisted.
@@ -309,11 +411,19 @@ pub fn open_pulloposti(webview: &WebView) {
 
 /// Varustamo hub page (`servo:varustamo`).
 pub fn open_varustamo(webview: &WebView) {
+    if !varustamo_enabled() {
+        warn!("Varustamo: ohitettu (parkkeerattu)");
+        return;
+    }
     webview.load(varustamo_gateway_url());
 }
 
 /// Open a Varustamo app by registry id (starts daemon when needed).
 pub fn open_varustamo_app(webview: &WebView, app_id: &str) {
+    if !varustamo_enabled() {
+        warn!("Varustamo: ohitettu (parkkeerattu), app={app_id}");
+        return;
+    }
     match app_id {
         "pulloposti" => open_pulloposti(webview),
         "missa-olen" => open_missa_olen(webview),
@@ -329,7 +439,19 @@ pub fn open_varustamo_app(webview: &WebView, app_id: &str) {
 
 /// Loaded Varustamo registry, if available.
 pub fn varustamo_registry() -> Option<VarustamoRegistry> {
+    if !varustamo_enabled() {
+        return None;
+    }
     load_registry().ok()
+}
+
+/// KOTISATAMA-PATCH: Varustamo parkkeerattu oletuksena (ei ydintoimintoa).
+/// Takaisin: `KOTISATAMA_VARUSTAMO=1` tai vaihda oletus `true`.
+pub fn varustamo_enabled() -> bool {
+    match std::env::var("KOTISATAMA_VARUSTAMO") {
+        Ok(v) => matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "on"),
+        Err(_) => false,
+    }
 }
 
 /// Missä olen gateway (`servo:missa-olen`).

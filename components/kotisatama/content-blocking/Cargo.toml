@@ -1,0 +1,22 @@
+[package]
+name = "kotisatama-content-blocking"
+version = "0.1.0"
+edition.workspace = true
+authors = ["Ilio / Kotisatama"]
+license = "MPL-2.0"
+publish = false
+description = "Katselin content blocking adapter around adblock-Katselin"
+
+[lib]
+name = "kotisatama_content_blocking"
+path = "src/lib.rs"
+
+[dependencies]
+# KOTISATAMA: forkkimoottori (ei crates.io). Paikallinen path; CI:ssä voi vaihtaa git-riippuvuuteen.
+adblock = { path = "../../../../adblock-Katselin", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

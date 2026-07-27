@@ -59,6 +59,7 @@ On first launch, `KotisatamaAssets` extracts assets to app private storage and s
 | `KOTISATAMA_MEILISEARCH_DB` | Local index database |
 | `KOTISATAMA_INDEX_DUMP` | Optional dump import |
 | `KOTISATAMA_SEARCH_DOCUMENTS` | Seed documents fallback |
+| `KOTISATAMA_RESOURCES_DIR` | Extracted `resources/` (servo:haku / resource_protocol) |
 
 ## UI
 

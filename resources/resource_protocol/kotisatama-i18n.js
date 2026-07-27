@@ -184,6 +184,7 @@
         sv: "Adressökningen misslyckades.",
       },
       retry: { fi: "Yritä uudelleen", sv: "Försök igen" },
+      backHome: { fi: "Takaisin alkuun", sv: "Till startsidan" },
       backVarustamo: { fi: "Takaisin Varustamoon", sv: "Tillbaka till Varustamo" },
       attribution: {
         fi: "Osoitetiedot: OpenStreetMap / Nominatim.",

@@ -418,6 +418,7 @@ mod tests {
             category: Some("sports".into()),
             tags: vec!["golf".into()],
             entry_type: Some("yellow".into()),
+            entry_url: None,
         };
         let document = whitelist_entry_document(1, &entry).unwrap();
         assert_eq!(document.url, "https://example-golf.fi/");

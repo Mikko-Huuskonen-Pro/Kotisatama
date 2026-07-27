@@ -17,7 +17,7 @@ use fonts::{
     ShapingOptions,
 };
 use icu_locid::subtags::Language;
-use js::context::JSContext;
+use js::context::{JSContext, NoGC};
 use net_traits::image_cache::{ImageCache, ImageResponse};
 use net_traits::request::CorsSettings;
 use pixels::{Snapshot, SnapshotAlphaMode, SnapshotPixelFormat};
@@ -1904,12 +1904,14 @@ impl CanvasState {
     // https://html.spec.whatwg.org/multipage/#dom-context-2d-putimagedata
     pub(super) fn put_image_data(
         &self,
+        no_gc: &NoGC,
         canvas_size: Size2D<u32>,
         imagedata: &ImageData,
         dx: i32,
         dy: i32,
     ) {
         self.put_image_data_(
+            no_gc,
             canvas_size,
             imagedata,
             dx,
@@ -1925,6 +1927,7 @@ impl CanvasState {
     #[expect(clippy::too_many_arguments)]
     pub(super) fn put_image_data_(
         &self,
+        no_gc: &NoGC,
         canvas_size: Size2D<u32>,
         imagedata: &ImageData,
         dx: i32,
@@ -1973,7 +1976,8 @@ impl CanvasState {
         };
 
         // Step 7.
-        let snapshot = imagedata.get_snapshot_rect(Rect::new(src_rect.origin, dst_rect.size));
+        let snapshot =
+            imagedata.get_snapshot_rect(no_gc, Rect::new(src_rect.origin, dst_rect.size));
         // Flushing is not required for correctness, but optimization heuristics for heavy command.
         self.send_canvas_command_immediate(CanvasCommand::PutImageData(
             dst_rect,
@@ -2205,8 +2209,8 @@ impl CanvasState {
         global: &GlobalScope,
         cx: &mut JSContext,
     ) -> DomRoot<DOMMatrix> {
-        let transform = self.state.borrow_mut().transform;
-        DOMMatrix::new(global, true, transform.to_3d(), cx)
+        let transform = self.state.safe_borrow_mut(cx.no_gc()).transform;
+        DOMMatrix::new(cx, global, true, transform.to_3d())
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-context-2d-settransform>
@@ -2584,6 +2588,7 @@ impl UnshapedTextRun<'_> {
             east_asian: FontVariantEastAsian::NORMAL,
             feature_settings: FontFeatureSettings::normal(),
             position: FontVariantPosition::Normal,
+            alternates: Default::default(),
         };
 
         let glyphs = font.shape_text(self.string, &options);

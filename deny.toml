@@ -35,6 +35,9 @@ ignore = [
     # This is a dependency of `usvg`, `rustybuzz`, `fontdb`.
     # We will need to wait for upstream actions.
     "RUSTSEC-2026-0192",
+    # `rustybuzz` is unmaintained. Switch to harfrust.
+    # However, this is a dependecy of `resvg`, there's nothing we can do.
+    "RUSTSEC-2026-0206",
 ]
 
 # This section is considered when running `cargo deny check licenses`
@@ -67,11 +70,7 @@ allow = [
 confidence-threshold = 0.8
 # Allow 1 or more licenses on a per-crate basis, so that particular licenses
 # aren't accepted for every possible crate as with the normal allow list
-exceptions = [
-    # rav1e depends on libfuzzer-sys when cfg(fuzzing) is true, which it isn't for servo builds.
-    # cargo-deny is being run with --all-features, so we need to explicitly make an exception here.
-    { allow = ["NCSA"], crate = "libfuzzer-sys" },
-]
+exceptions = []
 
 
 # This section is considered when running `cargo deny check bans`.
@@ -180,13 +179,13 @@ skip = [
     # Duplicated by wgpu/egui+dependencies
     "objc2-ui-kit",
     "read-fonts",
+    "font-types",
     "skrifa",
     "vello_common",
     "vello_cpu",
     "fearless_simd",
 
     # Duplicated by resvg/image
-    "pastey",
     "roxmltree",
     "tiny-skia",
     "tiny-skia-path",
@@ -204,6 +203,20 @@ skip = [
     # Duplicated by ml-kem. This should be gone in next version (>0.3.2)
     # of ml-kem.
     "sha3",
+
+    # Duplicated by bindgen
+    "shlex",
+
+    # Duplicated by vello (disabled by default) which uses old wgpu.
+    "bit-set",
+    "naga",
+    "wgpu-core",
+    "wgpu-core-deps-apple",
+    "wgpu-core-deps-emscripten",
+    "wgpu-core-deps-windows-linux-android",
+    "wgpu-hal",
+    "wgpu-naga-bridge",
+    "wgpu-types",
 ]
 
 # github.com organizations to allow git sources for

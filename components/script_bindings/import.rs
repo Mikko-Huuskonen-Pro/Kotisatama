@@ -32,7 +32,7 @@ pub(crate) mod base {
 
     pub(crate) use crate::callback::{
         CallbackContainer, CallbackFunction, CallbackInterface, CallbackObject, ExceptionHandling,
-        ThisReflector, call_setup, wrap_call_this_value,
+        OwnerWindow, ThisReflector, call_setup, wrap_call_this_value,
     };
     pub(crate) use crate::codegen::DomTypes::DomTypes;
     pub(crate) use crate::codegen::GenericUnionTypes;
@@ -114,16 +114,13 @@ pub(crate) mod module {
         define_guarded_properties, get_per_interface_object_handle, is_exposed_in,
     };
     pub(crate) use crate::iterable::{Iterable, IterableIterator, IteratorType};
-    #[cfg(feature = "testbinding")]
-    pub(crate) use crate::like::Maplike;
-    pub(crate) use crate::like::Setlike;
+    pub(crate) use crate::like::{Maplike, Setlike};
     pub(crate) use crate::mem::malloc_size_of_including_raw_self;
     pub(crate) use crate::namespace::NamespaceObjectClass;
     pub(crate) use crate::proxyhandler::{get_expando_object, set_property_descriptor};
     #[cfg(feature = "testbinding")]
     pub(crate) use crate::root::{Dom, DomSlice};
     pub(crate) use crate::root::{MaybeUnreflectedDom, Root};
-    pub(crate) use crate::script_runtime::CanGc;
     pub(crate) use crate::utils::{
         DOM_PROTO_UNFORGEABLE_HOLDER_SLOT, DOMClass, DOMJSClass, JSCLASS_DOM_GLOBAL,
         ProtoOrIfaceArray, call_policies, enumerate_global, enumerate_window, exception_to_promise,

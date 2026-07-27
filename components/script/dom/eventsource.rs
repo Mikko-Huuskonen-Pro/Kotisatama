@@ -4,6 +4,7 @@
 
 use std::cell::Cell;
 use std::mem;
+use std::rc::Rc;
 use std::str::{Chars, FromStr};
 use std::time::Duration;
 
@@ -20,7 +21,7 @@ use net_traits::request::{CacheMode, CorsSettings, Destination, RequestBuilder, 
 use net_traits::{FetchMetadata, FilteredMetadata, NetworkError, ResourceFetchTiming};
 use script_bindings::cell::DomRefCell;
 use script_bindings::conversions::SafeToJSValConvertible;
-use script_bindings::reflector::reflect_dom_object_with_proto_and_cx;
+use script_bindings::reflector::reflect_weak_referenceable_dom_object_with_proto;
 use servo_url::ServoUrl;
 use stylo_atoms::Atom;
 
@@ -254,7 +255,8 @@ impl EventSourceContext {
     fn dispatch_event(&mut self, cx: &mut JSContext) {
         let event_source = self.event_source.root();
         // Step 1
-        *event_source.last_event_id.borrow_mut() = DOMString::from(self.last_event_id.clone());
+        *event_source.last_event_id.safe_borrow_mut(cx.no_gc()) =
+            DOMString::from(self.last_event_id.clone());
         // Step 2
         if self.data.is_empty() {
             self.data.clear();
@@ -530,11 +532,11 @@ impl EventSource {
         url: ServoUrl,
         with_credentials: bool,
     ) -> DomRoot<EventSource> {
-        reflect_dom_object_with_proto_and_cx(
-            Box::new(EventSource::new_inherited(url, with_credentials)),
+        reflect_weak_referenceable_dom_object_with_proto(
+            cx,
+            Rc::new(EventSource::new_inherited(url, with_credentials)),
             global,
             proto,
-            cx,
         )
     }
 
@@ -627,7 +629,7 @@ impl EventSourceMethods<crate::DomTypeHolder> for EventSource {
         // Step 11 Set request's cache mode to "no-store".
         request.cache_mode = CacheMode::NoStore;
         // Step 13 Set ev's request to request.
-        *event_source.request.borrow_mut() = Some(request.clone());
+        *event_source.request.safe_borrow_mut(cx.no_gc()) = Some(request.clone());
         // Step 14 Let processEventSourceEndOfBody given response res be the following step:
         // if res is not a network error, then reestablish the connection.
 

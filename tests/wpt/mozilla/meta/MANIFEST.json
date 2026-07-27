@@ -25,6 +25,13 @@
     ]
    },
    "mozilla": {
+    "adopt-node-with-event-handler-crash.html": [
+     "7c8773c9184bb18bf4760ee5ea2df3e8bc91d02c",
+     [
+      null,
+      {}
+     ]
+    ],
     "async-html-meta-charset-crash.html": [
      "8743acb152daa256af34bc938f688561abd313c1",
      [
@@ -11379,6 +11386,50 @@
    }
   },
   "testharness": {
+   "accessibility-tree": {
+    "accessibility-update-basic-mutation.html": [
+     "c5a01a3e528caa3d3925140ea8f575865c549c26",
+     [
+      null,
+      {}
+     ]
+    ],
+    "accessibility-update-children-of-heading-change.html": [
+     "ab99aa03cc40917d5d57159d73ac137db37900b8",
+     [
+      null,
+      {}
+     ]
+    ],
+    "accessibility-update-descendants-of-heading-change.html": [
+     "93eb71919ef1055271731d9b2aa476cb43dc3b42",
+     [
+      null,
+      {}
+     ]
+    ],
+    "accessibility-update-mutation-move-nodes.html": [
+     "37da877ec1f10341d26cd9f6701c304af8ae5952",
+     [
+      null,
+      {}
+     ]
+    ],
+    "accessibility-update-partial-subtree-move-and-delete.html": [
+     "5c9a9b12f7fcc87955cc6418c0789320666d5abf",
+     [
+      null,
+      {}
+     ]
+    ],
+    "accessibility-update-text-change.html": [
+     "86b2ff626306b6d4aab36baef7fdeed7296fa97d",
+     [
+      null,
+      {}
+     ]
+    ]
+   },
    "bluetooth": {
     "advertisingEvent": {
      "watchAdvertisements-succeeds.https.html": [
@@ -13006,7 +13057,7 @@
      ]
     ],
     "css-property-listing.html": [
-     "fbf14639715e1537edb464f8a148369ee37e4a58",
+     "2bfbda5025c3c2b6a9f7c61192e01cfcfe7d5d7b",
      [
       null,
       {}
@@ -13351,7 +13402,7 @@
      ]
     ],
     "mouse-text-selection-textarea.html": [
-     "3addfa2365ffa51f80982ea72432e594fd20f118",
+     "e05ad05b1a21aefcf3e7c2bfd60e0733185f8b4a",
      [
       null,
       {
@@ -14452,7 +14503,7 @@
      ]
     ],
     "interfaces.https.html": [
-     "d162d1ce0cf0a893f9ba6fd230ee7b518dfcf6f8",
+     "dc8599403edd4ad6415b145562c1bf2f2bdd9026",
      [
       null,
       {}

@@ -3,12 +3,14 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 use std::borrow::Cow;
+use std::cell::LazyCell;
 use std::char::{ToLowercase, ToUppercase};
-use std::ops::Range;
+use std::ops::{ControlFlow, Range};
 
 use icu_properties::BidiClass;
 use icu_segmenter::WordSegmenter;
 use layout_api::{LayoutNode, SharedSelection};
+use servo_base::text::Utf32CodeUnits;
 use style::computed_values::_webkit_text_security::T as WebKitTextSecurity;
 use style::computed_values::direction::T as Direction;
 use style::computed_values::white_space_collapse::T as WhiteSpaceCollapse;
@@ -26,7 +28,7 @@ use super::{
 use crate::cell::ArcRefCell;
 use crate::context::LayoutContext;
 use crate::dom::{LayoutBox, NodeExt};
-use crate::dom_traversal::NodeAndStyleInfo;
+use crate::dom_traversal::{BoxTreeString, NodeAndStyleInfo};
 use crate::flow::BlockLevelBox;
 use crate::flow::float::FloatBox;
 use crate::formatting_contexts::IndependentFormattingContext;
@@ -304,20 +306,21 @@ impl InlineFormattingContextBuilder {
     /// Note that this should only be used when processing text in block containers.
     pub(crate) fn push_text_with_possible_first_letter<'dom>(
         &mut self,
-        text: Cow<'dom, str>,
+        text: BoxTreeString<'dom>,
         info: &NodeAndStyleInfo<'dom>,
         container_info: &NodeAndStyleInfo<'dom>,
         layout_context: &LayoutContext,
     ) -> bool {
+        let document_selection = info.node.document_selection_in_text_node();
         if self.has_processed_first_letter || !container_info.pseudo_element_chain().is_empty() {
-            self.push_text(text, info);
+            self.push_text(text, info, document_selection);
             return false;
         }
 
         let Some(first_letter_info) =
             container_info.with_pseudo_element(layout_context, PseudoElement::FirstLetter)
         else {
-            self.push_text(text, info);
+            self.push_text(text, info, document_selection);
             return false;
         };
 
@@ -326,9 +329,31 @@ impl InlineFormattingContextBuilder {
             return false;
         }
 
+        let intersect_ranges = |a: Range<Utf32CodeUnits>, b: Range<Utf32CodeUnits>| {
+            let start = a.start.max(b.start);
+            let end = b.end.min(b.end);
+            if start < end { Some(start..end) } else { None }
+        };
+
         // Push any leading white space first.
+        let first_letter_range_u32 = LazyCell::new(|| {
+            Utf32CodeUnits::length_of(&text[..first_letter_range.start])..
+                Utf32CodeUnits::length_of(&text[..first_letter_range.end])
+        });
         if first_letter_range.start != 0 {
-            self.push_text(Cow::Borrowed(&text[0..first_letter_range.start]), info);
+            let leading_whitespace_range = 0..first_letter_range.start;
+            let leading_whitespace_selection_range =
+                document_selection.clone().and_then(|document_selection| {
+                    let leading_whitespace_range_u32 =
+                        Utf32CodeUnits::zero()..first_letter_range_u32.start;
+                    intersect_ranges(document_selection, leading_whitespace_range_u32)
+                });
+
+            self.push_text(
+                Cow::Borrowed(&text[leading_whitespace_range]).into(),
+                info,
+                leading_whitespace_selection_range,
+            );
         }
 
         // Push the first-letter text into an anonymous box with the `::first-letter` style.
@@ -340,17 +365,45 @@ impl InlineFormattingContextBuilder {
         box_slot.set(LayoutBox::InlineLevel(inline_item));
 
         let first_letter_text = Cow::Borrowed(&text[first_letter_range.clone()]);
-        self.push_text(first_letter_text, &first_letter_info);
+        let first_letter_selection_range =
+            document_selection.clone().and_then(|document_selection| {
+                intersect_ranges(document_selection, (*first_letter_range_u32).clone()).map(
+                    |range| {
+                        range.start - first_letter_range_u32.start..
+                            range.end - first_letter_range_u32.start
+                    },
+                )
+            });
+        self.push_text(
+            first_letter_text.into(),
+            &first_letter_info,
+            first_letter_selection_range,
+        );
         self.end_inline_box();
         self.has_processed_first_letter = true;
 
         // Now push the non-first-letter text.
-        self.push_text(Cow::Borrowed(&text[first_letter_range.end..]), info);
+        let remaining_selection_range = document_selection.and_then(|document_selection| {
+            let remaining_text_range_u32 = first_letter_range_u32.end..document_selection.end;
+            intersect_ranges(document_selection, remaining_text_range_u32).map(|range| {
+                range.start - first_letter_range_u32.end..range.end - first_letter_range_u32.end
+            })
+        });
+        self.push_text(
+            Cow::Borrowed(&text[first_letter_range.end..]).into(),
+            info,
+            remaining_selection_range,
+        );
 
         true
     }
 
-    pub(crate) fn push_text<'dom>(&mut self, text: Cow<'dom, str>, info: &NodeAndStyleInfo<'dom>) {
+    pub(crate) fn push_text<'dom>(
+        &mut self,
+        text: BoxTreeString<'dom>,
+        info: &NodeAndStyleInfo<'dom>,
+        document_selection: Option<Range<Utf32CodeUnits>>,
+    ) {
         let white_space_collapse = info.style.clone_white_space_collapse();
         let collapsed = WhitespaceCollapse::new(
             text.chars(),
@@ -402,18 +455,18 @@ impl InlineFormattingContextBuilder {
                 // If this character has a strong right-to-left class the new inline formatting context will
                 // need to be BiDi-aware. This match is derived from the list of strong right-to-left classes
                 // at https://www.unicode.org/reports/tr44/#Bidi_Class_Values.
-                self.has_right_to_left_content = self.has_right_to_left_content
-                    || matches!(
+                self.has_right_to_left_content = self.has_right_to_left_content ||
+                    matches!(
                         bidi_class_map.get(character),
-                        BidiClass::RightToLeft
-                            | BidiClass::ArabicLetter
-                            | BidiClass::RightToLeftEmbedding
-                            | BidiClass::RightToLeftIsolate
-                            | BidiClass::RightToLeftOverride
+                        BidiClass::RightToLeft |
+                            BidiClass::ArabicLetter |
+                            BidiClass::RightToLeftEmbedding |
+                            BidiClass::RightToLeftIsolate |
+                            BidiClass::RightToLeftOverride
                     );
 
-                self.is_empty = self.is_empty
-                    && match white_space_collapse {
+                self.is_empty = self.is_empty &&
+                    match white_space_collapse {
                         WhiteSpaceCollapse::Collapse => Self::is_document_white_space(character),
                         WhiteSpaceCollapse::PreserveBreaks => {
                             Self::is_document_white_space(character) && character != '\n'
@@ -433,8 +486,8 @@ impl InlineFormattingContextBuilder {
                 self.on_word_boundary && white_space_collapse != WhiteSpaceCollapse::Preserve;
         }
 
-        let new_range = self.current_text_offset..self.current_text_offset + new_text.len();
-        self.current_text_offset = new_range.end;
+        let new_utf8_range = self.current_text_offset..self.current_text_offset + new_text.len();
+        self.current_text_offset = new_utf8_range.end;
 
         let new_character_range =
             self.current_character_offset..self.current_character_offset + character_count;
@@ -442,41 +495,26 @@ impl InlineFormattingContextBuilder {
 
         self.text_segments.push(new_text);
 
-        let current_inline_styles = self.shared_inline_styles();
-
-        if let Some(InlineItem::TextRun(text_run)) = self.inline_items.last()
-            && text_run
-                .borrow()
-                .inline_styles
-                .ptr_eq(&current_inline_styles)
+        if self
+            .try_to_push_text_range_to_previous_text_run(
+                info,
+                &document_selection,
+                &new_utf8_range,
+                &new_character_range,
+            )
+            .is_break()
         {
-            let box_slot = info.node.box_slot();
-            let old_text_run = box_slot.take_layout_box_as_text_run();
-
-            {
-                let mut text_run = text_run.borrow_mut();
-                text_run.text_range.end = new_range.end;
-                text_run.character_range.end = new_character_range.end;
-
-                // If this text node does not have a `TextRun` in the box slot, this means that
-                // it is either new or dirty, which means that the entire `TextRun` just extended
-                // is dirty as well. In this case, never reuse existing shaping results. Clear
-                // all old items to ensure this.
-                if old_text_run.is_none() {
-                    text_run.items.clear();
-                }
-            }
-
-            box_slot.set(LayoutBox::Text(text_run.clone()));
             return;
         }
 
+        let current_inline_styles = self.shared_inline_styles();
         let box_slot = info.node.is_text_node().then(|| info.node.box_slot());
         let text_run = ArcRefCell::new(TextRun::new(
             info.into(),
             current_inline_styles,
-            new_range,
+            new_utf8_range,
             new_character_range,
+            document_selection.unwrap_or_default(),
             box_slot
                 .as_ref()
                 .and_then(|box_slot| box_slot.take_layout_box_as_text_run()),
@@ -487,6 +525,63 @@ impl InlineFormattingContextBuilder {
         if let Some(box_slot) = box_slot {
             box_slot.set(LayoutBox::Text(text_run));
         }
+    }
+
+    fn try_to_push_text_range_to_previous_text_run(
+        &mut self,
+        info: &NodeAndStyleInfo,
+        new_text_selection: &Option<Range<Utf32CodeUnits>>,
+        new_range: &Range<usize>,
+        new_character_range: &Range<usize>,
+    ) -> ControlFlow<()> {
+        // First check to see if the last item was actually a text run.
+        let Some(InlineItem::TextRun(text_run_arc)) = self.inline_items.last() else {
+            return ControlFlow::Continue(());
+        };
+
+        // Currently to merge two text runs the styles need to be the same.
+        if !text_run_arc
+            .borrow()
+            .inline_styles
+            .ptr_eq(&self.shared_inline_styles())
+        {
+            return ControlFlow::Continue(());
+        }
+
+        let mut text_run = text_run_arc.borrow_mut();
+        if let Some(next_text_selection) = new_text_selection {
+            let existing_characters = text_run.character_range.end - text_run.character_range.start;
+            if !text_run.document_selection.is_empty() {
+                // If both the new and old text had selections, they are only compatible
+                // if the old selection extends to the end of the old run run.
+                if text_run.document_selection.end.0 == existing_characters {
+                    text_run.document_selection.end += next_text_selection.end;
+                } else {
+                    return ControlFlow::Continue(());
+                }
+            } else {
+                // If only the new part of the text run has a selection, we can use it directly.
+                text_run.document_selection = Utf32CodeUnits(existing_characters) +
+                    next_text_selection.start..
+                    Utf32CodeUnits(existing_characters) + next_text_selection.end;
+            }
+        }
+
+        text_run.text_range.end = new_range.end;
+        text_run.character_range.end = new_character_range.end;
+
+        // If this text node does not have a `TextRun` in the box slot, this means that
+        // it is either new or dirty, which means that the entire `TextRun` just extended
+        // is dirty as well. In this case, never reuse existing shaping results. Clear
+        // all old items to ensure this.
+        let box_slot = info.node.box_slot();
+        let old_text_run = box_slot.take_layout_box_as_text_run();
+        if old_text_run.is_none() {
+            text_run.items.clear();
+        }
+
+        box_slot.set(LayoutBox::Text(text_run_arc.clone()));
+        ControlFlow::Break(())
     }
 
     pub(crate) fn enter_display_contents(&mut self, shared_inline_styles: SharedInlineStyles) {
@@ -594,8 +689,8 @@ where
         // > characters are considered collapsible
         // If whitespace is not considered collapsible, it is preserved entirely, which
         // means that we can simply return the input string exactly.
-        if self.white_space_collapse == WhiteSpaceCollapse::Preserve
-            || self.white_space_collapse == WhiteSpaceCollapse::BreakSpaces
+        if self.white_space_collapse == WhiteSpaceCollapse::Preserve ||
+            self.white_space_collapse == WhiteSpaceCollapse::BreakSpaces
         {
             // From <https://drafts.csswg.org/css-text-3/#white-space-processing>:
             // > Carriage returns (U+000D) are treated identically to spaces (U+0020) in all respects.
@@ -618,8 +713,8 @@ where
             // Don't push non-newline whitespace immediately. Instead wait to push it until we
             // know that it isn't followed by a newline. See `push_pending_whitespace_if_needed`
             // above.
-            if InlineFormattingContextBuilder::is_document_white_space(character)
-                && character != '\n'
+            if InlineFormattingContextBuilder::is_document_white_space(character) &&
+                character != '\n'
             {
                 self.inside_white_space = true;
                 continue;
@@ -644,9 +739,9 @@ where
                 // >    collapsible segment break is removed.
                 // > 2. Then any remaining segment break is either transformed into a space (U+0020)
                 // >    or removed depending on the context before and after the break.
-                } else if !self.following_newline
-                    && preserve_segment_break()
-                    && !self.is_leading_trimmed_white_space()
+                } else if !self.following_newline &&
+                    preserve_segment_break() &&
+                    !self.is_leading_trimmed_white_space()
                 {
                     self.inside_white_space = false;
                     self.following_newline = true;
@@ -835,8 +930,8 @@ pub(crate) fn capitalize_string(string: &str, allow_word_at_start: bool) -> Stri
         let current_byte_index = byte_index;
         byte_index += character.len_utf8();
 
-        if let Some(next_index) = bounds.peek()
-            && *next_index == current_byte_index
+        if let Some(next_index) = bounds.peek() &&
+            *next_index == current_byte_index
         {
             bounds.next();
 
@@ -897,9 +992,9 @@ fn first_letter_range(text: &str) -> Range<usize> {
             State::Lns => {
                 // TODO: Implement support for intervening spaces
                 // <https://drafts.csswg.org/css-pseudo/#first-letter-pattern>
-                if character.is_punctuation()
-                    && !character.is_punctuation_open()
-                    && !character.is_punctuation_dash()
+                if character.is_punctuation() &&
+                    !character.is_punctuation_open() &&
+                    !character.is_punctuation_dash()
                 {
                     state = State::TrailingPunctuation;
                 } else {
@@ -909,9 +1004,9 @@ fn first_letter_range(text: &str) -> Range<usize> {
             State::TrailingPunctuation => {
                 // TODO: Implement support for intervening spaces
                 // <https://drafts.csswg.org/css-pseudo/#first-letter-pattern>
-                if character.is_punctuation()
-                    && !character.is_punctuation_open()
-                    && !character.is_punctuation_dash()
+                if character.is_punctuation() &&
+                    !character.is_punctuation_open() &&
+                    !character.is_punctuation_dash()
                 {
                     continue;
                 } else {

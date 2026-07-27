@@ -5,107 +5,93 @@
 
 package org.servo.servoview;
 
-import android.app.Activity;
+import android.content.Context;
 import android.view.Surface;
 
 /**
  * Maps /ports/servoshell API
  */
 @SuppressWarnings("JniMissingFunction")
-public class JNIServo {
+class JNIServo {
     JNIServo() {
         System.loadLibrary("c++_shared");
         System.loadLibrary("servoshell");
     }
 
-    public native String version();
+    native String version();
 
-    public native void init(Activity activity, ServoOptions options, Callbacks callbacks, Surface surface);
+    native void init(Context context, ServoOptions options, Callbacks callbacks, Surface surface);
 
-    public native void deinit();
+    native void performUpdates();
 
-    public native void requestShutdown();
+    native void resize(ServoCoordinates coords);
 
-    public native void setBatchMode(boolean mode);
+    native void reload();
 
-    public native void performUpdates();
+    native void stop();
 
-    public native void resize(ServoCoordinates coords);
+    native void goBack();
 
-    public native void reload();
+    native void goForward();
 
-    public native void stop();
+    native void loadUri(String uri);
 
-    public native void goBack();
+    native void scroll(int dx, int dy, int x, int y);
 
-    public native void goForward();
+    native void keydown(int keycode, int unicode);
 
-    public native void loadUri(String uri);
+    native void keyup(int keycode, int unicode);
 
-    public native void scroll(int dx, int dy, int x, int y);
+    native void touchDown(float x, float y, int pointer_id);
 
-    public native void keydown(int keycode, int unicode);
+    native void touchMove(float x, float y, int pointer_id);
 
-    public native void keyup(int keycode, int unicode);
+    native void touchUp(float x, float y, int pointer_id);
 
-    public native void touchDown(float x, float y, int pointer_id);
+    native void touchCancel(float x, float y, int pointer_id);
 
-    public native void touchMove(float x, float y, int pointer_id);
+    native void pinchZoomStart(float factor, float x, float y);
 
-    public native void touchUp(float x, float y, int pointer_id);
+    native void pinchZoom(float factor, float x, float y);
 
-    public native void touchCancel(float x, float y, int pointer_id);
+    native void pinchZoomEnd(float factor, float x, float y);
 
-    public native void pinchZoomStart(float factor, float x, float y);
+    native void click(float x, float y);
 
-    public native void pinchZoom(float factor, float x, float y);
+    native void pausePainting();
 
-    public native void pinchZoomEnd(float factor, float x, float y);
+    native void resumePainting(Surface surface, ServoCoordinates coords);
 
-    public native void click(float x, float y);
+    native void mediaSessionAction(int action);
 
-    public native void pausePainting();
+    native void setExperimentalMode(boolean enable);
 
-    public native void resumePainting(Surface surface, ServoCoordinates coords);
+    native void doFrame();
 
-    public native void mediaSessionAction(int action);
+    // KOTISATAMA-PATCH: JNI-sillat whitelist-hakuun ja lokikirjaan.
+    native String kotisatamaSearch(String query);
 
-    public native void setExperimentalMode(boolean enable);
+    native String kotisatamaSubmitReport(String kind, String domain, String message, String contextUrl);
 
-    public native void doFrame();
+    native boolean kotisatamaShouldShowReport(String currentUrl);
 
-    public native String kotisatamaSearch(String query);
-
-    public native String kotisatamaSubmitReport(String kind, String domain, String message, String contextUrl);
-
-    public native boolean kotisatamaShouldShowReport(String currentUrl);
-
-    public static class ServoOptions {
-        public String args;
-        public String url;
-        public ServoCoordinates coordinates;
-        public float density = 1;
-        public boolean enableSubpixelTextAntialiasing = true;
-        public long VRExternalContext = 0;
-        public String logStr;
-        public String gstDebugStr;
-        public boolean enableLogs = false;
-        public boolean experimentalMode = false;
+    static class ServoOptions {
+        String args;
+        String url;
+        ServoCoordinates coordinates;
+        float density = 1;
+        String logStr;
+        boolean enableLogs = false;
+        boolean experimentalMode = false;
     }
 
-    public static class ServoCoordinates {
-        public int x = 0;
-        public int y = 0;
-        public int width = 0;
-        public int height = 0;
+    static class ServoCoordinates {
+        int width = 0;
+        int height = 0;
     }
 
-    public interface Callbacks {
+    interface Callbacks {
         void wakeup();
-
-        void flush();
-
-        void makeCurrent();
 
         void onAlert(String message);
 

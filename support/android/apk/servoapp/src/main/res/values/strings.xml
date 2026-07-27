@@ -1,5 +1,6 @@
 <resources>
   <string name="app_name">Kotisatama</string>
+  <string name="back">Takaisin</string>
   <string name="media_channel_name">ServoMedia</string>
   <string name="media_channel_description">Multimediatoiminnan ilmoituskanava</string>
   <string name="history_back">Takaisin</string>
@@ -8,21 +9,12 @@
   <string name="url_or_search">Hae satamasta tai syötä osoite</string>
   <string name="report">Lokikirja</string>
   <string name="refresh">Päivitä</string>
-  <string name="idle">lepotila</string>
   <string name="cancel">Peruuta</string>
 
   <!-- Asetukset -->
   <string name="settings_title">Asetukset</string>
-  <string name="settings_section_features">Ominaisuudet</string>
   <string name="settings_experimental_title">Kokeelliset ominaisuudet</string>
   <string name="settings_experimental_summary">Ota käyttöön kokeelliset web-alustan ominaisuudet</string>
-  <string name="settings_animating_title">Lepotila/animaatio-ilmaisin</string>
-  <string name="settings_animating_summary">Näytä visuaalinen ilmaisin renderöinnin tilasta</string>
-  <string name="settings_section_language">Kieli</string>
-  <string name="settings_language_auto">Automaattinen (järjestelmä)</string>
-  <string name="settings_language_fi">Suomi</string>
-  <string name="settings_language_sv">Ruotsi</string>
-  <string name="loop">TOISTO</string>
 
   <!-- Historia -->
   <string name="history_title">Historia</string>

@@ -5,7 +5,6 @@
 
 package org.servo.servoview;
 
-import android.app.Activity;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -23,42 +22,38 @@ import android.view.View;
 import org.servo.servoview.JNIServo.ServoCoordinates;
 import org.servo.servoview.JNIServo.ServoOptions;
 import org.servo.servoview.Servo.Client;
-import org.servo.servoview.Servo.GfxCallbacks;
 import org.servo.servoview.Servo.RunCallback;
 
 import java.util.ArrayList;
 
 public class ServoView extends SurfaceView
         implements
-        GfxCallbacks,
         RunCallback,
         Choreographer.FrameCallback {
     private static final String LOGTAG = "ServoView";
-    private GLThread mGLThread;
-    private Handler mGLLooperHandler;
-    private Surface mASurface;
-    protected Servo mServo = null;
-    private Client mClient = null;
-    private String mServoArgs;
-    private String mServoLog;
-    private String mInitialUri;
-    private Activity mActivity;
+    private GLThread glThread;
+    private Handler glLooperHandler;
+    private Surface aSurface;
+    protected Servo servo = null;
+    private Client client = null;
+    private String servoArgs;
+    private String servoLog;
+    private String initialUri;
 
-    private boolean mExperimentalMode;
-    private boolean mPaused = false;
+    private boolean experimentalMode;
+    private boolean paused = false;
 
     public ServoView(Context context) {
         super(context);
-        init(context);
+        init();
     }
 
     public ServoView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        init(context);
+        init();
     }
 
-    private void init(Context context) {
-        mActivity = (Activity) context;
+    private void init() {
         setFocusable(true);
         setFocusableInTouchMode(true);
         setClickable(true);
@@ -66,25 +61,25 @@ public class ServoView extends SurfaceView
         view.add(this);
         addTouchables(view);
 
-        mGLThread = new GLThread(mActivity, this);
-        getHolder().addCallback(mGLThread);
-        mGLThread.start();
+        glThread = new GLThread(this);
+        getHolder().addCallback(glThread);
+        glThread.start();
     }
 
     public void setClient(Client client) {
-        mClient = client;
+        this.client = client;
     }
 
     public void setServoArgs(String args, String log, boolean experimentalMode) {
-        mServoArgs = args;
-        mServoLog = log;
-        mExperimentalMode = experimentalMode;
+        servoArgs = args;
+        servoLog = log;
+        this.experimentalMode = experimentalMode;
     }
 
     // RunCallback
     @Override
     public void inGLThread(Runnable r) {
-        mGLLooperHandler.post(r);
+        glLooperHandler.post(r);
     }
 
     @Override
@@ -92,28 +87,23 @@ public class ServoView extends SurfaceView
         post(r);
     }
 
-
-    // GfxCallbacks
-    @Override
-    public void flushGLBuffers() {
-    }
-
-
-    @Override
-    public void makeCurrent() {
-    }
-
     // View
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        mServo.onKeyDown(keyCode, event);
-        return true;
+        if (event.getKeyCode() != KeyEvent.KEYCODE_BACK) {
+            servo.onKeyDown(keyCode, event);
+            return true;
+        }
+        return false;
     }
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        mServo.onKeyUp(keyCode, event);
-        return true;
+        if (event.getKeyCode() != KeyEvent.KEYCODE_BACK) {
+            servo.onKeyUp(keyCode, event);
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -130,17 +120,17 @@ public class ServoView extends SurfaceView
         switch (action) {
             case (MotionEvent.ACTION_DOWN):
             case (MotionEvent.ACTION_POINTER_DOWN):
-                mServo.touchDown(x, y, pointerId);
+                servo.touchDown(x, y, pointerId);
                 break;
             case (MotionEvent.ACTION_MOVE):
-                mServo.touchMove(x, y, pointerId);
+                servo.touchMove(x, y, pointerId);
                 break;
             case (MotionEvent.ACTION_UP):
             case (MotionEvent.ACTION_POINTER_UP):
-                mServo.touchUp(x, y, pointerId);
+                servo.touchUp(x, y, pointerId);
                 break;
             case (MotionEvent.ACTION_CANCEL):
-                mServo.touchCancel(x, y, pointerId);
+                servo.touchCancel(x, y, pointerId);
                 break;
             default:
         }
@@ -150,56 +140,56 @@ public class ServoView extends SurfaceView
 
     @Override
     public void doFrame(long frameTimeNanos) {
-        if (mServo != null) {
-            mServo.onDoFrame();
+        if (servo != null) {
+            servo.onDoFrame();
         }
         Choreographer.getInstance().postFrameCallback(this);
     }
 
     // Calls from Activity
     public void onPause() {
-        if (mServo != null) {
-            mServo.suspend(true);
+        if (servo != null) {
+            servo.suspend(true);
         }
     }
 
     public void onResume() {
-        if (mServo != null) {
-            mServo.suspend(false);
+        if (servo != null) {
+            servo.suspend(false);
         }
     }
 
     public void reload() {
-        mServo.reload();
+        servo.reload();
     }
 
     public void goBack() {
-        mServo.goBack();
+        servo.goBack();
     }
 
     public void goForward() {
-        mServo.goForward();
+        servo.goForward();
     }
 
     public void stop() {
-        mServo.stop();
+        servo.stop();
     }
 
     public void loadUri(String uri) {
-        if (mServo != null) {
-            mServo.loadUri(uri);
+        if (servo != null) {
+            servo.loadUri(uri);
         } else {
-            mInitialUri = uri;
+            initialUri = uri;
         }
     }
 
     public void mediaSessionAction(int action) {
-        mServo.mediaSessionAction(action);
+        servo.mediaSessionAction(action);
     }
 
     public void setExperimentalMode(boolean enable) {
-        if (mServo != null) {
-            mServo.setExperimentalMode(enable);
+        if (servo != null) {
+            servo.setExperimentalMode(enable);
         }
     }
 
@@ -225,41 +215,39 @@ public class ServoView extends SurfaceView
     }
 
     class GLThread extends Thread implements SurfaceHolder.Callback {
-        private Activity mActivity;
-        private ServoView mServoView;
+        private ServoView servoView;
 
-        GLThread(Activity activity, ServoView servoView) {
-            mActivity = activity;
-            mServoView = servoView;
+        GLThread(ServoView servoView) {
+            this.servoView = servoView;
         }
 
         public void surfaceCreated(SurfaceHolder holder) {
             Log.d(LOGTAG, "GLThread::surfaceCreated");
 
             ServoCoordinates coords = new ServoCoordinates();
-            coords.width = mServoView.getWidth();
-            coords.height = mServoView.getHeight();
+            coords.width = servoView.getWidth();
+            coords.height = servoView.getHeight();
 
             Surface surface = holder.getSurface();
             ServoOptions options = new ServoOptions();
-            options.args = mServoView.mServoArgs;
-            options.url = mServoView.mInitialUri;
+            options.args = servoView.servoArgs;
+            options.url = servoView.initialUri;
             options.coordinates = coords;
+            options.logStr = servoLog;
             options.enableLogs = true;
-            options.enableSubpixelTextAntialiasing = true;
-            options.experimentalMode = mServoView.mExperimentalMode;
+            options.experimentalMode = servoView.experimentalMode;
 
-            DisplayMetrics metrics = mActivity.getResources().getDisplayMetrics();
+            DisplayMetrics metrics = servoView.getResources().getDisplayMetrics();
             options.density = metrics.density;
-            if (mServoView.mServo == null && !mPaused) {
-                mServoView.mServo = new Servo(
-                        options, mServoView, mServoView, mClient, mActivity, surface);
+            if (servoView.servo == null && !paused) {
+                servoView.servo = new Servo(
+                        options, servoView, client, servoView.getContext(), surface);
             } else {
-                mPaused = false;
-                mServoView.mServo.resumePainting(surface, coords);
+                paused = false;
+                servoView.servo.resumePainting(surface, coords);
             }
 
-            Choreographer.getInstance().postFrameCallback(mServoView);
+            Choreographer.getInstance().postFrameCallback(servoView);
 
         }
 
@@ -268,24 +256,24 @@ public class ServoView extends SurfaceView
             ServoCoordinates coords = new ServoCoordinates();
             coords.width = width;
             coords.height = height;
-            mServoView.mServo.resize(coords);
+            servoView.servo.resize(coords);
         }
 
         public void surfaceDestroyed(SurfaceHolder holder) {
             Log.d(LOGTAG, "GLThread::surfaceDestroyed");
-            mPaused = true;
-            mServoView.mServo.pausePainting();
+            paused = true;
+            servoView.servo.pausePainting();
         }
 
         public void shutdown() {
             Log.d(LOGTAG, "GLThread::shutdown");
-            mGLLooperHandler.getLooper().quitSafely();
+            glLooperHandler.getLooper().quitSafely();
         }
 
         public void run() {
             Looper.prepare();
 
-            mGLLooperHandler = new Handler(Looper.myLooper());
+            glLooperHandler = new Handler(Looper.myLooper());
 
             Looper.loop();
         }

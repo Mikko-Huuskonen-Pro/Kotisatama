@@ -102,13 +102,13 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_version<'local>(
 pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    activity: JObject<'local>,
+    context: JObject<'local>,
     opts: JObject<'local>,
     callbacks_obj: JObject<'local>,
     surface: JObject<'local>,
 ) {
     env.with_env(|env| -> jni::errors::Result<_> {
-        let (init_opts, log, log_str, _gst_debug_str) = get_options(env, &opts, &surface)?;
+        let (init_opts, log, log_str) = get_options(env, &opts, &surface)?;
 
         if log {
             // Note: Android debug logs are stripped from a release build.
@@ -142,7 +142,16 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
                     .with_max_level(log::LevelFilter::Debug)
                     .with_filter(filter_builder.build())
                     .with_tag("servoshell"),
-            )
+            );
+
+            // In production mode we don't redirect stdout / stderr, so any
+            // panic messages would be lost without this hook.
+            std::panic::set_hook(Box::new(|info| {
+                let current_thread = std::thread::current();
+                let thread_name = current_thread.name().unwrap_or("<unnamed>");
+                error!("Panic in Rust code (thread: {thread_name}):");
+                error!("{info}");
+            }));
         }
 
         info!("init");
@@ -167,7 +176,7 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
 
         crate::init_crypto();
 
-        if let Err(error) = set_default_config_dir(env, &activity) {
+        if let Err(error) = set_default_config_dir(env, &context) {
             error!("Failed to determine Android config directory: {error:?}");
         }
 
@@ -899,13 +908,10 @@ fn jni_coordinate_to_rust_viewport_rect<'local>(
     env: &mut Env<'local>,
     obj: &JObject<'local>,
 ) -> Result<Rect<i32, DevicePixel>, Error> {
-    let x = env.get_field(obj, jni_str!("x"), jni_sig!("I"))?.i()?;
-    let y = env.get_field(obj, jni_str!("y"), jni_sig!("I"))?.i()?;
-
     let width = env.get_field(obj, jni_str!("width"), jni_sig!("I"))?.i()?;
     let height = env.get_field(obj, jni_str!("height"), jni_sig!("I"))?.i()?;
 
-    Ok(Rect::new(Point2D::new(x, y), Size2D::new(width, height)))
+    Ok(Rect::new(Point2D::origin(), Size2D::new(width, height)))
 }
 
 fn get_field_as_string<'local>(
@@ -921,11 +927,11 @@ fn get_field_as_string<'local>(
 
 fn set_default_config_dir<'local>(
     env: &mut Env<'local>,
-    activity: &JObject<'local>,
+    context: &JObject<'local>,
 ) -> Result<(), Error> {
     let files_dir = env
         .call_method(
-            activity,
+            context,
             jni_str!("getFilesDir"),
             jni_sig!("()Ljava/io/File;"),
             &[],
@@ -956,11 +962,10 @@ fn get_options<'local>(
     env: &mut Env<'local>,
     opts: &JObject<'local>,
     surface: &JObject<'local>,
-) -> Result<(InitOptions, bool, Option<String>, Option<String>), Error> {
+) -> Result<(InitOptions, bool, Option<String>), Error> {
     let args = get_field_as_string(env, opts, jni_str!("args")).ok();
     let url = get_field_as_string(env, opts, jni_str!("url")).ok();
     let log_str = get_field_as_string(env, opts, jni_str!("logStr")).ok();
-    let gst_debug_str = get_field_as_string(env, opts, jni_str!("gstDebugStr")).ok();
 
     let experimental_mode = env
         .get_field(opts, jni_str!("experimentalMode"), jni_sig!("Z"))?
@@ -1009,7 +1014,7 @@ fn get_options<'local>(
         display_handle,
     };
 
-    Ok((opts, log, log_str, gst_debug_str))
+    Ok((opts, log, log_str))
 }
 
 fn display_and_window_handle(

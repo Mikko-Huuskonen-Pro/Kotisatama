@@ -196,9 +196,12 @@ fn html_constructor(
             // Step 11 is performed in the generated caller code.
 
             // Step 12
-            let mut construction_stack = definition.construction_stack.borrow_mut();
-            construction_stack.pop();
-            construction_stack.push(ConstructionStackEntry::AlreadyConstructedMarker);
+            {
+                let mut construction_stack =
+                    definition.construction_stack.safe_borrow_mut(cx.no_gc());
+                construction_stack.pop();
+                construction_stack.push(ConstructionStackEntry::AlreadyConstructedMarker);
+            }
 
             // Step 13
             if !check_type(&element) {

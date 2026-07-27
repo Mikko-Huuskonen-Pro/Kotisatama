@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 
 use bitflags::bitflags;
 use embedder_traits::FocusSequenceNumber;
-use js::context::JSContext;
+use js::context::{JSContext, NoGC};
 use keyboard_types::Modifiers;
 use script_bindings::cell::DomRefCell;
 use script_bindings::codegen::GenericBindings::HTMLIFrameElementBinding::HTMLIFrameElementMethods;
@@ -381,8 +381,8 @@ impl DocumentFocusHandler {
             // because of the popping we do at the start of these steps.
             let related_blur_target = match new_focus_chain.last() {
                 Some(FocusableArea::Node { node, .. })
-                    if index == last_old_focus_chain_entry
-                        && matches!(entry, FocusableArea::Node { .. }) =>
+                    if index == last_old_focus_chain_entry &&
+                        matches!(entry, FocusableArea::Node { .. }) =>
                 {
                     Some(node.upcast())
                 },
@@ -404,8 +404,8 @@ impl DocumentFocusHandler {
         // Step 3: Apply any relevant platform-specific conventions for focusing new focus
         // target. (For example, some platforms select the contents of a text control when that
         // control is focused.)
-        if &*self.focused_area() != new_focus_target
-            && let Some(html_element) = new_focus_target
+        if &*self.focused_area() != new_focus_target &&
+            let Some(html_element) = new_focus_target
                 .element()
                 .and_then(|element| element.downcast::<HTMLElement>())
         {
@@ -458,8 +458,8 @@ impl DocumentFocusHandler {
             // because of the popping we do at the start of these steps.
             let related_focus_target = match old_focus_chain.last() {
                 Some(FocusableArea::Node { node, .. })
-                    if index == last_new_focus_chain_entry
-                        && matches!(entry, FocusableArea::Node { .. }) =>
+                    if index == last_new_focus_chain_entry &&
+                        matches!(entry, FocusableArea::Node { .. }) =>
                 {
                     Some(node.upcast())
                 },
@@ -518,7 +518,7 @@ impl DocumentFocusHandler {
             .focused_area
             .borrow()
             .element()
-            .is_none_or(|focused| focused.is_focusable_area())
+            .is_none_or(|focused| focused.is_focusable_area(cx.no_gc()))
         {
             return;
         }
@@ -573,8 +573,8 @@ impl DocumentFocusHandler {
         // > starting point, then let starting point be the sequential focus navigation starting point
         // > instead.
         if let Some(sequential_focus_navigation_starting_point) =
-            self.sequential_focus_navigation_starting_point()
-            && starting_point.as_ref().is_none_or(|starting_point| {
+            self.sequential_focus_navigation_starting_point() &&
+            starting_point.as_ref().is_none_or(|starting_point| {
                 starting_point.is_ancestor_of(&sequential_focus_navigation_starting_point)
             })
         {
@@ -612,7 +612,7 @@ impl DocumentFocusHandler {
         let selection_mechanism = starting_point
             .as_ref()
             .and_then(|node| node.downcast::<Element>())
-            .filter(|element| element.is_sequentially_focusable())
+            .filter(|element| element.is_sequentially_focusable(cx.no_gc()))
             .map(|element| {
                 SequentialFocusNavigationMechanism::Sequential(
                     element.explicitly_set_tab_index().unwrap_or_default(),
@@ -637,7 +637,7 @@ impl DocumentFocusHandler {
             selection_mechanism,
             starting_point,
         )
-        .search();
+        .search(cx.no_gc());
 
         // > 6. If candidate is not null, then run the focusing steps for candidate and return.
         if let Some(candidate) = candidate {
@@ -862,9 +862,9 @@ impl SequentialFocusNavigationSearch {
         }
     }
 
-    pub(crate) fn search(mut self) -> Option<DomRoot<Element>> {
+    pub(crate) fn search(mut self, no_gc: &NoGC) -> Option<DomRoot<Element>> {
         for node in self.focus_navigation_scope_owner.iterator() {
-            if self.process_node(&node) == Continue::No {
+            if self.process_node(no_gc, &node) == Continue::No {
                 break;
             }
         }
@@ -876,13 +876,16 @@ impl SequentialFocusNavigationSearch {
         // If searching a nested focus navigation scope, never try to search the containing
         // scope, as that will lead to an endless cycle.
         if self.search_context != SequentialFocusNavigationSearchContext::Nested {
-            return self.maybe_search_in_containing_focus_navigation_scope();
+            return self.maybe_search_in_containing_focus_navigation_scope(no_gc);
         }
 
         None
     }
 
-    fn maybe_search_in_containing_focus_navigation_scope(&self) -> Option<DomRoot<Element>> {
+    fn maybe_search_in_containing_focus_navigation_scope(
+        &self,
+        no_gc: &NoGC,
+    ) -> Option<DomRoot<Element>> {
         let containing_node = self.focus_navigation_scope_owner.node();
         let containing_focus_navigation_scope_owner =
             containing_node.containing_focus_navigation_scope_owner()?;
@@ -905,9 +908,9 @@ impl SequentialFocusNavigationSearch {
             mechanism => *mechanism,
         };
 
-        if self.direction == SequentialFocusDirection::Backward
-            && let Some(containing_element) = containing_node.downcast::<Element>()
-            && containing_element.is_sequentially_focusable()
+        if self.direction == SequentialFocusDirection::Backward &&
+            let Some(containing_element) = containing_node.downcast::<Element>() &&
+            containing_element.is_sequentially_focusable(no_gc)
         {
             return Some(DomRoot::from_ref(containing_element));
         }
@@ -921,26 +924,30 @@ impl SequentialFocusNavigationSearch {
             passed_starting_point: false,
             search_context: SequentialFocusNavigationSearchContext::Containing,
         }
-        .search()
+        .search(no_gc)
     }
 
-    fn process_node(&mut self, node: &Node) -> Continue {
+    fn process_node(&mut self, no_gc: &NoGC, node: &Node) -> Continue {
         if Some(node) == self.starting_point.as_deref() {
             self.passed_starting_point = true;
-        } else if self.process_node_as_sequentially_focusable_node(node) == Continue::No {
+        } else if self.process_node_as_sequentially_focusable_node(no_gc, node) == Continue::No {
             return Continue::No;
         }
 
-        self.process_node_as_focus_scope_owner(node)
+        self.process_node_as_focus_scope_owner(no_gc, node)
     }
 
     /// If this node is sequentially focusable, consider whether or not to accept it
     /// as the new winner.
-    fn process_node_as_sequentially_focusable_node(&mut self, node: &Node) -> Continue {
+    fn process_node_as_sequentially_focusable_node(
+        &mut self,
+        no_gc: &NoGC,
+        node: &Node,
+    ) -> Continue {
         let Some(element) = node.downcast::<Element>() else {
             return Continue::Yes;
         };
-        if !element.is_sequentially_focusable() {
+        if !element.is_sequentially_focusable(no_gc) {
             return Continue::Yes;
         }
 
@@ -954,7 +961,7 @@ impl SequentialFocusNavigationSearch {
 
     /// If this node itself forms a nested sequential focus scope, decide whether or
     /// not to descend and consider its contained focusable areas as candidates.
-    fn process_node_as_focus_scope_owner(&mut self, node: &Node) -> Continue {
+    fn process_node_as_focus_scope_owner(&mut self, no_gc: &NoGC, node: &Node) -> Continue {
         // Never try to recurse into the same focus scope that we are in. This path
         // might be reached if we are in the root focus scope where the document is
         // one of the nodes processed.
@@ -965,8 +972,8 @@ impl SequentialFocusNavigationSearch {
         // If the search has ascended into a containing scope, never try to search back down
         // into the scope that originated this part of the search. Otherwise the search would
         // cycle endlessly.
-        if Some(node) == self.starting_point.as_deref()
-            && self.search_context == SequentialFocusNavigationSearchContext::Containing
+        if Some(node) == self.starting_point.as_deref() &&
+            self.search_context == SequentialFocusNavigationSearchContext::Containing
         {
             return Continue::Yes;
         }
@@ -1005,7 +1012,7 @@ impl SequentialFocusNavigationSearch {
             passed_starting_point: self.passed_starting_point,
             search_context: SequentialFocusNavigationSearchContext::Nested,
         }
-        .search();
+        .search(no_gc);
 
         let Some(element) = element else {
             return Continue::Yes;
@@ -1142,8 +1149,8 @@ impl SequentialFocusNavigationSearch {
                 // If the candidate element has a lesser tab index than the current winner,
                 // then it becomes the winner.
                 let should_select =
-                    compare_tab_indices(candidate_element_tab_index, winning_tab_index)
-                        == Ordering::Less;
+                    compare_tab_indices(candidate_element_tab_index, winning_tab_index) ==
+                        Ordering::Less;
 
                 (should_select, Continue::Yes)
             },
@@ -1165,8 +1172,8 @@ impl SequentialFocusNavigationSearch {
                 // then it becomes the new winner. This means that when the tab indices are
                 // equal, we give preference to the last one in DOM order.
                 let should_select =
-                    compare_tab_indices(candidate_element_tab_index, winning_tab_index)
-                        != Ordering::Less;
+                    compare_tab_indices(candidate_element_tab_index, winning_tab_index) !=
+                        Ordering::Less;
                 (should_select, Continue::Yes)
             },
         }

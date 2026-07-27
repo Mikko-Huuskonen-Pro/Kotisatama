@@ -7,21 +7,26 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use app_units::Au;
+use atomic_refcell::AtomicRefCell;
+use fonts::font_feature_values::ResolvedFontVariantAlternates;
 use fonts::{
-    FontContext, FontRef, ShapedTextSlice, ShapedTextSlicer, ShapingFlags, ShapingOptions,
+    ByteIndex, FontContext, FontRef, ShapedTextSlice, ShapedTextSlicer, ShapingFlags,
+    ShapingOptions, TextByteRange,
 };
 use icu_locid::subtags::Language;
 use icu_properties::{self, LineBreak};
+use layout_api::ScriptSelection;
 use log::warn;
 use malloc_size_of_derive::MallocSizeOf;
 use servo_arc::Arc as ServoArc;
-use servo_base::text::is_bidi_control;
+use servo_base::text::{Utf32CodeUnits, is_bidi_control};
 use style::Zero;
 use style::computed_values::font_kerning::T as FontKerning;
 use style::computed_values::font_variant_position::T as FontVariantPosition;
 use style::computed_values::text_rendering::T as TextRendering;
 use style::computed_values::white_space_collapse::T as WhiteSpaceCollapse;
 use style::computed_values::word_break::T as WordBreak;
+use style::font_face::FontLanguageOverride;
 use style::properties::ComputedValues;
 use style::str::char_is_whitespace;
 use style::values::computed::{
@@ -86,6 +91,10 @@ pub(crate) struct FontAndScriptInfo {
     pub feature_settings: FontFeatureSettings,
     /// The value of the `font-variant-position` property from the original style.
     pub position: FontVariantPosition,
+    /// The value of the `font-variant-alternates` property from the original style.
+    ///
+    /// Any alternate names are already resolved at this point.
+    pub alternates: ResolvedFontVariantAlternates,
 }
 
 impl FontAndScriptInfo {
@@ -107,6 +116,7 @@ impl FontAndScriptInfo {
             east_asian: FontVariantEastAsian::NORMAL,
             feature_settings: FontFeatureSettings::normal(),
             position: FontVariantPosition::Normal,
+            alternates: Default::default(),
         }
     }
 }
@@ -149,6 +159,7 @@ impl From<&FontAndScriptInfo> for ShapingOptions {
             feature_settings: info.feature_settings.clone(),
             position: info.position,
             flags,
+            alternates: info.alternates.clone(),
         }
     }
 }
@@ -244,6 +255,19 @@ impl TextRunSegment {
                 .ifc
                 .shared_selection
                 .clone()
+                .or_else(|| {
+                    if text_run.document_selection.is_empty() {
+                        None
+                    } else {
+                        Some(Arc::new(AtomicRefCell::new(ScriptSelection {
+                            range: TextByteRange::new(ByteIndex::zero(), ByteIndex::zero()),
+                            character_range: text_run.character_range.start +
+                                text_run.document_selection.start.0..
+                                text_run.character_range.start + text_run.document_selection.end.0,
+                            enabled: true,
+                        })))
+                    }
+                })
                 .map(|shared_selection| TextRunOffsets {
                     shared_selection,
                     character_range: character_range_start..new_character_range_end,
@@ -435,9 +459,12 @@ pub(crate) struct TextRun {
     pub text_range: Range<usize>,
 
     /// The range of characters in this text in [`super::InlineFormattingContext::text_content`]
-    /// of the [`super::InlineFormattingContext`] that owns this [`TextRun`]. These are *not*
-    /// UTF-8 offsets.
+    /// of the [`super::InlineFormattingContext`] that owns this [`TextRun`].
+    /// These are counting `char`s, *not* UTF-8 offsets.
     pub character_range: Range<usize>,
+
+    /// The range of `char` characters in this `TextRun` that overlap the Document’s selection
+    pub document_selection: Range<Utf32CodeUnits>,
 
     /// The [`TextRunItem`]s of this text run. This is produced by segmenting the incoming text
     /// by things such as font and script as well as separating out hard line breaks.
@@ -451,6 +478,7 @@ impl TextRun {
         inline_styles: SharedInlineStyles,
         text_range: Range<usize>,
         character_range: Range<usize>,
+        document_selection: Range<Utf32CodeUnits>,
         old_text_run: Option<ArcRefCell<TextRun>>,
     ) -> Self {
         // If there was a previous box tree layout of this text run, try to preserve the old shaped text.
@@ -463,6 +491,7 @@ impl TextRun {
             inline_styles,
             text_range,
             character_range,
+            document_selection,
             items,
         }
     }
@@ -510,6 +539,20 @@ impl TextRun {
     ) -> Vec<TextRunItem> {
         let font_style = parent_style.clone_font();
         let language = font_style._x_lang.0.parse().unwrap_or(Language::UND);
+        let language_for_shaping = Some(font_style.font_language_override)
+            .filter(|language_override| *language_override != FontLanguageOverride::normal())
+            .and_then(|language_override| {
+                // FIXME: ICU4x limits language tags to three bytes as that is limit
+                // defined by BCP 47. But OpenType defines a couple four-letter
+                // languages, and stylo correctly stores a four-byte value for the computed
+                // value of the property.
+                //
+                // https://www.w3.org/TR/css-fonts-4/#font-language-override-string-value
+                //
+                // For now we need to truncate the language tag ):
+                Language::try_from_bytes(&language_override.0.to_be_bytes()[..3]).ok()
+            })
+            .unwrap_or(language);
         let font_size = font_style.font_size.computed_size().into();
         let kerning = font_style.font_kerning;
         let ligatures = font_style.font_variant_ligatures;
@@ -517,6 +560,8 @@ impl TextRun {
         let east_asian = font_style.font_variant_east_asian;
         let feature_settings = font_style.font_feature_settings.clone();
         let position = font_style.font_variant_position;
+        let alternates = font_style.font_variant_alternates.clone();
+
         let font_group = layout_context.font_context.font_group(font_style);
         let inherited_text_style = parent_style.get_inherited_text();
         let word_spacing = Some(inherited_text_style.word_spacing.to_used_value(font_size));
@@ -593,11 +638,19 @@ impl TextRun {
             let Some(font) = font.or_else(|| font_group.first(&layout_context.font_context)) else {
                 continue;
             };
+
+            let alternates = layout_context
+                .font_context
+                .resolve_font_variant_alternate_identifiers_for(
+                    &font,
+                    &alternates,
+                    layout_context.style_context.stylist,
+                );
             let info = FontAndScriptInfo {
                 font,
                 script,
                 bidi_level,
-                language,
+                language: language_for_shaping,
                 word_spacing,
                 letter_spacing,
                 text_rendering,
@@ -606,6 +659,7 @@ impl TextRun {
                 numeric,
                 east_asian,
                 feature_settings: feature_settings.clone(),
+                alternates,
                 position,
             };
 

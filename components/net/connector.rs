@@ -30,7 +30,6 @@ use rustls::{ClientConfig, ProtocolVersion};
 use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
 use servo_config::pref;
 use tokio::net::TcpStream;
-use tokio::sync::Semaphore;
 use tower::Service;
 
 use crate::async_runtime::spawn_task;
@@ -41,8 +40,6 @@ pub const BUF_SIZE: usize = 32768;
 /// ALPN identifier for HTTP/2 (RFC 7540 §3.1).
 pub const ALPN_H2: &str = "h2";
 
-static CONNECT_SEMAPHORE: LazyLock<Arc<Semaphore>> = LazyLock::new(|| Arc::new(Semaphore::new(8)));
-
 #[derive(Clone)]
 pub struct ServoHttpConnector {
     inner: HyperHttpConnector,
@@ -52,7 +49,7 @@ impl ServoHttpConnector {
     fn new() -> ServoHttpConnector {
         let mut inner = HyperHttpConnector::new();
         inner.enforce_http(false);
-        inner.set_happy_eyeballs_timeout(Some(Duration::from_millis(300)));
+        inner.set_happy_eyeballs_timeout(None);
         inner.set_connect_timeout(Some(Duration::from_secs(pref!(network_connection_timeout))));
         ServoHttpConnector { inner }
     }
@@ -87,18 +84,11 @@ impl Service<Destination> for ServoHttpConnector {
             }
         }
 
-        let permit = CONNECT_SEMAPHORE.clone().acquire_owned();
-        let mut inner = self.inner.clone();
-
-        Box::pin(async move {
-            let _permit = permit
-                .await
-                .map_err(|e| ConnectionError::HttpError(format!("connect throttle closed: {e}")))?;
-            inner
+        Box::pin(
+            self.inner
                 .call(new_dest)
-                .await
-                .map_err(|e| ConnectionError::HttpError(format!("{e}")))
-        })
+                .map_err(|e| ConnectionError::HttpError(format!("{e}"))),
+        )
     }
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -648,17 +638,29 @@ impl Service<Destination> for ProxyConnector {
         std::pin::Pin<Box<dyn Future<Output = Result<TokioIo<TcpStream>, ConnectionError>> + Send>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.client.poll_ready(cx)
+        self.client
+            .poll_ready(cx)
+            .map_err(|e| ConnectionError::ProxyError(format!("{e}")))
     }
 
     fn call(&mut self, req: Destination) -> Self::Future {
         match self.matcher.intercept(&req) {
-            Some(intercept) => Box::pin(
-                Tunnel::new(intercept.uri().clone(), self.client.clone())
+            Some(intercept) => {
+                let mut tunnel = Tunnel::new(intercept.uri().clone(), self.client.clone());
+                let final_tunnel = if let Some(auth) = intercept.basic_auth() {
+                    tunnel.with_auth(auth.clone())
+                } else {
+                    tunnel
+                }
+                .call(req)
+                .map_err(|e| ConnectionError::ProxyError(format!("{e}")));
+                Box::pin(final_tunnel)
+            },
+            None => Box::pin(
+                self.client
                     .call(req)
                     .map_err(|e| ConnectionError::ProxyError(format!("{e}"))),
             ),
-            None => Box::pin(self.client.call(req)),
         }
     }
 }

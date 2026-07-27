@@ -9,15 +9,13 @@ use js::conversions::{
 };
 use js::error::throw_type_error;
 use js::glue::{
-    GetProxyHandlerExtra, GetProxyReservedSlot, IsProxyHandlerFamily, IsWrapper,
-    JS_GetReservedSlot, UnwrapObjectDynamic,
+    GetProxyHandlerExtra, GetProxyReservedSlot, IsProxyHandlerFamily, IsWrapper, JS_GetReservedSlot,
 };
-use js::jsapi::{
-    Heap, IsWindowProxy, JS_DeprecatedStringHasLatin1Chars, JS_NewStringCopyN, JSContext, JSObject,
-};
+use js::jsapi::{Heap, IsWindowProxy, JS_DeprecatedStringHasLatin1Chars, JSContext, JSObject};
 use js::jsval::{ObjectValue, StringValue, UndefinedValue};
 use js::rust::wrappers2::{
     IsArrayObject, JS_GetLatin1StringCharsAndLength, JS_GetTwoByteStringCharsAndLength,
+    JS_NewStringCopyN, UnwrapObjectDynamic,
 };
 use js::rust::{
     HandleId, HandleValue, MutableHandleValue, ToString, get_object_class, is_dom_class,
@@ -66,6 +64,10 @@ impl ToJSValConvertible for USVString {
     unsafe fn to_jsval(&self, cx: *mut JSContext, rval: MutableHandleValue) {
         self.0.to_jsval(cx, rval);
     }
+
+    fn safe_to_jsval(&self, cx: &mut js::context::JSContext, rval: MutableHandleValue) {
+        ToJSValConvertible::safe_to_jsval(&self.0, cx, rval);
+    }
 }
 
 /// Behavior for stringification of `JSVal`s.
@@ -80,15 +82,6 @@ pub enum StringificationBehavior {
 // https://heycam.github.io/webidl/#es-DOMString
 impl FromJSValConvertible for DOMString {
     type Config = StringificationBehavior;
-    unsafe fn from_jsval(
-        _cx: *mut JSContext,
-        value: HandleValue,
-        null_behavior: StringificationBehavior,
-    ) -> Result<ConversionResult<DOMString>, ()> {
-        // TODO https://github.com/servo/mozjs/issues/749
-        let mut cx = unsafe { crate::script_runtime::temp_cx() };
-        FromJSValConvertible::safe_from_jsval(&mut cx, value, null_behavior)
-    }
 
     fn safe_from_jsval(
         cx: &mut js::context::JSContext,
@@ -109,15 +102,6 @@ impl FromJSValConvertible for DOMString {
 // http://heycam.github.io/webidl/#es-USVString
 impl FromJSValConvertible for USVString {
     type Config = ();
-    unsafe fn from_jsval(
-        _cx: *mut JSContext,
-        value: HandleValue,
-        _: (),
-    ) -> Result<ConversionResult<USVString>, ()> {
-        // TODO https://github.com/servo/mozjs/issues/749
-        let mut cx = unsafe { crate::script_runtime::temp_cx() };
-        FromJSValConvertible::safe_from_jsval(&mut cx, value, ())
-    }
 
     fn safe_from_jsval(
         cx: &mut js::context::JSContext,
@@ -138,31 +122,31 @@ impl FromJSValConvertible for USVString {
 
 // http://heycam.github.io/webidl/#es-ByteString
 impl ToJSValConvertible for ByteString {
-    unsafe fn to_jsval(&self, cx: *mut JSContext, mut rval: MutableHandleValue) {
-        let jsstr = JS_NewStringCopyN(
-            cx,
-            self.as_ptr() as *const libc::c_char,
-            self.len() as libc::size_t,
-        );
+    unsafe fn to_jsval(&self, _cx: *mut JSContext, rval: MutableHandleValue) {
+        // TODO: https://github.com/servo/mozjs/issues/764
+        // This is needed until the `RawJSContext` version is removed from the trait.
+        let mut cx = unsafe { crate::script_runtime::temp_cx() };
+        ToJSValConvertible::safe_to_jsval(self, &mut cx, rval);
+    }
+
+    fn safe_to_jsval(&self, cx: &mut js::context::JSContext, mut rval: MutableHandleValue) {
+        let jsstr = unsafe {
+            JS_NewStringCopyN(
+                cx,
+                self.as_ptr() as *const libc::c_char,
+                self.len() as libc::size_t,
+            )
+        };
         if jsstr.is_null() {
             panic!("JS_NewStringCopyN failed");
         }
-        rval.set(StringValue(&*jsstr));
+        unsafe { rval.set(StringValue(&*jsstr)) };
     }
 }
 
 // http://heycam.github.io/webidl/#es-ByteString
 impl FromJSValConvertible for ByteString {
     type Config = ();
-    unsafe fn from_jsval(
-        _cx: *mut JSContext,
-        value: HandleValue,
-        _option: (),
-    ) -> Result<ConversionResult<ByteString>, ()> {
-        // TODO https://github.com/servo/mozjs/issues/749
-        let mut cx = unsafe { crate::script_runtime::temp_cx() };
-        FromJSValConvertible::safe_from_jsval(&mut cx, value, ())
-    }
 
     fn safe_from_jsval(
         cx: &mut js::context::JSContext,
@@ -211,20 +195,17 @@ impl<T> ToJSValConvertible for Reflector<T> {
         rval.set(ObjectValue(obj));
         maybe_wrap_value(cx, rval);
     }
+
+    fn safe_to_jsval(&self, cx: &mut js::context::JSContext, mut rval: MutableHandleValue) {
+        let obj = self.get_jsobject().get();
+        assert!(!obj.is_null());
+        rval.set(ObjectValue(obj));
+        unsafe { maybe_wrap_value(cx.raw_cx(), rval) };
+    }
 }
 
 impl<T: DomObject + IDLInterface> FromJSValConvertible for DomRoot<T> {
     type Config = ();
-
-    unsafe fn from_jsval(
-        _cx: *mut JSContext,
-        value: HandleValue,
-        _config: Self::Config,
-    ) -> Result<ConversionResult<DomRoot<T>>, ()> {
-        // TODO https://github.com/servo/mozjs/issues/749
-        let mut cx = unsafe { crate::script_runtime::temp_cx() };
-        FromJSValConvertible::safe_from_jsval(&mut cx, value, ())
-    }
 
     fn safe_from_jsval(
         cx: &mut js::context::JSContext,
@@ -241,6 +222,10 @@ impl<T: DomObject + IDLInterface> FromJSValConvertible for DomRoot<T> {
 impl<T: DomObject> ToJSValConvertible for DomRoot<T> {
     unsafe fn to_jsval(&self, cx: *mut JSContext, rval: MutableHandleValue) {
         self.reflector().to_jsval(cx, rval);
+    }
+
+    fn safe_to_jsval(&self, cx: &mut js::context::JSContext, rval: MutableHandleValue) {
+        ToJSValConvertible::safe_to_jsval(&self.reflector(), cx, rval);
     }
 }
 
@@ -322,8 +307,8 @@ pub enum PrototypeCheck {
 #[inline]
 #[allow(clippy::result_unit_err)]
 pub unsafe fn private_from_proto_check(
+    cx: &mut js::context::JSContext,
     mut obj: *mut JSObject,
-    cx: *mut JSContext,
     proto_check: PrototypeCheck,
 ) -> Result<*const libc::c_void, ()> {
     let dom_class = get_dom_class(obj).or_else(|_| {
@@ -366,12 +351,15 @@ pub unsafe fn private_from_proto_check(
 /// obj must point to a valid, non-null JS object.
 /// cx must point to a valid, non-null JS context.
 #[allow(clippy::result_unit_err)]
-pub unsafe fn native_from_object<T>(obj: *mut JSObject, cx: *mut JSContext) -> Result<*const T, ()>
+pub unsafe fn native_from_object<T>(
+    cx: &mut js::context::JSContext,
+    obj: *mut JSObject,
+) -> Result<*const T, ()>
 where
     T: DomObject + IDLInterface,
 {
     unsafe {
-        private_from_proto_check(obj, cx, PrototypeCheck::Derive(T::derives))
+        private_from_proto_check(cx, obj, PrototypeCheck::Derive(T::derives))
             .map(|ptr| ptr as *const T)
     }
 }
@@ -387,11 +375,14 @@ where
 /// obj must point to a valid, non-null JS object.
 /// cx must point to a valid, non-null JS context.
 #[allow(clippy::result_unit_err)]
-pub unsafe fn root_from_object<T>(obj: *mut JSObject, cx: *mut JSContext) -> Result<DomRoot<T>, ()>
+pub unsafe fn root_from_object<T>(
+    cx: &mut js::context::JSContext,
+    obj: *mut JSObject,
+) -> Result<DomRoot<T>, ()>
 where
     T: DomObject + IDLInterface,
 {
-    native_from_object(obj, cx).map(|ptr| unsafe { DomRoot::from_ref(&*ptr) })
+    native_from_object(cx, obj).map(|ptr| unsafe { DomRoot::from_ref(&*ptr) })
 }
 
 /// Get a `DomRoot<T>` for a DOM object accessible from a `HandleValue`.
@@ -412,7 +403,7 @@ where
     }
     #[expect(unsafe_code)]
     unsafe {
-        root_from_object(v.get().to_object(), cx.raw_cx())
+        root_from_object(cx, v.get().to_object())
     }
 }
 
@@ -440,20 +431,16 @@ impl<T: Float + ToJSValConvertible> ToJSValConvertible for Finite<T> {
         let value = **self;
         value.to_jsval(cx, rval);
     }
+
+    #[inline]
+    fn safe_to_jsval(&self, cx: &mut js::context::JSContext, rval: MutableHandleValue) {
+        let value = **self;
+        value.safe_to_jsval(cx, rval);
+    }
 }
 
 impl<T: Float + FromJSValConvertible<Config = ()>> FromJSValConvertible for Finite<T> {
     type Config = ();
-
-    unsafe fn from_jsval(
-        _cx: *mut JSContext,
-        value: HandleValue,
-        option: (),
-    ) -> Result<ConversionResult<Finite<T>>, ()> {
-        // TODO https://github.com/servo/mozjs/issues/749
-        let mut cx = unsafe { crate::script_runtime::temp_cx() };
-        FromJSValConvertible::safe_from_jsval(&mut cx, value, option)
-    }
 
     fn safe_from_jsval(
         cx: &mut js::context::JSContext,
@@ -536,7 +523,7 @@ where
 
     #[expect(unsafe_code)]
     unsafe {
-        native_from_object(v.get().to_object(), cx.raw_cx())
+        native_from_object(cx, v.get().to_object())
     }
 }
 
@@ -546,6 +533,12 @@ impl<T: ToJSValConvertible + JSTraceable> ToJSValConvertible for RootedTraceable
         let value = &**self;
         value.to_jsval(cx, rval);
     }
+
+    #[inline]
+    fn safe_to_jsval(&self, cx: &mut js::context::JSContext, rval: MutableHandleValue) {
+        let value = &**self;
+        value.safe_to_jsval(cx, rval);
+    }
 }
 
 impl<T> FromJSValConvertible for RootedTraceableBox<Heap<T>>
@@ -554,16 +547,6 @@ where
     Heap<T>: JSTraceable + Default,
 {
     type Config = T::Config;
-
-    unsafe fn from_jsval(
-        _cx: *mut JSContext,
-        value: HandleValue,
-        config: Self::Config,
-    ) -> Result<ConversionResult<Self>, ()> {
-        // TODO https://github.com/servo/mozjs/issues/749
-        let mut cx = unsafe { crate::script_runtime::temp_cx() };
-        FromJSValConvertible::safe_from_jsval(&mut cx, value, config)
-    }
 
     fn safe_from_jsval(
         cx: &mut js::context::JSContext,
@@ -600,22 +583,22 @@ pub fn is_array_like<D: crate::DomTypes>(
 
     unsafe {
         // TODO: HTMLAllCollection
-        if root_from_object::<D::DOMTokenList>(object, cx.raw_cx()).is_ok() {
+        if root_from_object::<D::DOMTokenList>(cx, object).is_ok() {
             return true;
         }
-        if root_from_object::<D::FileList>(object, cx.raw_cx()).is_ok() {
+        if root_from_object::<D::FileList>(cx, object).is_ok() {
             return true;
         }
-        if root_from_object::<D::HTMLCollection>(object, cx.raw_cx()).is_ok() {
+        if root_from_object::<D::HTMLCollection>(cx, object).is_ok() {
             return true;
         }
-        if root_from_object::<D::HTMLFormControlsCollection>(object, cx.raw_cx()).is_ok() {
+        if root_from_object::<D::HTMLFormControlsCollection>(cx, object).is_ok() {
             return true;
         }
-        if root_from_object::<D::HTMLOptionsCollection>(object, cx.raw_cx()).is_ok() {
+        if root_from_object::<D::HTMLOptionsCollection>(cx, object).is_ok() {
             return true;
         }
-        if root_from_object::<D::NodeList>(object, cx.raw_cx()).is_ok() {
+        if root_from_object::<D::NodeList>(cx, object).is_ok() {
             return true;
         }
     }

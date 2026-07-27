@@ -60,7 +60,6 @@ use crate::network_listener::{
     self, FetchResponseListener, NetworkListener, ResourceTimingListener, submit_timing_data,
 };
 use crate::realms::enter_auto_realm;
-use crate::script_runtime::CanGc;
 
 /// Fetch canceller object. By default initialized to having a
 /// request associated with it, which can be aborted or terminated.
@@ -169,8 +168,6 @@ fn request_init_from_request(request: NetTraitsRequest, global: &GlobalScope) ->
     .parser_metadata(request.parser_metadata)
     .initiator(request.initiator)
     .client(global.request_client(None))
-    .insecure_requests_policy(request.insecure_requests_policy)
-    .has_trustworthy_ancestor_origin(request.has_trustworthy_ancestor_origin)
     .response_tainting(request.response_tainting);
     builder.id = request.id;
     builder
@@ -420,11 +417,7 @@ pub(crate) fn FetchLater(
     // Step 14. Add the following abort steps to requestObject’s signal: Set deferredRecord’s invoke state to "aborted".
     signal.add(&AbortAlgorithm::FetchLater(deferred_record_id));
     // Step 15. Return a new FetchLaterResult whose activated getter steps are to return activated.
-    Ok(FetchLaterResult::new(
-        window,
-        deferred_record_id,
-        CanGc::from_cx(cx),
-    ))
+    Ok(FetchLaterResult::new(cx, window, deferred_record_id))
 }
 
 /// <https://fetch.spec.whatwg.org/#deferred-fetch-record-invoke-state>
@@ -567,23 +560,20 @@ impl FetchResponseListener for FetchContext {
             // given response, "immutable", and relevantRealm.
             Ok(metadata) => match metadata {
                 FetchMetadata::Unfiltered(m) => {
-                    fill_headers_with_metadata(cx, self.response_object.root(), m);
-                    self.response_object
-                        .root()
-                        .set_type(cx, DOMResponseType::Default);
+                    let r = self.response_object.root();
+                    fill_headers_with_metadata(cx, &r, m);
+                    r.set_type(cx, DOMResponseType::Default);
                 },
                 FetchMetadata::Filtered { filtered, .. } => match filtered {
                     FilteredMetadata::Basic(m) => {
-                        fill_headers_with_metadata(cx, self.response_object.root(), m);
-                        self.response_object
-                            .root()
-                            .set_type(cx, DOMResponseType::Basic);
+                        let r = self.response_object.root();
+                        fill_headers_with_metadata(cx, &r, m);
+                        r.set_type(cx, DOMResponseType::Basic);
                     },
                     FilteredMetadata::Cors(m) => {
-                        fill_headers_with_metadata(cx, self.response_object.root(), m);
-                        self.response_object
-                            .root()
-                            .set_type(cx, DOMResponseType::Cors);
+                        let r = self.response_object.root();
+                        fill_headers_with_metadata(cx, &r, m);
+                        r.set_type(cx, DOMResponseType::Cors);
                     },
                     FilteredMetadata::Opaque => {
                         self.response_object
@@ -707,7 +697,7 @@ impl ResourceTimingListener for FetchLaterListener {
     }
 }
 
-fn fill_headers_with_metadata(cx: &mut JSContext, r: DomRoot<Response>, m: Metadata) {
+fn fill_headers_with_metadata(cx: &mut JSContext, r: &Response, m: Metadata) {
     r.set_headers(cx, m.headers);
     r.set_status(&m.status);
     r.set_final_url(m.final_url);
@@ -761,6 +751,9 @@ pub(crate) fn load_whole_resource(
             FetchResponseMsg::ProcessCspViolations(_, violations) => {
                 csp_violations_processor.process_csp_violations(cx, violations);
             },
+            FetchResponseMsg::ProcessContentLength(_request_id, size) => {
+                buf.reserve(size - buf.len())
+            },
         }
     }
 }
@@ -771,12 +764,8 @@ pub(crate) trait RequestWithGlobalScope {
 
 impl RequestWithGlobalScope for RequestBuilder {
     fn with_global_scope(self, global: &GlobalScope) -> Self {
-        self.insecure_requests_policy(global.insecure_requests_policy())
-            .has_trustworthy_ancestor_origin(global.has_trustworthy_ancestor_or_current_origin())
-            .policy_container(global.policy_container())
-            .client(global.request_client(None))
+        self.client(global.request_client(None))
             .pipeline_id(Some(global.pipeline_id()))
-            .origin(global.origin().immutable().clone())
     }
 }
 

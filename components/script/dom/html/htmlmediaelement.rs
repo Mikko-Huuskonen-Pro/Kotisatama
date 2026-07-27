@@ -18,7 +18,7 @@ use html5ever::{LocalName, Prefix, QualName, local_name, ns};
 use http::StatusCode;
 use http::header::{self, HeaderMap, HeaderValue};
 use js::context::JSContext;
-use js::realm::{AutoRealm, CurrentRealm};
+use js::realm::CurrentRealm;
 use layout_api::MediaFrame;
 use media::{GLPlayerMsg, GLPlayerMsgForward, WindowGLContext};
 use net_traits::request::{Destination, RequestId};
@@ -58,7 +58,9 @@ use crate::dom::bindings::codegen::Bindings::MediaErrorBinding::MediaErrorConsta
 use crate::dom::bindings::codegen::Bindings::MediaErrorBinding::MediaErrorMethods;
 use crate::dom::bindings::codegen::Bindings::NavigatorBinding::Navigator_Binding::NavigatorMethods;
 use crate::dom::bindings::codegen::Bindings::NodeBinding::Node_Binding::NodeMethods;
-use crate::dom::bindings::codegen::Bindings::TextTrackBinding::{TextTrackKind, TextTrackMode};
+use crate::dom::bindings::codegen::Bindings::TextTrackBinding::{
+    TextTrackKind, TextTrackMethods, TextTrackMode,
+};
 use crate::dom::bindings::codegen::Bindings::URLBinding::URLMethods;
 use crate::dom::bindings::codegen::Bindings::WindowBinding::Window_Binding::WindowMethods;
 use crate::dom::bindings::codegen::UnionTypes::{
@@ -93,6 +95,7 @@ use crate::dom::node::virtualmethods::VirtualMethods;
 use crate::dom::node::{Node, NodeDamage, NodeTraits, UnbindContext};
 use crate::dom::performance::performanceresourcetiming::InitiatorType;
 use crate::dom::promise::Promise;
+use crate::dom::referrer_policy_for_element;
 use crate::dom::texttrack::TextTrack;
 use crate::dom::texttracklist::TextTrackList;
 use crate::dom::timeranges::{TimeRanges, TimeRangesContainer};
@@ -101,10 +104,9 @@ use crate::dom::url::URL;
 use crate::dom::videotrack::VideoTrack;
 use crate::dom::videotracklist::VideoTrackList;
 use crate::fetch::{FetchCanceller, RequestWithGlobalScope, create_a_potential_cors_request};
-use crate::microtask::{Microtask, MicrotaskRunnable};
+use crate::microtask::MicrotaskRunnable;
 use crate::network_listener::{self, FetchResponseListener, ResourceTimingListener};
 use crate::realms::enter_auto_realm;
-use crate::script_runtime::CanGc;
 use crate::script_thread::ScriptThread;
 use crate::task_source::SendableTaskSource;
 
@@ -335,8 +337,8 @@ impl VideoFrameRenderer for MediaFrameRenderer {
 
         match &mut self.current_frame {
             Some(current_frame)
-                if current_frame.width == frame.get_width()
-                    && current_frame.height == frame.get_height() =>
+                if current_frame.width == frame.get_width() &&
+                    current_frame.height == frame.get_height() =>
             {
                 if !frame.is_gl_texture() {
                     updates.push(ImageUpdate::UpdateImage(
@@ -493,9 +495,9 @@ struct SourceChildrenPointer {
 }
 
 impl SourceChildrenPointer {
-    fn new(source_before_pointer: DomRoot<HTMLSourceElement>, inclusive: bool) -> Self {
+    fn new(source_before_pointer: &HTMLSourceElement, inclusive: bool) -> Self {
         Self {
-            source_before_pointer: source_before_pointer.as_traced(),
+            source_before_pointer: Dom::from_ref(source_before_pointer),
             inclusive,
         }
     }
@@ -595,7 +597,7 @@ pub(crate) struct HTMLMediaElement {
     audio_tracks_list: MutNullableDom<AudioTrackList>,
     // https://html.spec.whatwg.org/multipage/#dom-media-videotracks
     video_tracks_list: MutNullableDom<VideoTrackList>,
-    /// <https://html.spec.whatwg.org/multipage/#dom-media-texttracks>
+    /// <https://html.spec.whatwg.org/multipage/#list-of-text-tracks>
     text_tracks_list: MutNullableDom<TextTrackList>,
     /// Time of last timeupdate notification.
     #[ignore_malloc_size_of = "Defined in std::time"]
@@ -607,6 +609,8 @@ pub(crate) struct HTMLMediaElement {
     /// the access to the "privileged" document.servoGetMediaControls(id) API by
     /// keeping a whitelist of media controls identifiers.
     media_controls_id: DomRefCell<Option<String>>,
+    /// <https://html.spec.whatwg.org/multipage/#did-perform-automatic-track-selection>
+    did_perform_automatic_track_selection: Cell<bool>,
 }
 
 /// <https://html.spec.whatwg.org/multipage/#dom-media-networkstate>
@@ -690,6 +694,7 @@ impl HTMLMediaElement {
             next_timeupdate_event: Cell::new(Instant::now() + Duration::from_millis(250)),
             current_fetch_context: RefCell::new(None),
             media_controls_id: DomRefCell::new(None),
+            did_perform_automatic_track_selection: Default::default(),
         }
     }
 
@@ -731,9 +736,9 @@ impl HTMLMediaElement {
                     error!("Could not play media: {error:?}");
                 }
             }
-        } else if is_playing
-            && let Some(ref player) = *self.player.borrow()
-            && let Err(error) = player.lock().unwrap().pause()
+        } else if is_playing &&
+            let Some(ref player) = *self.player.borrow() &&
+            let Err(error) = player.lock().unwrap().pause()
         {
             error!("Could not pause player: {error:?}");
         }
@@ -785,8 +790,8 @@ impl HTMLMediaElement {
         // Generally "ended" and "looping" are exclusive. Here, the loop attribute is ignored to
         // seek back to start in case loop was set after playback ended.
         // <https://github.com/whatwg/html/issues/4487>
-        if self.ended_playback(LoopCondition::Ignored)
-            && self.direction_of_playback() == PlaybackDirection::Forwards
+        if self.ended_playback(LoopCondition::Ignored) &&
+            self.direction_of_playback() == PlaybackDirection::Forwards
         {
             self.seek(
                 self.earliest_possible_position(),
@@ -818,9 +823,9 @@ impl HTMLMediaElement {
             // readyState attribute has the value HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA: notify about
             // playing for the element.
             match state {
-                ReadyState::HaveNothing
-                | ReadyState::HaveMetadata
-                | ReadyState::HaveCurrentData => {
+                ReadyState::HaveNothing |
+                ReadyState::HaveMetadata |
+                ReadyState::HaveCurrentData => {
                     self.queue_media_element_task_to_fire_event(atom!("waiting"));
                 },
                 ReadyState::HaveFutureData | ReadyState::HaveEnoughData => {
@@ -1011,8 +1016,8 @@ impl HTMLMediaElement {
 
         // => "If the previous ready state was HAVE_CURRENT_DATA or less, and the new ready state is
         // HAVE_FUTURE_DATA or more"
-        if old_ready_state <= ReadyState::HaveCurrentData
-            && ready_state >= ReadyState::HaveFutureData
+        if old_ready_state <= ReadyState::HaveCurrentData &&
+            ready_state >= ReadyState::HaveFutureData
         {
             // The user agent must queue a media element task given the media element to fire an
             // event named canplay at the element.
@@ -1075,7 +1080,7 @@ impl HTMLMediaElement {
         // changed, which is why we need to pass the base URL in the task
         // right here.
         let task = MediaElementMicrotask::ResourceSelection {
-            elem: DomRoot::from_ref(self),
+            elem: Dom::from_ref(self),
             generation_id: self.generation_id.get(),
             base_url: self.owner_document().base_url(),
         };
@@ -1084,7 +1089,7 @@ impl HTMLMediaElement {
         // method from below, if microtasks were trait objects, we would be able
         // to put the code directly in this method, without the boilerplate
         // indirections.
-        ScriptThread::await_stable_state(Microtask::MediaElement(task));
+        ScriptThread::await_stable_state(cx, Box::new(task));
     }
 
     /// <https://html.spec.whatwg.org/multipage/#concept-media-load-algorithm>
@@ -1148,21 +1153,21 @@ impl HTMLMediaElement {
         match mode {
             Mode::Object => {
                 // => "If mode is object"
-                self.load_from_src_object();
+                self.load_from_src_object(cx);
             },
             Mode::Attribute(src) => {
                 // => "If mode is attribute"
-                self.load_from_src_attribute(base_url, &src);
+                self.load_from_src_attribute(cx, base_url, &src);
             },
             Mode::Children(source) => {
                 // => "Otherwise (mode is children)""
-                self.load_from_source_child(&source);
+                self.load_from_source_child(cx, &source);
             },
         }
     }
 
     /// <https://html.spec.whatwg.org/multipage/#concept-media-load-algorithm>
-    fn load_from_src_object(&self) {
+    fn load_from_src_object(&self, cx: &JSContext) {
         self.load_state.set(LoadState::LoadingFromSrcObject);
 
         // Step 9.object.1. Set the currentSrc attribute to the empty string.
@@ -1173,11 +1178,11 @@ impl HTMLMediaElement {
         // load failed.
         // Note that the resource fetch algorithm itself takes care of the cleanup in case
         // of failure itself.
-        self.resource_fetch_algorithm(Resource::Object);
+        self.resource_fetch_algorithm(cx, Resource::Object);
     }
 
     /// <https://html.spec.whatwg.org/multipage/#concept-media-load-algorithm>
-    fn load_from_src_attribute(&self, base_url: ServoUrl, src: &str) {
+    fn load_from_src_attribute(&self, cx: &JSContext, base_url: ServoUrl, src: &str) {
         self.load_state.set(LoadState::LoadingFromSrcAttribute);
 
         // Step 9.attribute.1. If the src attribute's value is the empty string, then end
@@ -1204,11 +1209,11 @@ impl HTMLMediaElement {
         // then the load failed.
         // Note that the resource fetch algorithm itself takes care
         // of the cleanup in case of failure itself.
-        self.resource_fetch_algorithm(Resource::Url(url_record));
+        self.resource_fetch_algorithm(cx, Resource::Url(url_record));
     }
 
     /// <https://html.spec.whatwg.org/multipage/#concept-media-load-algorithm>
-    fn load_from_source_child(&self, source: &HTMLSourceElement) {
+    fn load_from_source_child(&self, cx: &JSContext, source: &HTMLSourceElement) {
         self.load_state.set(LoadState::LoadingFromSourceChild);
 
         // Step 9.children.1. Let pointer be a position defined by two adjacent nodes in the media
@@ -1218,7 +1223,7 @@ impl HTMLMediaElement {
         // pointer. Initially, let pointer be the position between the candidate node and the next
         // node, if there are any, or the end of the list, if it is the last node.
         *self.source_children_pointer.borrow_mut() =
-            Some(SourceChildrenPointer::new(DomRoot::from_ref(source), false));
+            Some(SourceChildrenPointer::new(source, false));
 
         let element = source.upcast::<Element>();
 
@@ -1229,17 +1234,17 @@ impl HTMLMediaElement {
             .get_attribute_string_value(&local_name!("src"))
             .filter(|value| !value.is_empty())
         else {
-            self.load_from_source_child_failure_steps(source);
+            self.load_from_source_child_failure_steps(cx, source);
             return;
         };
 
         // Step 9.children.3. If candidate has a media attribute whose value does not match the
         // environment, then end the synchronous section, and jump down to the failed with elements
         // step below.
-        if let Some(media) = element.get_attribute_string_value(&local_name!("media"))
-            && !MediaList::matches_environment(&element.owner_document(), &media)
+        if let Some(media) = element.get_attribute_string_value(&local_name!("media")) &&
+            !MediaList::matches_environment(&element.owner_document(), &media)
         {
-            self.load_from_source_child_failure_steps(source);
+            self.load_from_source_child_failure_steps(cx, source);
             return;
         }
 
@@ -1249,7 +1254,7 @@ impl HTMLMediaElement {
         let Ok(url_record) = source.owner_document().base_url().join(&src) else {
             // Step 9.children.5. If urlRecord is failure, then end the synchronous section,
             // and jump down to the failed with elements step below.
-            self.load_from_source_child_failure_steps(source);
+            self.load_from_source_child_failure_steps(cx, source);
             return;
         };
 
@@ -1257,10 +1262,10 @@ impl HTMLMediaElement {
         // type (including any codecs described by the codecs parameter, for types that define that
         // parameter), represents a type that the user agent knows it cannot render, then end the
         // synchronous section, and jump down to the failed with elements step below.
-        if let Some(type_) = element.get_attribute_string_value(&local_name!("type"))
-            && ServoMedia::get().can_play_type(&type_) == SupportsMediaType::No
+        if let Some(type_) = element.get_attribute_string_value(&local_name!("type")) &&
+            ServoMedia::get().can_play_type(&type_) == SupportsMediaType::No
         {
-            self.load_from_source_child_failure_steps(source);
+            self.load_from_source_child_failure_steps(cx, source);
             return;
         }
 
@@ -1277,11 +1282,11 @@ impl HTMLMediaElement {
         // algorithm returns without aborting this one, then the load failed.
         // Note that the resource fetch algorithm itself takes care
         // of the cleanup in case of failure itself.
-        self.resource_fetch_algorithm(Resource::Url(url_record));
+        self.resource_fetch_algorithm(cx, Resource::Url(url_record));
     }
 
     /// <https://html.spec.whatwg.org/multipage/#concept-media-load-algorithm>
-    fn load_from_source_child_failure_steps(&self, source: &HTMLSourceElement) {
+    fn load_from_source_child_failure_steps(&self, cx: &JSContext, source: &HTMLSourceElement) {
         // Step 9.children.10. Failed with elements: Queue a media element task given the media
         // element to fire an event named error at candidate.
         let trusted_this = Trusted::new(self);
@@ -1303,11 +1308,11 @@ impl HTMLMediaElement {
 
         // Step 9.children.11. Await a stable state.
         let task = MediaElementMicrotask::SelectNextSourceChild {
-            elem: DomRoot::from_ref(self),
+            elem: Dom::from_ref(self),
             generation_id: self.generation_id.get(),
         };
 
-        ScriptThread::await_stable_state(Microtask::MediaElement(task));
+        ScriptThread::await_stable_state(cx, Box::new(task));
     }
 
     /// <https://html.spec.whatwg.org/multipage/#concept-media-load-algorithm>
@@ -1360,7 +1365,7 @@ impl HTMLMediaElement {
         // Step 9.children.17. If candidate is null, jump back to the search loop step. Otherwise,
         // jump back to the process candidate step.
         if let Some(source_candidate) = source_candidate {
-            self.load_from_source_child(&source_candidate);
+            self.load_from_source_child(cx, &source_candidate);
             return;
         }
 
@@ -1397,7 +1402,7 @@ impl HTMLMediaElement {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#concept-media-load-algorithm>
-    fn resource_selection_algorithm_failure_steps(&self) {
+    fn resource_selection_algorithm_failure_steps(&self, cx: &JSContext) {
         match self.load_state.get() {
             LoadState::LoadingFromSrcObject => {
                 // Step 9.object.4. Failed with media provider: Reaching this step indicates that
@@ -1417,20 +1422,20 @@ impl HTMLMediaElement {
                 // Step 9.children.10. Failed with elements: Queue a media element task given the
                 // media element to fire an event named error at candidate.
                 if let Some(source) = self.current_source_child.take() {
-                    self.load_from_source_child_failure_steps(&source);
+                    self.load_from_source_child_failure_steps(cx, &source);
                 }
             },
             _ => {},
         }
     }
 
-    fn fetch_request(&self, offset: Option<u64>, seek_lock: Option<SeekLock>) {
+    fn fetch_request(&self, cx: &JSContext, offset: Option<u64>, seek_lock: Option<SeekLock>) {
         if self.resource_url.borrow().is_none() && self.blob_url.borrow().is_none() {
             error!("Missing request url");
             if let Some(seek_lock) = seek_lock {
                 seek_lock.unlock(/* successful seek */ false);
             }
-            self.resource_selection_algorithm_failure_steps();
+            self.resource_selection_algorithm_failure_steps(cx);
             return;
         }
 
@@ -1462,7 +1467,7 @@ impl HTMLMediaElement {
         )
         .with_global_scope(&global)
         .headers(headers)
-        .referrer_policy(document.get_referrer_policy());
+        .referrer_policy(referrer_policy_for_element(self.upcast()));
 
         let mut current_fetch_context = self.current_fetch_context.borrow_mut();
         if let Some(ref mut current_fetch_context) = *current_fetch_context {
@@ -1513,10 +1518,10 @@ impl HTMLMediaElement {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#concept-media-load-resource>
-    fn resource_fetch_algorithm(&self, resource: Resource) {
+    fn resource_fetch_algorithm(&self, cx: &JSContext, resource: Resource) {
         if let Err(e) = self.create_media_player(&resource) {
             error!("Create media player error {:?}", e);
-            self.resource_selection_algorithm_failure_steps();
+            self.resource_selection_algorithm_failure_steps(cx);
             return;
         }
 
@@ -1574,7 +1579,7 @@ impl HTMLMediaElement {
                 *self.resource_url.borrow_mut() = Some(url);
 
                 // Steps 5.remote.2-5.remote.8
-                self.fetch_request(None, None);
+                self.fetch_request(cx, None, None);
             },
             Resource::Object => {
                 if let Some(ref src_object) = *self.src_object.borrow() {
@@ -1583,7 +1588,7 @@ impl HTMLMediaElement {
                             let blob_url = URL::CreateObjectURL(&self.global(), blob);
                             *self.blob_url.borrow_mut() =
                                 Some(ServoUrl::parse(&blob_url.str()).expect("infallible"));
-                            self.fetch_request(None, None);
+                            self.fetch_request(cx, None, None);
                         },
                         SrcObject::MediaStream(stream) => {
                             let tracks = &*stream.get_tracks();
@@ -1598,7 +1603,7 @@ impl HTMLMediaElement {
                                     .set_stream(&track.id(), pos == tracks.len() - 1)
                                     .is_err()
                                 {
-                                    self.resource_selection_algorithm_failure_steps();
+                                    self.resource_selection_algorithm_failure_steps(cx);
                                 }
                             }
                         },
@@ -1628,8 +1633,9 @@ impl HTMLMediaElement {
                     // Step 1. Set the error attribute to the result of creating a MediaError with
                     // MEDIA_ERR_SRC_NOT_SUPPORTED.
                     this.error.set(Some(&*MediaError::new(
+                        cx,
                         &this.owner_window(),
-                        MEDIA_ERR_SRC_NOT_SUPPORTED, CanGc::from_cx(cx))));
+                        MEDIA_ERR_SRC_NOT_SUPPORTED)));
 
                     // Step 2. Forget the media element's media-resource-specific tracks.
                     this.AudioTracks(cx).clear();
@@ -1667,17 +1673,17 @@ impl HTMLMediaElement {
 
     /// <https://html.spec.whatwg.org/multipage/#potentially-playing>
     fn is_potentially_playing(&self) -> bool {
-        !self.paused.get()
-            && !self.ended_playback(LoopCondition::Included)
-            && self.error.get().is_none()
-            && !self.is_blocked_media_element()
+        !self.paused.get() &&
+            !self.ended_playback(LoopCondition::Included) &&
+            self.error.get().is_none() &&
+            !self.is_blocked_media_element()
     }
 
     /// <https://html.spec.whatwg.org/multipage/#blocked-media-element>
     fn is_blocked_media_element(&self) -> bool {
-        self.ready_state.get() <= ReadyState::HaveCurrentData
-            || self.is_paused_for_user_interaction()
-            || self.is_paused_for_in_band_content()
+        self.ready_state.get() <= ReadyState::HaveCurrentData ||
+            self.is_paused_for_user_interaction() ||
+            self.is_paused_for_in_band_content()
     }
 
     /// <https://html.spec.whatwg.org/multipage/#paused-for-user-interaction>
@@ -1900,16 +1906,15 @@ impl HTMLMediaElement {
 
         self.load_state.set(LoadState::LoadingFromSourceChild);
 
-        *self.source_children_pointer.borrow_mut() =
-            Some(SourceChildrenPointer::new(DomRoot::from_ref(source), true));
+        *self.source_children_pointer.borrow_mut() = Some(SourceChildrenPointer::new(source, true));
 
         // Step 9.children.23. Await a stable state.
         let task = MediaElementMicrotask::SelectNextSourceChildAfterWait {
-            elem: DomRoot::from_ref(self),
+            elem: Dom::from_ref(self),
             generation_id: self.generation_id.get(),
         };
 
-        ScriptThread::await_stable_state(Microtask::MediaElement(task));
+        ScriptThread::await_stable_state(cx, Box::new(task));
     }
 
     /// <https://html.spec.whatwg.org/multipage/#concept-media-load-algorithm>
@@ -1929,14 +1934,14 @@ impl HTMLMediaElement {
     /// => "If the media data cannot be fetched at all, due to network errors..."
     /// => "If the media data can be fetched but is found by inspection to be in an unsupported
     /// format, or can otherwise not be rendered at all"
-    fn media_data_processing_failure_steps(&self) {
+    fn media_data_processing_failure_steps(&self, cx: &JSContext) {
         // Step 1. The user agent should cancel the fetching process.
         if let Some(ref mut current_fetch_context) = *self.current_fetch_context.borrow_mut() {
             current_fetch_context.cancel(CancelReason::Error);
         }
 
         // Step 2. Abort this subalgorithm, returning to the resource selection algorithm.
-        self.resource_selection_algorithm_failure_steps();
+        self.resource_selection_algorithm_failure_steps(cx);
     }
 
     /// <https://html.spec.whatwg.org/multipage/#media-data-processing-steps-list>
@@ -1953,11 +1958,8 @@ impl HTMLMediaElement {
 
         // Step 2. Set the error attribute to the result of creating a MediaError with
         // MEDIA_ERR_NETWORK/MEDIA_ERR_DECODE.
-        self.error.set(Some(&*MediaError::new(
-            &self.owner_window(),
-            error,
-            CanGc::from_cx(cx),
-        )));
+        self.error
+            .set(Some(&*MediaError::new(cx, &self.owner_window(), error)));
 
         // Step 3. Set the element's networkState attribute to the NETWORK_IDLE value.
         self.network_state.set(NetworkState::Idle);
@@ -2058,8 +2060,8 @@ impl HTMLMediaElement {
         // Step 11. Set the current playback position to the new playback position.
         self.current_playback_position.set(time);
 
-        if let Some(ref player) = *self.player.borrow()
-            && let Err(error) = player.lock().unwrap().seek(time)
+        if let Some(ref player) = *self.player.borrow() &&
+            let Err(error) = player.lock().unwrap().seek(time)
         {
             error!("Could not seek player: {error:?}");
         }
@@ -2224,8 +2226,8 @@ impl HTMLMediaElement {
             return;
         }
 
-        if let Some(ref player) = *self.player.borrow()
-            && let Err(error) = player.lock().unwrap().stop()
+        if let Some(ref player) = *self.player.borrow() &&
+            let Err(error) = player.lock().unwrap().stop()
         {
             error!("Could not stop player: {error:?}");
         }
@@ -2240,16 +2242,16 @@ impl HTMLMediaElement {
     }
 
     pub(crate) fn set_audio_track(&self, idx: usize, enabled: bool) {
-        if let Some(ref player) = *self.player.borrow()
-            && let Err(error) = player.lock().unwrap().set_audio_track(idx as i32, enabled)
+        if let Some(ref player) = *self.player.borrow() &&
+            let Err(error) = player.lock().unwrap().set_audio_track(idx as i32, enabled)
         {
             warn!("Could not set audio track {error:?}");
         }
     }
 
     pub(crate) fn set_video_track(&self, idx: usize, enabled: bool) {
-        if let Some(ref player) = *self.player.borrow()
-            && let Err(error) = player.lock().unwrap().set_video_track(idx as i32, enabled)
+        if let Some(ref player) = *self.player.borrow() &&
+            let Err(error) = player.lock().unwrap().set_video_track(idx as i32, enabled)
         {
             warn!("Could not set video track: {error:?}");
         }
@@ -2282,8 +2284,8 @@ impl HTMLMediaElement {
             // direction of playback is forwards, and the media element does not have a loop
             // attribute specified.
             PlaybackDirection::Forwards => {
-                playback_position >= self.Duration()
-                    && (loop_condition == LoopCondition::Ignored || !self.Loop())
+                playback_position >= self.Duration() &&
+                    (loop_condition == LoopCondition::Ignored || !self.Loop())
             },
             // Or: The current playback position is the earliest possible position, and the
             // direction of playback is backwards.
@@ -2387,7 +2389,7 @@ impl HTMLMediaElement {
         if self.ready_state.get() == ReadyState::HaveNothing {
             // => "If the media data can be fetched but is found by inspection to be in an
             // unsupported format, or can otherwise not be rendered at all"
-            self.media_data_processing_failure_steps();
+            self.media_data_processing_failure_steps(cx);
         } else {
             // => "If the media data is corrupted"
             self.media_data_processing_fatal_steps(MEDIA_ERR_DECODE, cx);
@@ -2438,8 +2440,8 @@ impl HTMLMediaElement {
             // enable, then set enable to true, otherwise, set enable to false.
             if let Some(servo_url) = self.resource_url.borrow().as_ref() {
                 let fragment = MediaFragmentParser::from(servo_url);
-                if let Some(id) = fragment.id()
-                    && audio_track.id() == id
+                if let Some(id) = fragment.id() &&
+                    audio_track.id() == id
                 {
                     audio_track_list.set_enabled(audio_track_list.len() - 1, true);
                 }
@@ -2484,13 +2486,13 @@ impl HTMLMediaElement {
             };
 
             let video_track = VideoTrack::new(
+                cx,
                 self.global().as_window(),
                 DOMString::new(),
                 kind,
                 DOMString::new(),
                 DOMString::new(),
                 Some(&*video_track_list),
-                CanGc::from_cx(cx),
             );
 
             // Steps 2. Update the media element's videoTracks attribute's VideoTrackList object
@@ -2503,8 +2505,8 @@ impl HTMLMediaElement {
             // information that would facilitate the selection of specific video tracks to
             // improve the user's experience, then: if this video track is the first such video
             // track, then set enable to true, otherwise, set enable to false.
-            if let Some(track) = video_track_list.item(0)
-                && let Some(servo_url) = self.resource_url.borrow().as_ref()
+            if let Some(track) = video_track_list.item(0) &&
+                let Some(servo_url) = self.resource_url.borrow().as_ref()
             {
                 let fragment = MediaFragmentParser::from(servo_url);
                 if let Some(id) = fragment.id() {
@@ -2604,10 +2606,10 @@ impl HTMLMediaElement {
         // is still false, seek to that time.
         if let Some(servo_url) = self.resource_url.borrow().as_ref() {
             let fragment = MediaFragmentParser::from(servo_url);
-            if let Some(initial_playback_position) = fragment.start()
-                && initial_playback_position > 0.
-                && initial_playback_position < self.duration.get()
-                && !jumped
+            if let Some(initial_playback_position) = fragment.start() &&
+                initial_playback_position > 0. &&
+                initial_playback_position < self.duration.get() &&
+                !jumped
             {
                 self.seek(
                     initial_playback_position,
@@ -2626,7 +2628,7 @@ impl HTMLMediaElement {
         let window = global.as_window();
 
         // Update the media session metadata title with the obtained metadata.
-        window.Navigator().MediaSession().update_title(
+        window.Navigator(cx).MediaSession(cx).update_title(
             metadata
                 .title
                 .clone()
@@ -2692,8 +2694,8 @@ impl HTMLMediaElement {
         // The media engine signals that the source needs more data. If we already have a valid
         // fetch request, we do nothing. Otherwise, if we have no request and the previous request
         // was cancelled because we got an EnoughData event, we restart fetching where we left.
-        if let Some(ref current_fetch_context) = *self.current_fetch_context.borrow()
-            && let Some(reason) = current_fetch_context.cancel_reason()
+        if let Some(ref current_fetch_context) = *self.current_fetch_context.borrow() &&
+            let Some(reason) = current_fetch_context.cancel_reason()
         {
             // XXX(ferjm) Ideally we should just create a fetch request from
             // where we left. But keeping track of the exact next byte that the
@@ -2709,8 +2711,8 @@ impl HTMLMediaElement {
             return;
         }
 
-        if let Some(ref mut current_fetch_context) = *self.current_fetch_context.borrow_mut()
-            && let Err(e) = {
+        if let Some(ref mut current_fetch_context) = *self.current_fetch_context.borrow_mut() &&
+            let Err(e) = {
                 let mut data_source = current_fetch_context.data_source().borrow_mut();
                 data_source.set_locked(false);
                 data_source.process_into_player_from_queue(self.player.borrow().as_ref().unwrap())
@@ -2731,14 +2733,14 @@ impl HTMLMediaElement {
         // to avoid excessive buffer queueing, so we cancel the ongoing fetch request if we are able
         // to restart it from where we left. Otherwise, we continue the current fetch request,
         // assuming that some frames will be dropped.
-        if let Some(ref mut current_fetch_context) = *self.current_fetch_context.borrow_mut()
-            && current_fetch_context.is_seekable()
+        if let Some(ref mut current_fetch_context) = *self.current_fetch_context.borrow_mut() &&
+            current_fetch_context.is_seekable()
         {
             current_fetch_context.cancel(CancelReason::Backoff);
         }
     }
 
-    fn playback_position_changed(&self, position: f64) {
+    fn playback_position_changed(&self, cx: &mut JSContext, position: f64) {
         // Abort the following steps of the current time update if seeking is in progress.
         if self.seeking.get() {
             return;
@@ -2758,10 +2760,13 @@ impl HTMLMediaElement {
             "Sending media session event set position state {:?}",
             media_position_state
         );
-        self.send_media_session_event(MediaSessionEvent::SetPositionState(media_position_state));
+        self.send_media_session_event(
+            cx,
+            MediaSessionEvent::SetPositionState(media_position_state),
+        );
     }
 
-    fn playback_seek_done(&self, position: f64) {
+    fn playback_seek_done(&self, cx: &JSContext, position: f64) {
         // If the seek was initiated by script or by the user agent itself continue with the
         // following steps, otherwise abort.
         let delta = (position - self.current_seek_position.get()).abs();
@@ -2772,14 +2777,14 @@ impl HTMLMediaElement {
         // <https://html.spec.whatwg.org/multipage/#dom-media-seek>
         // Step 13. Await a stable state.
         let task = MediaElementMicrotask::Seeked {
-            elem: DomRoot::from_ref(self),
+            elem: Dom::from_ref(self),
             generation_id: self.generation_id.get(),
         };
 
-        ScriptThread::await_stable_state(Microtask::MediaElement(task));
+        ScriptThread::await_stable_state(cx, Box::new(task));
     }
 
-    fn playback_state_changed(&self, state: &PlaybackState) {
+    fn playback_state_changed(&self, cx: &mut JSContext, state: &PlaybackState) {
         let mut media_session_playback_state = MediaSessionPlaybackState::None_;
         match *state {
             PlaybackState::Paused => {
@@ -2806,9 +2811,10 @@ impl HTMLMediaElement {
             "Sending media session event playback state changed to {:?}",
             media_session_playback_state
         );
-        self.send_media_session_event(MediaSessionEvent::PlaybackStateChange(
-            media_session_playback_state,
-        ));
+        self.send_media_session_event(
+            cx,
+            MediaSessionEvent::PlaybackStateChange(media_session_playback_state),
+        );
     }
 
     fn seekable(&self) -> TimeRangesContainer {
@@ -2952,9 +2958,9 @@ impl HTMLMediaElement {
         }
     }
 
-    fn send_media_session_event(&self, event: MediaSessionEvent) {
+    fn send_media_session_event(&self, cx: &mut JSContext, event: MediaSessionEvent) {
         let global = self.global();
-        let media_session = global.as_window().Navigator().MediaSession();
+        let media_session = global.as_window().Navigator(cx).MediaSession(cx);
 
         media_session.register_media_instance(self);
 
@@ -2981,6 +2987,87 @@ impl HTMLMediaElement {
         }
 
         true
+    }
+
+    pub(crate) fn was_added_to_list_of_text_tracks(&self) {
+        // https://html.spec.whatwg.org/multipage/#sourcing-out-of-band-text-tracks
+        // > When a text track corresponding to a track element is added to a media element's list of text tracks,
+        // > the user agent must queue a media element task given the media element to
+        // > run the following steps for the media element:
+        let this = Trusted::new(self);
+        self.global()
+            .task_manager()
+            .media_element_task_source()
+            .queue(task!(track_event_queue: move |cx| {
+                let element = this.root();
+                // Step 1. If the element's blocked-on-parser flag is true, then return.
+                // TODO
+                // Step 2. If the element's did-perform-automatic-track-selection flag is true, then return.
+                if element.did_perform_automatic_track_selection.get() {
+                    return;
+                }
+                // Step 3. Honor user preferences for automatic text track selection for this element.
+                element.honor_user_preferences_for_automatic_text_track_selection(cx);
+            }));
+    }
+
+    /// <https://html.spec.whatwg.org/multipage/#honor-user-preferences-for-automatic-text-track-selection>
+    fn honor_user_preferences_for_automatic_text_track_selection(&self, cx: &mut JSContext) {
+        // Step 1. Perform automatic text track selection for subtitles and captions.
+        self.perform_automatic_text_track_selection(
+            cx,
+            vec![TextTrackKind::Subtitles, TextTrackKind::Captions],
+        );
+        // Step 2. Perform automatic text track selection for descriptions.
+        self.perform_automatic_text_track_selection(cx, vec![TextTrackKind::Descriptions]);
+        // Step 3. If there are any text tracks in the media element's list of
+        // text tracks whose text track kind is chapters or metadata that correspond to
+        // track elements with a default attribute set whose text track mode is set to disabled,
+        // then set the text track mode of all such tracks to hidden.
+        // TODO
+        // Step 4. Set the element's did-perform-automatic-track-selection flag to true.
+        self.did_perform_automatic_track_selection.set(true);
+    }
+
+    /// <https://html.spec.whatwg.org/multipage/#perform-automatic-text-track-selection>
+    fn perform_automatic_text_track_selection(
+        &self,
+        cx: &mut JSContext,
+        text_track_kinds: Vec<TextTrackKind>,
+    ) {
+        // Step 1. Let candidates be a list consisting of the text tracks in the media element's
+        // list of text tracks whose text track kind is one of the kinds that were passed to the algorithm,
+        // if any, in the order given in the list of text tracks.
+        let Some(text_tracks_list) = self.text_tracks_list.get() else {
+            return;
+        };
+        let candidates = text_tracks_list.tracks_for_kinds(text_track_kinds);
+        // Step 2. If candidates is empty, then return.
+        if candidates.is_empty() {
+            return;
+        }
+        // Step 3. If any of the text tracks in candidates have a text track mode set to showing, return.
+        if candidates
+            .iter()
+            .any(|candidate| candidate.Mode() == TextTrackMode::Showing)
+        {
+            return;
+        }
+        // Step 4. If the user has expressed an interest in having a track from candidates enabled
+        // based on its text track kind, text track language, and text track label,
+        // then set its text track mode to showing.
+        // Otherwise, if there are any text tracks in candidates that correspond to track elements with
+        // a default attribute set whose text track mode is set to disabled,
+        // then set the text track mode of the first such track to showing.
+        if let Some(default_candidate) = candidates.iter().find(|candidate| {
+            candidate.associated_track().is_some_and(|track| {
+                track
+                    .upcast::<Element>()
+                    .has_attribute(&local_name!("default"))
+            }) && candidate.Mode() == TextTrackMode::Disabled
+        }) {
+            default_candidate.set_text_track_mode(cx, TextTrackMode::Showing);
+        }
     }
 }
 
@@ -3043,8 +3130,8 @@ impl HTMLMediaElementMethods<crate::DomTypeHolder> for HTMLMediaElement {
 
         self.muted.set(value);
 
-        if let Some(ref player) = *self.player.borrow()
-            && let Err(error) = player.lock().unwrap().set_mute(value)
+        if let Some(ref player) = *self.player.borrow() &&
+            let Err(error) = player.lock().unwrap().set_mute(value)
         {
             warn!("Could not set mute state: {error:?}");
         }
@@ -3215,9 +3302,9 @@ impl HTMLMediaElementMethods<crate::DomTypeHolder> for HTMLMediaElement {
         // change the playback speed.
         self.playback_rate.set(*value);
 
-        if self.is_potentially_playing()
-            && let Some(ref player) = *self.player.borrow()
-            && let Err(error) = player.lock().unwrap().set_playback_rate(*value)
+        if self.is_potentially_playing() &&
+            let Some(ref player) = *self.player.borrow() &&
+            let Err(error) = player.lock().unwrap().set_playback_rate(*value)
         {
             warn!("Could not set the playback rate: {error:?}");
         }
@@ -3266,8 +3353,8 @@ impl HTMLMediaElementMethods<crate::DomTypeHolder> for HTMLMediaElement {
 
     /// <https://html.spec.whatwg.org/multipage/#dom-media-ended>
     fn Ended(&self) -> bool {
-        self.ended_playback(LoopCondition::Included)
-            && self.direction_of_playback() == PlaybackDirection::Forwards
+        self.ended_playback(LoopCondition::Included) &&
+            self.direction_of_playback() == PlaybackDirection::Forwards
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-media-fastseek>
@@ -3308,14 +3395,18 @@ impl HTMLMediaElementMethods<crate::DomTypeHolder> for HTMLMediaElement {
     fn VideoTracks(&self, cx: &mut JSContext) -> DomRoot<VideoTrackList> {
         let window = self.owner_window();
         self.video_tracks_list
-            .or_init(|| VideoTrackList::new(&window, &[], Some(self), CanGc::from_cx(cx)))
+            .or_init(|| VideoTrackList::new(cx, &window, &[], Some(self)))
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-media-texttracks>
     fn TextTracks(&self, cx: &mut JSContext) -> DomRoot<TextTrackList> {
+        // > The textTracks attribute of media elements must return a
+        // > TextTrackList object representing the TextTrack objects of
+        // > the text tracks in the media element's list of text tracks,
+        // > in the same order as in the list of text tracks.
         let window = self.owner_window();
         self.text_tracks_list
-            .or_init(|| TextTrackList::new(&window, &[], CanGc::from_cx(cx)))
+            .or_init(|| TextTrackList::new(cx, &window, &[]))
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-media-addtexttrack>
@@ -3327,9 +3418,14 @@ impl HTMLMediaElementMethods<crate::DomTypeHolder> for HTMLMediaElement {
         language: DOMString,
     ) -> DomRoot<TextTrack> {
         let window = self.owner_window();
-        // Step 1 & 2
-        // FIXME(#22314, dlrobertson) set the ready state to Loaded
+        // Step 1. Create a new TextTrack object.
+        // Step 2. Create a new text track corresponding to the new object,
+        // and set its text track kind to kind, its text track label to label,
+        // its text track language to language, its text track readiness state
+        // to the text track loaded state, its text track mode to the text
+        // track hidden mode, and its text track list of cues to an empty list.
         let track = TextTrack::new(
+            cx,
             &window,
             "".into(),
             kind,
@@ -3337,11 +3433,14 @@ impl HTMLMediaElementMethods<crate::DomTypeHolder> for HTMLMediaElement {
             language,
             TextTrackMode::Hidden,
             None,
-            CanGc::from_cx(cx),
         );
-        // Step 3 & 4
-        self.TextTracks(cx).add(&track);
-        // Step 5
+        // Step 3. Add the new text track to the media element's list of text tracks.
+        // Step 4. Queue a media element task given the media element to fire an event
+        // named addtrack at the media element's textTracks attribute's TextTrackList object,
+        // using TrackEvent, with the track attribute initialized to
+        // the new text track's TextTrack object.
+        self.TextTracks(cx).add(self, &track);
+        // Step 5. Return the new TextTrack object.
         DomRoot::from_ref(&track)
     }
 
@@ -3366,8 +3465,8 @@ impl HTMLMediaElementMethods<crate::DomTypeHolder> for HTMLMediaElement {
 
         self.volume.set(*value);
 
-        if let Some(ref player) = *self.player.borrow()
-            && let Err(error) = player.lock().unwrap().set_volume(*value)
+        if let Some(ref player) = *self.player.borrow() &&
+            let Err(error) = player.lock().unwrap().set_volume(*value)
         {
             warn!("Could not set the volume: {error:?}");
         }
@@ -3445,9 +3544,9 @@ impl VirtualMethods for HTMLMediaElement {
         // (Steps in the synchronous section are marked with ⌛.)
         if context.tree_connected {
             let task = MediaElementMicrotask::PauseIfNotInDocument {
-                elem: DomRoot::from_ref(self),
+                elem: Dom::from_ref(self),
             };
-            ScriptThread::await_stable_state(Microtask::MediaElement(task));
+            ScriptThread::await_stable_state(cx, Box::new(task));
         }
     }
 
@@ -3473,30 +3572,40 @@ impl VirtualMethods for HTMLMediaElement {
 #[derive(JSTraceable, MallocSizeOf)]
 pub(crate) enum MediaElementMicrotask {
     ResourceSelection {
-        elem: DomRoot<HTMLMediaElement>,
+        elem: Dom<HTMLMediaElement>,
         generation_id: u32,
         #[no_trace]
         base_url: ServoUrl,
     },
     PauseIfNotInDocument {
-        elem: DomRoot<HTMLMediaElement>,
+        elem: Dom<HTMLMediaElement>,
     },
     Seeked {
-        elem: DomRoot<HTMLMediaElement>,
+        elem: Dom<HTMLMediaElement>,
         generation_id: u32,
     },
     SelectNextSourceChild {
-        elem: DomRoot<HTMLMediaElement>,
+        elem: Dom<HTMLMediaElement>,
         generation_id: u32,
     },
     SelectNextSourceChildAfterWait {
-        elem: DomRoot<HTMLMediaElement>,
+        elem: Dom<HTMLMediaElement>,
         generation_id: u32,
     },
 }
 
 impl MicrotaskRunnable for MediaElementMicrotask {
     fn handler(&self, cx: &mut JSContext) {
+        let mut realm = match self {
+            &MediaElementMicrotask::ResourceSelection { ref elem, .. } |
+            &MediaElementMicrotask::PauseIfNotInDocument { ref elem } |
+            &MediaElementMicrotask::Seeked { ref elem, .. } |
+            &MediaElementMicrotask::SelectNextSourceChild { ref elem, .. } |
+            &MediaElementMicrotask::SelectNextSourceChildAfterWait { ref elem, .. } => {
+                enter_auto_realm(cx, &**elem)
+            },
+        };
+        let cx = &mut realm;
         match self {
             &MediaElementMicrotask::ResourceSelection {
                 ref elem,
@@ -3539,18 +3648,6 @@ impl MicrotaskRunnable for MediaElementMicrotask {
                 if generation_id == elem.generation_id.get() {
                     elem.select_next_source_child_after_wait(cx);
                 }
-            },
-        }
-    }
-
-    fn enter_realm<'cx>(&self, cx: &'cx mut js::context::JSContext) -> AutoRealm<'cx> {
-        match self {
-            &MediaElementMicrotask::ResourceSelection { ref elem, .. }
-            | &MediaElementMicrotask::PauseIfNotInDocument { ref elem }
-            | &MediaElementMicrotask::Seeked { ref elem, .. }
-            | &MediaElementMicrotask::SelectNextSourceChild { ref elem, .. }
-            | &MediaElementMicrotask::SelectNextSourceChildAfterWait { ref elem, .. } => {
-                enter_auto_realm(cx, &**elem)
             },
         }
     }
@@ -3772,7 +3869,7 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
         if !status_is_success {
             if element.ready_state.get() == ReadyState::HaveNothing {
                 // => "If the media data cannot be fetched at all, due to network errors..."
-                element.media_data_processing_failure_steps();
+                element.media_data_processing_failure_steps(cx);
             } else {
                 // => "If the connection is interrupted after some media data has been received..."
                 element.media_data_processing_fatal_steps(MEDIA_ERR_NETWORK, cx);
@@ -3785,8 +3882,8 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
             current_fetch_context.set_origin_clean(origin_clean);
         }
 
-        if let Some(metadata) = metadata.as_ref()
-            && let Some(headers) = metadata.headers.as_ref()
+        if let Some(metadata) = metadata.as_ref() &&
+            let Some(headers) = metadata.headers.as_ref()
         {
             // For range requests we get the size of the media asset from the Content-Range
             // header. Otherwise, we get it from the Content-Length header.
@@ -3799,8 +3896,8 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
             };
 
             // We only set the expected input size if it changes.
-            if content_length != self.expected_content_length
-                && let Some(content_length) = content_length
+            if content_length != self.expected_content_length &&
+                let Some(content_length) = content_length
             {
                 self.expected_content_length = Some(content_length);
             }
@@ -3819,8 +3916,8 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
             warn!("Could not set player seekable {:?}", e);
         }
 
-        if let Some(expected_content_length) = self.expected_content_length
-            && let Err(e) = element
+        if let Some(expected_content_length) = self.expected_content_length &&
+            let Err(e) = element
                 .player
                 .borrow()
                 .as_ref()
@@ -3845,8 +3942,8 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
             }
 
             // Discard chunk of the response body if fetch context doesn't support range requests.
-            let payload = if !current_fetch_context.is_seekable()
-                && self.content_length_to_discard != 0
+            let payload = if !current_fetch_context.is_seekable() &&
+                self.content_length_to_discard != 0
             {
                 if chunk.len() as u64 > self.content_length_to_discard {
                     let shrink_chunk = chunk[self.content_length_to_discard as usize..].to_vec();
@@ -3911,8 +4008,8 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
                 // start and stop positions without the total size of the stream is not
                 // possible. As fallback the media player perform seek with BYTES format
                 // and initiate seek request via "seek-data" callback with required offset.
-                if self.expected_content_length.is_none()
-                    && let Err(e) = element
+                if self.expected_content_length.is_none() &&
+                    let Err(e) = element
                         .player
                         .borrow()
                         .as_ref()
@@ -3949,7 +4046,7 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
         } else {
             // => "If the media data can be fetched but is found by inspection to be in an
             // unsupported format, or can otherwise not be rendered at all"
-            element.media_data_processing_failure_steps();
+            element.media_data_processing_failure_steps(cx);
         }
 
         network_listener::submit_timing(cx, &self, &status, &timing);
@@ -3983,8 +4080,8 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
 
         // Whether the current fetch request was cancelled due to a network or decoding error, or
         // was aborted by the user.
-        if let Some(cancel_reason) = current_fetch_context.cancel_reason()
-            && matches!(*cancel_reason, CancelReason::Error | CancelReason::Abort)
+        if let Some(cancel_reason) = current_fetch_context.cancel_reason() &&
+            matches!(*cancel_reason, CancelReason::Error | CancelReason::Abort)
         {
             return false;
         }
@@ -4062,12 +4159,14 @@ impl HTMLMediaElementEventHandler {
                 element.playback_metadata_updated(cx, metadata)
             },
             PlayerEvent::NeedData => element.playback_need_data(),
-            PlayerEvent::PositionChanged(position) => element.playback_position_changed(position),
-            PlayerEvent::SeekData(offset, seek_lock) => {
-                element.fetch_request(Some(offset), Some(seek_lock))
+            PlayerEvent::PositionChanged(position) => {
+                element.playback_position_changed(cx, position)
             },
-            PlayerEvent::SeekDone(position) => element.playback_seek_done(position),
-            PlayerEvent::StateChanged(ref state) => element.playback_state_changed(state),
+            PlayerEvent::SeekData(offset, seek_lock) => {
+                element.fetch_request(cx, Some(offset), Some(seek_lock))
+            },
+            PlayerEvent::SeekDone(position) => element.playback_seek_done(cx, position),
+            PlayerEvent::StateChanged(ref state) => element.playback_state_changed(cx, state),
             PlayerEvent::VideoFrameUpdated => element.playback_video_frame_updated(),
         }
     }

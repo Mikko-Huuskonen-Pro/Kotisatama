@@ -28,6 +28,7 @@ use style::computed_values::overflow_x::T as ComputedOverflow;
 use style::computed_values::text_decoration_style::{
     T as ComputedTextDecorationStyle, T as TextDecorationStyle,
 };
+use style::computed_values::text_decoration_thickness::T as TextDecorationThickness;
 use style::dom::OpaqueNode;
 use style::properties::ComputedValues;
 use style::properties::longhands::visibility::computed_value::T as Visibility;
@@ -241,7 +242,7 @@ impl DisplayListBuilder<'_> {
         self.webrender_display_list_builder
     }
 
-    fn pipeline_id(&mut self) -> wr::PipelineId {
+    fn pipeline_id(&self) -> wr::PipelineId {
         self.paint_info.pipeline_id
     }
 
@@ -912,7 +913,7 @@ impl PaintTraversalHandler for DisplayListBuilder<'_> {
             }
         }
 
-        let mut fragment_builder = BuilderForBoxFragment::new(
+        let fragment_builder = BuilderForBoxFragment::new(
             &fragment,
             self.fragment_tree.initial_containing_block.origin,
         );
@@ -948,7 +949,7 @@ impl PaintTraversalHandler for DisplayListBuilder<'_> {
 impl InspectorHighlight {
     fn register_fragment_of_highlighted_dom_node(
         &mut self,
-        builder: &mut DisplayListBuilder,
+        builder: &DisplayListBuilder,
         traversal_state: &TraversalState,
         fragment: &Arc<BoxFragment>,
     ) {
@@ -1019,8 +1020,29 @@ impl Fragment {
 
         let parent_style = fragment.base.style();
         let color = parent_style.clone_color();
+        let font_size = parent_style.clone_font_size();
         let font_metrics = &fragment.font_metrics;
         let dppx = builder.device_pixel_ratio.get();
+
+        let resolve_thickness = |thickness: &TextDecorationThickness| -> Au {
+            let resolved = match thickness {
+                TextDecorationThickness::LengthPercentage(length_percentage) => {
+                    length_percentage.resolve(font_size.computed_size.0).px()
+                },
+                TextDecorationThickness::Auto | TextDecorationThickness::FromFont => {
+                    font_metrics.underline_size.to_f32_px()
+                },
+            };
+
+            // If zero, return zero.
+            // Else round down to the nearest physical pixel; floor at 1 physical pixel.
+            // See: <https://drafts.csswg.org/css-values-4/#snap-as-a-line-width>
+            if resolved == 0.0 {
+                Au::zero()
+            } else {
+                Au::from_f32_px((resolved * dppx).floor().max(1.0) / dppx)
+            }
+        };
 
         // Gecko gets the text bounding box based on the ink overflow bounds. Since
         // we don't need to calculate this yet (as we do not implement `contain:
@@ -1051,13 +1073,20 @@ impl Fragment {
             );
         }
 
+        Self::build_display_list_for_text_selection(
+            fragment,
+            builder,
+            state,
+            containing_block,
+            fragment.base.rect().min_x(),
+            fragment.justification_adjustment,
+        );
+
         for text_decoration in state.text_decorations.iter() {
             if text_decoration.line.contains(TextDecorationLine::UNDERLINE) {
                 let mut rect = rect;
                 rect.origin.y += font_metrics.ascent - font_metrics.underline_offset;
-                rect.size.height =
-                    Au::from_f32_px(font_metrics.underline_size.to_nearest_pixel(dppx));
-
+                rect.size.height = resolve_thickness(&text_decoration.thickness);
                 Self::build_display_list_for_text_decoration(
                     state,
                     &parent_style,
@@ -1072,8 +1101,7 @@ impl Fragment {
         for text_decoration in state.text_decorations.iter() {
             if text_decoration.line.contains(TextDecorationLine::OVERLINE) {
                 let mut rect = rect;
-                rect.size.height =
-                    Au::from_f32_px(font_metrics.underline_size.to_nearest_pixel(dppx));
+                rect.size.height = resolve_thickness(&text_decoration.thickness);
                 Self::build_display_list_for_text_decoration(
                     state,
                     &parent_style,
@@ -1084,15 +1112,6 @@ impl Fragment {
                 );
             }
         }
-
-        Self::build_display_list_for_text_selection(
-            fragment,
-            builder,
-            state,
-            containing_block,
-            fragment.base.rect().min_x(),
-            fragment.justification_adjustment,
-        );
 
         builder.wr().push_text(
             &common,
@@ -1117,8 +1136,7 @@ impl Fragment {
             {
                 let mut rect = rect;
                 rect.origin.y += font_metrics.ascent - font_metrics.strikeout_offset;
-                rect.size.height =
-                    Au::from_f32_px(font_metrics.strikeout_size.to_nearest_pixel(dppx));
+                rect.size.height = resolve_thickness(&text_decoration.thickness);
                 Self::build_display_list_for_text_decoration(
                     state,
                     &parent_style,
@@ -1301,7 +1319,7 @@ impl Fragment {
         let end_x = end_advance.unwrap_or(current_advance);
 
         let parent_style = fragment.base.style();
-        if !shared_selection.range.is_empty() {
+        if !shared_selection.character_range.is_empty() {
             let selection_rect = Rect::new(
                 containing_block_rect.origin
                     + Vector2D::new(fragment_x_offset + start_x, Au::zero()),
@@ -1641,7 +1659,7 @@ impl<'a> BuilderForBoxFragment<'a> {
     }
 
     fn build_background_image(
-        &mut self,
+        &self,
         builder: &mut DisplayListBuilder,
         state: &TraversalState,
         painter: &BackgroundPainter,
@@ -1852,7 +1870,7 @@ impl<'a> BuilderForBoxFragment<'a> {
         }
     }
 
-    fn build_border_side(&mut self, style_color: BorderStyleColor) -> wr::BorderSide {
+    fn build_border_side(&self, style_color: BorderStyleColor) -> wr::BorderSide {
         wr::BorderSide {
             color: rgba(style_color.color),
             style: match style_color.style {
@@ -1871,7 +1889,7 @@ impl<'a> BuilderForBoxFragment<'a> {
     }
 
     fn build_collapsed_table_borders(
-        &mut self,
+        &self,
         builder: &mut DisplayListBuilder,
         state: &TraversalState,
     ) {
@@ -2113,7 +2131,7 @@ impl<'a> BuilderForBoxFragment<'a> {
         true
     }
 
-    fn build_outline(&mut self, builder: &mut DisplayListBuilder, state: &TraversalState) {
+    fn build_outline(&self, builder: &mut DisplayListBuilder, state: &TraversalState) {
         let style = self.fragment.style();
         let outline = style.get_outline();
         if outline.outline_style.none_or_hidden() {

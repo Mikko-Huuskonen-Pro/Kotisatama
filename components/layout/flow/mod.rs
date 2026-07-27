@@ -29,7 +29,7 @@ use crate::flow::same_formatting_context_block::SameFormattingContextBlock;
 use crate::formatting_contexts::{Baselines, IndependentFormattingContext};
 use crate::fragment_tree::{
     BaseFragmentInfo, BlockLevelLayoutInfo, BoxFragment, CollapsedBlockMargins, CollapsedMargin,
-    Fragment, FragmentFlags,
+    Fragment, FragmentFlags, PositioningFragment,
 };
 use crate::geom::{
     AuOrAuto, LogicalRect, LogicalSides, LogicalSides1D, LogicalVec2, PhysicalPoint, PhysicalRect,
@@ -212,8 +212,8 @@ impl BlockLevelBox {
             BlockLevelBox::SameFormattingContextBlock(same_formatting_context_block) => {
                 same_formatting_context_block.layout_style()
             },
-            BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(_)
-            | BlockLevelBox::OutOfFlowFloatBox(_) => return true,
+            BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(_) |
+            BlockLevelBox::OutOfFlowFloatBox(_) => return true,
             BlockLevelBox::OutsideMarker(_) => return false,
             BlockLevelBox::Independent(context) => {
                 // FIXME: If the element doesn't fit next to floats, it will get clearance.
@@ -293,8 +293,8 @@ impl BlockLevelBox {
             return false;
         }
 
-        if !tentative_block_size.definite_or_min().is_zero()
-            || !pbm.padding_border_sums.block.is_zero()
+        if !tentative_block_size.definite_or_min().is_zero() ||
+            !pbm.padding_border_sums.block.is_zero()
         {
             return false;
         }
@@ -378,9 +378,9 @@ impl OutsideMarker {
             LayoutStyle::Default(&self.list_item_style).padding_border_margin(containing_block);
         let content_rect = LogicalRect {
             start_corner: LogicalVec2 {
-                inline: -max_inline_size
-                    - (pbm_of_list_item.border.inline_start
-                        + pbm_of_list_item.padding.inline_start),
+                inline: -max_inline_size -
+                    (pbm_of_list_item.border.inline_start +
+                        pbm_of_list_item.padding.inline_start),
                 block: Zero::zero(),
             },
             size: LogicalVec2 {
@@ -424,6 +424,8 @@ impl BlockFormattingContext {
         layout_context: &LayoutContext,
         positioning_context: &mut PositioningContext,
         containing_block: &ContainingBlock,
+        lazy_block_size: &LazySize,
+        base: Option<&LayoutBoxBase>,
     ) -> IndependentFormattingContextLayoutResult {
         let mut sequential_layout_state =
             if self.contains_floats || !layout_context.allow_parallel_layout {
@@ -437,7 +439,11 @@ impl BlockFormattingContext {
         // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
         let ignore_block_margins_for_stretch = LogicalSides1D::new(false, false);
 
-        let flow_layout = self.contents.layout(
+        // Store the current length of the positioning context, because below we may need to
+        // adjust the static positions of the abspos within this BFC.
+        let previous_positioning_context_len = positioning_context.len();
+
+        let mut flow_layout = self.contents.layout(
             layout_context,
             positioning_context,
             containing_block,
@@ -458,11 +464,47 @@ impl BlockFormattingContext {
             sequential_layout_state.calculate_clearance(Clear::Both, &CollapsedMargin::zero())
         });
 
+        let content_block_size = flow_layout.content_block_size +
+            flow_layout.collapsible_margins_in_children.end.solve() +
+            clearance.unwrap_or_default();
+
+        // Buttons center their contents in the block axis. Therefore, create an `AnonymousFragment`
+        // that contains the fragments of the contents, and place it as desired.
+        // TODO: Use `align-content` instead, see https://github.com/w3c/csswg-drafts/issues/14190
+        if let Some(base) = base &&
+            base.base_fragment_info
+                .flags
+                .contains(FragmentFlags::IS_BUTTON)
+        {
+            flow_layout.depends_on_block_constraints = true;
+            let final_block_size = lazy_block_size.resolve(|| content_block_size);
+            let align_fragment_rect = LogicalRect {
+                start_corner: LogicalVec2 {
+                    inline: Au::zero(),
+                    block: Au::zero().max((final_block_size - content_block_size) / 2),
+                },
+                size: LogicalVec2 {
+                    inline: containing_block.size.inline,
+                    block: content_block_size,
+                },
+            }
+            .as_physical(Some(containing_block));
+            positioning_context.adjust_static_position_of_hoisted_fragments_with_offset(
+                &align_fragment_rect.origin.to_vector(),
+                previous_positioning_context_len,
+            );
+            let align_fragment = PositioningFragment::new_anonymous(
+                base.style.clone(),
+                align_fragment_rect,
+                flow_layout.fragments,
+                false, /* is_line_box */
+            );
+            flow_layout.fragments = vec![Fragment::Positioning(align_fragment)];
+        }
+
         IndependentFormattingContextLayoutResult {
             fragments: flow_layout.fragments,
-            content_block_size: flow_layout.content_block_size
-                + flow_layout.collapsible_margins_in_children.end.solve()
-                + clearance.unwrap_or_default(),
+            content_block_size,
             content_inline_size_for_table: None,
             baselines: flow_layout.baselines,
             depends_on_block_constraints: flow_layout.depends_on_block_constraints,
@@ -502,8 +544,8 @@ fn compute_inline_content_sizes_for_block_level_boxes(
 ) -> InlineContentSizesResult {
     let get_box_info = |box_: &ArcRefCell<BlockLevelBox>| {
         match &*box_.borrow() {
-            BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(_)
-            | BlockLevelBox::OutsideMarker { .. } => None,
+            BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(_) |
+            BlockLevelBox::OutsideMarker { .. } => None,
             BlockLevelBox::OutOfFlowFloatBox(float_box) => {
                 let inline_content_sizes_result = float_box.contents.outer_inline_content_sizes(
                     layout_context,
@@ -1072,9 +1114,9 @@ impl IndependentFormattingContext {
         let content_rect = LogicalRect {
             start_corner: LogicalVec2 {
                 block: pbm.padding.block_start + pbm.border.block_start,
-                inline: pbm.padding.inline_start
-                    + pbm.border.inline_start
-                    + effective_margin_inline_start,
+                inline: pbm.padding.inline_start +
+                    pbm.border.inline_start +
+                    effective_margin_inline_start,
             },
             size: LogicalVec2 {
                 block: block_size,
@@ -1387,8 +1429,8 @@ impl IndependentFormattingContext {
         // prevent margin collapse.
         let has_clearance = clear_position.is_some() || placement_rect.start_corner.block > ceiling;
         let clearance = has_clearance.then(|| {
-            placement_rect.start_corner.block
-                - sequential_layout_state
+            placement_rect.start_corner.block -
+                sequential_layout_state
                     .position_with_zero_clearance(&collapsed_margin_block_start)
         });
 
@@ -1425,12 +1467,12 @@ impl IndependentFormattingContext {
 
         let content_rect = LogicalRect {
             start_corner: LogicalVec2 {
-                block: pbm.padding.block_start
-                    + pbm.border.block_start
-                    + clearance.unwrap_or_else(Au::zero),
-                inline: pbm.padding.inline_start
-                    + pbm.border.inline_start
-                    + effective_margin_inline_start,
+                block: pbm.padding.block_start +
+                    pbm.border.block_start +
+                    clearance.unwrap_or_else(Au::zero),
+                inline: pbm.padding.inline_start +
+                    pbm.border.inline_start +
+                    effective_margin_inline_start,
             },
             size: content_size,
         };
@@ -1696,8 +1738,8 @@ fn automatic_inline_size<T>(
                 .base
                 .base_fragment_info
                 .flags
-                .intersects(FragmentFlags::IS_REPLACED | FragmentFlags::IS_WIDGET)
-                || context.is_table()
+                .intersects(FragmentFlags::IS_REPLACED | FragmentFlags::IS_WIDGET) ||
+                context.is_table()
         })
     };
     match justify_self {
@@ -2021,8 +2063,8 @@ impl<'container> PlacementState<'container> {
                 // the static position rectangle does not matter.
                 fragment.borrow_mut().original_static_position_rect = LogicalRect {
                     start_corner: LogicalVec2 {
-                        block: (self.current_margin.solve()
-                            + self.current_block_direction_position),
+                        block: (self.current_margin.solve() +
+                            self.current_block_direction_position),
                         inline: Au::zero(),
                     },
                     size: LogicalVec2::zero(),

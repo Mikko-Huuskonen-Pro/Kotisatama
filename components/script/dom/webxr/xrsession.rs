@@ -8,20 +8,20 @@ use std::f64::consts::{FRAC_PI_2, PI};
 use std::rc::Rc;
 use std::{mem, ptr};
 
+use script_bindings::reflector::reflect_weak_referenceable_dom_object;
+use servo_base::cross_process_instant::CrossProcessInstant;
 use dom_struct::dom_struct;
+use js::context::JSContext;
+use js::realm::CurrentRealm;
 use euclid::{RigidTransform3D, Transform3D, Vector3D};
 use ipc_channel::ipc::IpcReceiver;
 use ipc_channel::router::ROUTER;
-use js::context::JSContext;
 use js::jsapi::JSObject;
-use js::realm::CurrentRealm;
 use js::rust::MutableHandleValue;
 use js::typedarray::HeapFloat32Array;
 use profile_traits::generic_callback::GenericCallback as ProfileGenericCallback;
 use rustc_hash::FxBuildHasher;
-use script_bindings::reflector::reflect_dom_object_with_cx;
 use script_bindings::trace::RootedTraceableBox;
-use servo_base::cross_process_instant::CrossProcessInstant;
 use stylo_atoms::Atom;
 use webxr_api::{
     self, ApiSpace, ContextId as WebXRContextId, Display, EntityTypes, EnvironmentBlendMode,
@@ -165,15 +165,15 @@ impl XRSession {
         };
         let render_state = XRRenderState::new(cx, window, 0.1, 1000.0, ivfov, None, Vec::new());
         let input_sources = XRInputSourceArray::new(cx, window);
-        let ret = reflect_dom_object_with_cx(
-            Box::new(XRSession::new_inherited(
+        let ret = reflect_weak_referenceable_dom_object(
+            cx,
+            Rc::new(XRSession::new_inherited(
                 session,
                 &render_state,
                 &input_sources,
                 mode,
             )),
             window,
-            cx,
         );
         ret.attach_event_handler();
         ret.setup_raf_loop(frame_receiver);
@@ -280,7 +280,7 @@ impl XRSession {
                 // Step 3-4
                 self.global()
                     .as_window()
-                    .Navigator()
+                    .Navigator(cx)
                     .Xr(cx)
                     .end_session(self);
                 // Step 5: We currently do not have any such promises
@@ -469,7 +469,10 @@ impl XRSession {
             mem::swap(&mut *self.raf_callback_list.borrow_mut(), &mut current);
         }
 
-        let time = self.global().performance().to_dom_high_res_time_stamp(time);
+        let time = self
+            .global()
+            .performance(cx)
+            .to_dom_high_res_time_stamp(time);
         let frame = XRFrame::new(cx, self.global().as_window(), self, frame);
 
         // Step 8-9
@@ -518,8 +521,8 @@ impl XRSession {
         clip_planes.update(near, far);
         let top = *render_state
             .GetInlineVerticalFieldOfView()
-            .expect("IVFOV should be non null for inline sessions")
-            / 2.;
+            .expect("IVFOV should be non null for inline sessions") /
+            2.;
         let top = near * top.tan() as f32;
         let bottom = top;
         let left = top * size.width as f32 / size.height as f32;
@@ -672,8 +675,8 @@ impl XRSessionMethods<crate::DomTypeHolder> for XRSession {
             return Err(Error::InvalidState(None));
         }
         // Step 3:
-        if let Some(Some(ref layer)) = init.baseLayer
-            && Dom::from_ref(layer.session()) != Dom::from_ref(self)
+        if let Some(Some(ref layer)) = init.baseLayer &&
+            Dom::from_ref(layer.session()) != Dom::from_ref(self)
         {
             return Err(Error::InvalidState(None));
         }
@@ -839,8 +842,8 @@ impl XRSessionMethods<crate::DomTypeHolder> for XRSession {
         // XXXManishearth reject based on session type
         // https://github.com/immersive-web/webxr/blob/master/spatial-tracking-explainer.md#practical-usage-guidelines
 
-        if !self.is_immersive()
-            && (ty == XRReferenceSpaceType::Bounded_floor || ty == XRReferenceSpaceType::Unbounded)
+        if !self.is_immersive() &&
+            (ty == XRReferenceSpaceType::Bounded_floor || ty == XRReferenceSpaceType::Unbounded)
         {
             p.reject_error(cx, Error::NotSupported(None));
             return p;
@@ -852,8 +855,8 @@ impl XRSessionMethods<crate::DomTypeHolder> for XRSession {
                 p.reject_error(cx, Error::NotSupported(None))
             },
             ty => {
-                if ty != XRReferenceSpaceType::Viewer
-                    && (!self.is_immersive() || ty != XRReferenceSpaceType::Local)
+                if ty != XRReferenceSpaceType::Viewer &&
+                    (!self.is_immersive() || ty != XRReferenceSpaceType::Local)
                 {
                     let s = ty.as_str();
                     if !self
@@ -913,7 +916,7 @@ impl XRSessionMethods<crate::DomTypeHolder> for XRSession {
         self.ended.set(true);
         self.global()
             .as_window()
-            .Navigator()
+            .Navigator(cx)
             .Xr(cx)
             .end_session(self);
         self.session.borrow_mut().end_session();
@@ -1042,9 +1045,9 @@ impl XRSessionMethods<crate::DomTypeHolder> for XRSession {
             let session = self.session.borrow();
             let supported_frame_rates = session.supported_frame_rates();
 
-            if self.mode == XRSessionMode::Inline
-                || supported_frame_rates.is_empty()
-                || self.ended.get()
+            if self.mode == XRSessionMode::Inline ||
+                supported_frame_rates.is_empty() ||
+                self.ended.get()
             {
                 promise.reject_error(cx, Error::InvalidState(None));
                 return promise;

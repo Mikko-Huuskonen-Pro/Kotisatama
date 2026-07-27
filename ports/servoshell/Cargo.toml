@@ -42,8 +42,9 @@ ProductName = "ServoShell"
 
 [features]
 # KOTISATAMA-PATCH: kotisatama oletuksena päällä; pois päältä upstream-käyttäytyminen.
-default = ["baked-in-resources", "gamepad", "kotisatama", "servo/clipboard", "js_jit", "max_log_level", "webgpu", "webxr"]
+default = ["baked-in-resources", "bundled_freetype", "gamepad", "kotisatama", "servo/clipboard", "js_jit", "max_log_level", "webgpu", "webxr"]
 baked-in-resources = ["servo/baked-in-resources"]
+bundled_freetype = ["servo/bundled_freetype"]
 crown = ["servo/crown"]
 debugmozjs = ["servo/debugmozjs"]
 gamepad = ["servo/gamepad"]

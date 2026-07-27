@@ -54,8 +54,20 @@ pub fn set(preferences: Preferences) {
     stylo_static_prefs::set_pref!("layout.columns.enabled", preferences.layout_columns_enabled);
     stylo_static_prefs::set_pref!("layout.grid.enabled", preferences.layout_grid_enabled);
     stylo_static_prefs::set_pref!(
+        "layout.css.alpha-color-function.enabled",
+        preferences.layout_css_alpha_color_function_enabled
+    );
+    stylo_static_prefs::set_pref!(
         "layout.css.attr.enabled",
         preferences.layout_css_attr_enabled
+    );
+    stylo_static_prefs::set_pref!(
+        "layout.css.ellipse-corners.enabled",
+        preferences.layout_css_ellipse_corners_enabled
+    );
+    stylo_static_prefs::set_pref!(
+        "layout.css.progress-function.enabled",
+        preferences.layout_css_progress_function_enabled
     );
     stylo_static_prefs::set_pref!(
         "layout.writing-mode.enabled",
@@ -224,8 +236,6 @@ pub struct Preferences {
     pub dom_webrtc_enabled: bool,
     // feature: WebRTC Transceiver | #41396 | Web/API/RTCRtpTransceiver
     pub dom_webrtc_transceiver_enabled: bool,
-    // feature: WebVTT | #22312 | Web/API/WebVTT_API
-    pub dom_webvtt_enabled: bool,
     pub dom_webxr_enabled: bool,
     pub dom_webxr_test: bool,
     pub dom_webxr_first_person_observer_view: bool,
@@ -279,6 +289,11 @@ pub struct Preferences {
     pub js_mem_gc_high_frequency_high_limit_mb: i64,
     pub js_mem_gc_high_frequency_low_limit_mb: i64,
     pub js_mem_gc_high_frequency_time_limit_ms: i64,
+    /// Whether or not incremental garbage collection is turned on. This is currently
+    /// turned off by default as pre-barriers are not implemented yet. If turned on, it
+    /// will likely lead to memory corruption.
+    ///
+    /// See <https://github.com/servo/servo/issues/7621>.
     pub js_mem_gc_incremental_enabled: bool,
     pub js_mem_gc_incremental_slice_ms: i64,
     pub js_mem_gc_low_frequency_heap_growth: i64,
@@ -300,7 +315,10 @@ pub struct Preferences {
     // feature: CSS Grid | #34479 | Web/CSS/Guides/Grid_layout
     pub layout_grid_enabled: bool,
     pub layout_container_queries_enabled: bool,
+    pub layout_css_alpha_color_function_enabled: bool,
     pub layout_css_attr_enabled: bool,
+    pub layout_css_ellipse_corners_enabled: bool,
+    pub layout_css_progress_function_enabled: bool,
     pub layout_style_sharing_cache_enabled: bool,
     pub layout_threads: i64,
     /// The minimum number of parallelizable jobs required before turning on parallelism
@@ -360,6 +378,8 @@ pub struct Preferences {
     /// default), then `rustls-platform-verifier` will be used, except on Android where
     /// `rust-webpki` is always used.
     pub network_use_webpki_roots: bool,
+    /// The maximum content size we will forward for preallocation, defaults to 5MB
+    pub network_max_content_length: u64,
     /// The length of the session history, in navigations, for each `WebView. Back-forward
     /// cache entries that are more than `session_history_max_length` steps in the future or
     /// `session_history_max_length` steps in the past will be discarded. Navigating forward
@@ -469,7 +489,6 @@ impl Preferences {
             dom_webgpu_wgpu_backend: String::new(),
             dom_webrtc_enabled: false,
             dom_webrtc_transceiver_enabled: false,
-            dom_webvtt_enabled: false,
             dom_webxr_enabled: true,
             dom_webxr_first_person_observer_view: false,
             dom_webxr_glwindow_cubemap: false,
@@ -517,7 +536,7 @@ impl Preferences {
             js_mem_gc_high_frequency_high_limit_mb: 500,
             js_mem_gc_high_frequency_low_limit_mb: 100,
             js_mem_gc_high_frequency_time_limit_ms: 1000,
-            js_mem_gc_incremental_enabled: true,
+            js_mem_gc_incremental_enabled: false,
             js_mem_gc_incremental_slice_ms: 10,
             js_mem_gc_low_frequency_heap_growth: 150,
             js_mem_gc_per_zone_enabled: false,
@@ -534,7 +553,10 @@ impl Preferences {
             layout_animations_test_enabled: false,
             layout_columns_enabled: false,
             layout_container_queries_enabled: false,
+            layout_css_alpha_color_function_enabled: false,
             layout_css_attr_enabled: false,
+            layout_css_ellipse_corners_enabled: false,
+            layout_css_progress_function_enabled: false,
             layout_grid_enabled: false,
             layout_style_sharing_cache_enabled: true,
             // TODO(mrobinson): This should likely be based on the number of processors.
@@ -557,6 +579,7 @@ impl Preferences {
             network_http_cache_size: 5000,
             network_local_directory_listing_enabled: true,
             network_use_webpki_roots: false,
+            network_max_content_length: 5 * 1024 * 1024,
             session_history_max_length: 20,
             shell_background_color_rgba: [1.0, 1.0, 1.0, 1.0],
             log_filter: String::new(),

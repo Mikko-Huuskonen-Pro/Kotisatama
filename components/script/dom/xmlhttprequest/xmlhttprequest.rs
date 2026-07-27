@@ -37,7 +37,7 @@ use net_traits::{
 use script_bindings::cell::DomRefCell;
 use script_bindings::conversions::SafeToJSValConvertible;
 use script_bindings::num::Finite;
-use script_bindings::reflector::reflect_dom_object_with_proto_and_cx;
+use script_bindings::reflector::reflect_dom_object_with_proto;
 use script_bindings::trace::RootedTraceableBox;
 use script_traits::DocumentActivity;
 use servo_constellation_traits::BlobImpl;
@@ -47,7 +47,7 @@ use url::Position;
 
 use crate::body::{BodySource, Extractable, ExtractedBody, decode_to_utf16_with_bom_removal};
 use crate::document_loader::DocumentLoader;
-use crate::dom::bindings::buffer_source::HeapBufferSource;
+use crate::dom::bindings::buffer_source::{HeapBufferSource, get_buffer_source_copy};
 use crate::dom::bindings::codegen::Bindings::WindowBinding::WindowMethods;
 use crate::dom::bindings::codegen::Bindings::XMLHttpRequestBinding::{
     XMLHttpRequestMethods, XMLHttpRequestResponseType,
@@ -283,11 +283,11 @@ impl XMLHttpRequest {
         proto: Option<HandleObject>,
     ) -> DomRoot<XMLHttpRequest> {
         let upload = XMLHttpRequestUpload::new(cx, global);
-        reflect_dom_object_with_proto_and_cx(
+        reflect_dom_object_with_proto(
+            cx,
             Box::new(XMLHttpRequest::new_inherited(global, &upload)),
             global,
             proto,
-            cx,
         )
     }
 
@@ -611,7 +611,7 @@ impl XMLHttpRequestMethods<crate::DomTypeHolder> for XMLHttpRequest {
                     .expect("Couldn't extract body."),
             ),
             Some(DocumentOrXMLHttpRequestBodyInit::ArrayBuffer(ref typedarray)) => {
-                let bytes = typedarray.to_vec();
+                let bytes = get_buffer_source_copy(typedarray.into());
                 let total_bytes = bytes.len();
                 let global = self.global();
                 let stream = ReadableStream::new_from_bytes(cx, &global, bytes)?;
@@ -623,7 +623,7 @@ impl XMLHttpRequestMethods<crate::DomTypeHolder> for XMLHttpRequest {
                 })
             },
             Some(DocumentOrXMLHttpRequestBodyInit::ArrayBufferView(ref typedarray)) => {
-                let bytes = typedarray.to_vec();
+                let bytes = get_buffer_source_copy(typedarray.into());
                 let total_bytes = bytes.len();
                 let global = self.global();
                 let stream = ReadableStream::new_from_bytes(cx, &global, bytes)?;
@@ -714,7 +714,7 @@ impl XMLHttpRequestMethods<crate::DomTypeHolder> for XMLHttpRequest {
         .headers((*self.request_headers.borrow()).clone())
         .unsafe_request(true)
         // XXXManishearth figure out how to avoid this clone
-        .body(extracted_or_serialized.map(|e| e.into_net_request_body().0))
+        .body(extracted_or_serialized.map(|e| e.into_net_request_body(cx).0))
         .synchronous(self.sync.get())
         .mode(RequestMode::CorsMode)
         .use_cors_preflight(self.upload_listener.get())

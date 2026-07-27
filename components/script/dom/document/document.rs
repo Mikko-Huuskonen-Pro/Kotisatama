@@ -25,7 +25,7 @@ use embedder_traits::{
     AllowOrDeny, AnimationState, CustomHandlersAutomationMode, EmbedderMsg, Image, LoadStatus,
 };
 use encoding_rs::{Encoding, UTF_8};
-use html5ever::{LocalName, Namespace, QualName, local_name, ns};
+use html5ever::{LocalName, QualName, local_name, ns};
 use hyper_serde::Serde;
 use indexmap::IndexSet;
 use js::context::{JSContext, NoGC};
@@ -52,7 +52,7 @@ use regex::bytes::Regex;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use script_bindings::cell::{DomRefCell, Ref, RefMut};
 use script_bindings::interfaces::DocumentHelpers;
-use script_bindings::reflector::reflect_dom_object_with_proto_and_cx;
+use script_bindings::reflector::reflect_dom_object_with_proto;
 use script_bindings::trace::CustomTraceable;
 use script_traits::{DocumentActivity, ProgressiveWebMetricType};
 use servo_arc::Arc;
@@ -80,6 +80,7 @@ use url::{Host, Position};
 
 use crate::animations::Animations;
 use crate::document_loader::{DocumentLoader, LoadType};
+use crate::dom::FlatTreeParent;
 use crate::dom::animationtimeline::AnimationTimeline;
 use crate::dom::attr::Attr;
 use crate::dom::beforeunloadevent::BeforeUnloadEvent;
@@ -117,7 +118,9 @@ use crate::dom::bindings::inheritance::{Castable, ElementTypeId, HTMLElementType
 use crate::dom::bindings::num::Finite;
 use crate::dom::bindings::refcounted::Trusted;
 use crate::dom::bindings::reflector::DomGlobal;
-use crate::dom::bindings::root::{Dom, DomRoot, LayoutDom, MutNullableDom, ToLayout, UnrootedDom};
+use crate::dom::bindings::root::{
+    Dom, DomRoot, LayoutDom, MutNullableDom, ToLayout, ToLayoutOptional, UnrootedDom,
+};
 use crate::dom::bindings::str::{DOMString, USVString};
 use crate::dom::bindings::trace::{HashMapTracedValues, NoTrace};
 use crate::dom::bindings::weakref::DOMTracker;
@@ -128,9 +131,7 @@ use crate::dom::compositionevent::CompositionEvent;
 use crate::dom::css::cssstylesheet::CSSStyleSheet;
 use crate::dom::css::fontfaceset::FontFaceSet;
 use crate::dom::css::stylesheetlist::{StyleSheetList, StyleSheetListOwner};
-use crate::dom::customelementregistry::{
-    CustomElementDefinition, CustomElementReactionStack, CustomElementRegistry,
-};
+use crate::dom::customelementregistry::{CustomElementReactionStack, CustomElementRegistry};
 use crate::dom::customevent::CustomEvent;
 use crate::dom::document::accessibility_data::AccessibilityData;
 use crate::dom::document::focus::{DocumentFocusHandler, FocusableArea};
@@ -210,7 +211,6 @@ use crate::image_animation::ImageAnimationManager;
 use crate::mime::{APPLICATION, CHARSET};
 use crate::navigation::navigate;
 use crate::network_listener::{FetchResponseListener, NetworkListener};
-use crate::script_runtime::CanGc;
 use crate::script_thread::{ScriptThread, SharedRwLocks};
 use crate::stylesheet_loader::StylesheetContextId;
 use crate::stylesheet_set::StylesheetSetRef;
@@ -245,33 +245,33 @@ impl FireMouseEventType {
 pub(crate) struct RefreshRedirectDue {
     #[no_trace]
     pub(crate) url: ServoUrl,
-    #[ignore_malloc_size_of = "non-owning"]
-    pub(crate) window: DomRoot<Window>,
     /// Whether the refresh originated from a `<meta>` element.
     pub(crate) from_meta_element: bool,
 }
 impl RefreshRedirectDue {
     /// Step 13 of <https://html.spec.whatwg.org/multipage/#shared-declarative-refresh-steps>
-    pub(crate) fn invoke(self, cx: &mut JSContext) {
+    pub(crate) fn invoke(self, cx: &mut JSContext, global: &GlobalScope) {
+        let window = global
+            .downcast::<Window>()
+            .expect("Queued a RefreshRedirectDue on a non-Window globalscope");
+
         // After the refresh has come due (as defined below),
         // if the user has not canceled the redirect and, if meta is given,
         // document's active sandboxing flag set does not have the sandboxed
         // automatic features browsing context flag set,
         // then navigate document's node navigable to urlRecord using document,
         // with historyHandling set to "replace".
-        if self.from_meta_element
-            && self.window.Document().has_active_sandboxing_flag(
+        if self.from_meta_element &&
+            window.Document().has_active_sandboxing_flag(
                 SandboxingFlagSet::SANDBOXED_AUTOMATIC_FEATURES_BROWSING_CONTEXT_FLAG,
             )
         {
             return;
         }
-        let load_data = self
-            .window
-            .load_data_for_document(self.url.clone(), self.window.pipeline_id());
+        let load_data = window.load_data_for_document(self.url, window.pipeline_id());
         navigate(
             cx,
-            &self.window,
+            window,
             NavigationHistoryBehavior::Replace,
             false,
             load_data,
@@ -779,8 +779,9 @@ impl Document {
         }
 
         let parent = match node.parent_in_flat_tree() {
-            Some(parent) => parent,
-            None => {
+            FlatTreeParent::Parent(parent) => parent,
+            FlatTreeParent::NotInFlatTree => return,
+            FlatTreeParent::RootNode => {
                 // There is no parent so this is the Document node, so we
                 // behave as if we were called with the document element.
                 let Some(document_element) = self.GetDocumentElement() else {
@@ -795,8 +796,8 @@ impl Document {
                 // will trigger a new empty display list.
                 self.root_removal_noted.set(false);
 
-                if let Some(dirty_root) = self.dirty_root.get()
-                    && dirty_root.is_connected()
+                if let Some(dirty_root) = self.dirty_root.get() &&
+                    dirty_root.is_connected()
                 {
                     // There was an existing dirty root so we mark its
                     // ancestors as dirty until the document element.
@@ -865,10 +866,13 @@ impl Document {
             }
         }
 
+        // Find the new dirty root. If `Node::common_ancestors_in_flat_tree` returns `None`, this
+        // means that the old dirty root is no longer part of the flat tree and `element` is the new
+        // dirty root.
         let new_dirty_root = element
             .upcast::<Node>()
             .common_ancestor_in_flat_tree(dirty_root.upcast())
-            .expect("Couldn't find common ancestor");
+            .unwrap_or_else(|| DomRoot::from_ref(element.upcast()));
 
         let mut has_dirty_descendants = true;
         for ancestor in dirty_root
@@ -943,6 +947,12 @@ impl Document {
         self.current_rendering_epoch.get()
     }
 
+    /// Get the [`Selection`] instance for this [`Document`] if there is one or `None`.
+    #[inline]
+    pub(crate) fn selection(&self) -> Option<DomRoot<Selection>> {
+        self.selection.get()
+    }
+
     pub(crate) fn set_activity(&self, cx: &mut JSContext, activity: DocumentActivity) {
         // This function should only be called on documents with a browsing context
         assert!(self.has_browsing_context);
@@ -965,7 +975,7 @@ impl Document {
 
         self.title_changed();
         self.notify_embedder_favicon();
-        self.dirty_all_nodes();
+        self.dirty_all_nodes(cx.no_gc());
         self.window().resume(cx);
         media.resume(&client_context_id);
 
@@ -1052,8 +1062,8 @@ impl Document {
 
         // Step 2: If document's URL matches about:blank and document's about base URL is
         // non-null, then return document's about base URL.
-        if document_url.matches_about_blank()
-            && let Some(about_base_url) = self.about_base_url()
+        if document_url.matches_about_blank() &&
+            let Some(about_base_url) = self.about_base_url()
         {
             return about_base_url;
         }
@@ -1080,17 +1090,21 @@ impl Document {
         self.needs_restyle.set(RestyleReason::empty());
     }
 
-    pub(crate) fn restyle_reason(&self) -> RestyleReason {
+    pub(crate) fn stylesheets_changed_since_last_reflow(&self) -> bool {
+        self.stylesheets.borrow().has_changed()
+    }
+
+    pub(crate) fn restyle_reason(&self, no_gc: &NoGC) -> RestyleReason {
         let mut condition = self.needs_restyle.get();
-        if self.stylesheets.borrow().has_changed() {
+        if self.stylesheets_changed_since_last_reflow() {
             condition.insert(RestyleReason::StylesheetsChanged);
         }
 
         // FIXME: This should check the dirty bit on the document,
         // not the document element. Needs some layout changes to make
         // that workable.
-        if let Some(root) = self.GetDocumentElement()
-            && root.upcast::<Node>().has_dirty_descendants()
+        if let Some(root) = self.get_document_element_unrooted(no_gc) &&
+            root.upcast::<Node>().has_dirty_descendants()
         {
             condition.insert(RestyleReason::DOMChanged);
         }
@@ -1160,9 +1174,9 @@ impl Document {
         self.encoding.set(encoding);
     }
 
-    pub(crate) fn content_and_heritage_changed(&self, node: &Node) {
+    pub(crate) fn content_and_heritage_changed(&self, no_gc: &NoGC, node: &Node) {
         if node.is_connected() {
-            node.note_dirty_descendants();
+            node.note_dirty_descendants(no_gc);
         }
 
         // FIXME(emilio): This is very inefficient, ideally the flag above would
@@ -1445,14 +1459,14 @@ impl Document {
         window.send_to_embedder(msg);
     }
 
-    pub(crate) fn dirty_all_nodes(&self) {
+    pub(crate) fn dirty_all_nodes(&self, no_gc: &NoGC) {
         let root = match self.GetDocumentElement() {
             Some(root) => root,
             None => return,
         };
         for node in root
             .upcast::<Node>()
-            .traverse_preorder(ShadowIncluding::Yes)
+            .traverse_preorder_non_rooting(no_gc, ShadowIncluding::Yes)
         {
             node.dirty(NodeDamage::Other)
         }
@@ -1761,7 +1775,7 @@ impl Document {
     /// <https://html.spec.whatwg.org/multipage/#run-the-animation-frame-callbacks>
     pub(crate) fn run_the_animation_frame_callbacks(&self, cx: &mut CurrentRealm) {
         self.running_animation_callbacks.set(true);
-        let timing = self.global().performance().Now();
+        let timing = self.global().performance(cx).Now();
 
         let num_callbacks = self.animation_frame_list.borrow().len();
         for _ in 0..num_callbacks {
@@ -1822,12 +1836,9 @@ impl Document {
     pub(crate) fn fetch<Listener: FetchResponseListener>(
         &self,
         load: LoadType,
-        mut request: RequestBuilder,
+        request: RequestBuilder,
         listener: Listener,
     ) {
-        request = request
-            .insecure_requests_policy(self.insecure_requests_policy())
-            .has_trustworthy_ancestor_origin(self.has_trustworthy_ancestor_or_current_origin());
         let callback = NetworkListener {
             context: std::sync::Arc::new(Mutex::new(Some(listener))),
             task_source: self
@@ -1843,12 +1854,9 @@ impl Document {
 
     pub(crate) fn fetch_background<Listener: FetchResponseListener>(
         &self,
-        mut request: RequestBuilder,
+        request: RequestBuilder,
         listener: Listener,
     ) {
-        request = request
-            .insecure_requests_policy(self.insecure_requests_policy())
-            .has_trustworthy_ancestor_origin(self.has_trustworthy_ancestor_or_current_origin());
         let callback = NetworkListener {
             context: std::sync::Arc::new(Mutex::new(Some(listener))),
             task_source: self
@@ -1980,8 +1988,8 @@ impl Document {
         // to fire an event named hashchange at document's relevant global object, using HashChangeEvent,
         // with the oldURL attribute initialized to the serialization of oldURL
         // and the newURL attribute initialized to the serialization of entry's URL.
-        if old_url.as_url()[Position::BeforeFragment..]
-            != new_url.as_url()[Position::BeforeFragment..]
+        if old_url.as_url()[Position::BeforeFragment..] !=
+            new_url.as_url()[Position::BeforeFragment..]
         {
             let window = Trusted::new(self.owner_window().deref());
             let old_url = old_url.to_string();
@@ -2063,8 +2071,8 @@ impl Document {
             .navigation_timing
             .top_level_dom_complete
             .get()
-            .is_none()
-            && loader.is_only_blocked_by_iframes()
+            .is_none() &&
+            loader.is_only_blocked_by_iframes()
         {
             update_with_current_instant(&self.navigation_timing.top_level_dom_complete);
         }
@@ -2258,7 +2266,6 @@ impl Document {
         {
             self.window.as_global_scope().schedule_callback(
                 OneshotTimerCallback::RefreshRedirectDue(RefreshRedirectDue {
-                    window: DomRoot::from_ref(self.window()),
                     url: url.clone(),
                     from_meta_element: *from_meta_element,
                 }),
@@ -2396,7 +2403,7 @@ impl Document {
         // https://github.com/immersive-web/navigation/issues/10
         #[cfg(feature = "webxr")]
         if pref!(dom_webxr_sessionavailable) && self.window.is_top_level() {
-            self.window.Navigator().Xr(cx).dispatch_sessionavailable();
+            self.window.Navigator(cx).Xr(cx).dispatch_sessionavailable();
         }
     }
 
@@ -2940,29 +2947,6 @@ impl Document {
         !self.has_browsing_context || !url_has_network_scheme(&self.url())
     }
 
-    /// <https://html.spec.whatwg.org/multipage/#look-up-a-custom-element-definition>
-    pub(crate) fn lookup_custom_element_definition(
-        &self,
-        namespace: &Namespace,
-        local_name: &LocalName,
-        is: Option<&LocalName>,
-    ) -> Option<Rc<CustomElementDefinition>> {
-        // Step 1
-        if *namespace != ns!(html) {
-            return None;
-        }
-
-        // Step 2
-        if !self.has_browsing_context {
-            return None;
-        }
-
-        // Step 3
-        let registry = self.custom_element_registry()?;
-
-        registry.lookup_definition(local_name, is)
-    }
-
     pub(crate) fn custom_element_registry(&self) -> Option<DomRoot<CustomElementRegistry>> {
         self.document_or_shadow_root.custom_element_registry()
     }
@@ -2992,9 +2976,9 @@ impl Document {
             .set(counter - 1);
     }
 
-    pub(crate) fn react_to_environment_changes(&self) {
+    pub(crate) fn react_to_environment_changes(&self, cx: &JSContext) {
         for image in self.responsive_images.borrow().iter() {
-            image.react_to_environment_changes();
+            image.react_to_environment_changes(cx);
         }
     }
 
@@ -3047,14 +3031,14 @@ impl Document {
     /// Whether or not this [`Document`] needs a rendering update, due to changed
     /// contents or pending events. This is used to decide whether or not to schedule
     /// a call to the "update the rendering" algorithm.
-    pub(crate) fn needs_rendering_update(&self) -> bool {
+    pub(crate) fn needs_rendering_update(&self, no_gc: &NoGC) -> bool {
         if !self.is_fully_active() {
             return false;
         }
-        if !self.window().layout_blocked()
-            && (!self.restyle_reason().is_empty()
-                || self.window().layout().needs_new_display_list()
-                || self.window().layout().needs_accessibility_update())
+        if !self.window().layout_blocked() &&
+            (!self.restyle_reason(no_gc).is_empty() ||
+                self.window().layout().needs_new_display_list() ||
+                self.window().layout().needs_accessibility_update())
         {
             return true;
         }
@@ -3173,7 +3157,7 @@ impl Document {
         if self.ReadyState() != DocumentReadyState::Complete {
             return false;
         }
-        if !self.restyle_reason().is_empty() {
+        if !self.restyle_reason(cx.no_gc()).is_empty() {
             return false;
         }
         if !self.rendering_update_reasons.get().is_empty() {
@@ -3201,11 +3185,6 @@ impl Document {
         self.resize_observers
             .borrow_mut()
             .push(Dom::from_ref(resize_observer));
-    }
-
-    /// Whether or not this [`Document`] has any active [`ResizeObserver`].
-    pub(crate) fn has_resize_observers(&self) -> bool {
-        !self.resize_observers.borrow().is_empty()
     }
 
     /// <https://drafts.csswg.org/resize-observer/#gather-active-observations-h>
@@ -3425,8 +3404,8 @@ impl Document {
     ) {
         let metrics = self.interactive_time.borrow();
         match metric_type {
-            ProgressiveWebMetricType::FirstPaint
-            | ProgressiveWebMetricType::FirstContentfulPaint => {
+            ProgressiveWebMetricType::FirstPaint |
+            ProgressiveWebMetricType::FirstContentfulPaint => {
                 let binding = PerformancePaintTiming::new(
                     cx,
                     self.window.as_global_scope(),
@@ -3435,19 +3414,19 @@ impl Document {
                 );
                 metrics.set_performance_paint_metric(metric_value, first_reflow, metric_type);
                 let entry = binding.upcast::<PerformanceEntry>();
-                self.window.Performance().queue_entry(entry);
+                self.window.Performance(cx).queue_entry(entry);
             },
             ProgressiveWebMetricType::LargestContentfulPaint { area, url } => {
                 let binding = LargestContentfulPaint::new(
+                    cx,
                     self.window.as_global_scope(),
                     metric_value,
                     area,
                     url,
-                    CanGc::from_cx(cx),
                 );
                 metrics.set_largest_contentful_paint(metric_value, area);
                 let entry = binding.upcast::<PerformanceEntry>();
-                self.window.Performance().queue_entry(entry);
+                self.window.Performance(cx).queue_entry(entry);
             },
             ProgressiveWebMetricType::TimeToInteractive => {
                 unreachable!("Unexpected non-paint metric.")
@@ -3523,8 +3502,8 @@ impl Document {
             _ => {
                 // Step 9.1: If document's unload counter is greater than 0 or
                 // document's ignore-destructive-writes counter is greater than 0, then return.
-                if self.is_prompting_or_unloading()
-                    || self.ignore_destructive_writes_counter.get() > 0
+                if self.is_prompting_or_unloading() ||
+                    self.ignore_destructive_writes_counter.get() > 0
                 {
                     return Ok(());
                 }
@@ -3571,6 +3550,13 @@ impl Document {
         accessibility_data.unroot_all_removed_nodes();
         None
     }
+
+    pub(crate) fn get_document_element_unrooted<'a>(
+        &self,
+        no_gc: &'a NoGC,
+    ) -> Option<UnrootedDom<'a, Element>> {
+        self.upcast::<Node>().child_elements_unrooted(no_gc).next()
+    }
 }
 
 #[derive(MallocSizeOf, PartialEq)]
@@ -3604,13 +3590,18 @@ impl<'dom> LayoutDom<'dom, Document> {
         (*self.unsafe_get()).flush_shadow_root_stylesheets_if_necessary_for_layout(stylist, guard)
     }
 
-    #[inline]
-    pub(crate) fn shadow_roots_styles_changed(self) -> bool {
-        self.unsafe_get().shadow_roots_styles_changed.get()
-    }
-
     pub(crate) fn elements_with_id(self, id: &Atom) -> &[LayoutDom<'dom, Element>] {
         self.unsafe_get().id_map.get_all_for_layout(id)
+    }
+
+    #[expect(unsafe_code)]
+    pub(crate) fn url_for_layout(self) -> ServoUrl {
+        unsafe { self.unsafe_get().url.borrow_for_layout() }.clone()
+    }
+
+    #[expect(unsafe_code)]
+    pub(crate) fn selection_for_layout(&self) -> Option<LayoutDom<'dom, Selection>> {
+        unsafe { self.unsafe_get().selection.to_layout() }
     }
 }
 
@@ -3880,8 +3871,8 @@ impl Document {
     pub(crate) fn insecure_requests_policy(&self) -> InsecureRequestsPolicy {
         if let Some(csp_list) = self.get_csp_list().as_ref() {
             for policy in &csp_list.0 {
-                if policy.contains_a_directive_whose_name_is("upgrade-insecure-requests")
-                    && policy.disposition == PolicyDisposition::Enforce
+                if policy.contains_a_directive_whose_name_is("upgrade-insecure-requests") &&
+                    policy.disposition == PolicyDisposition::Enforce
                 {
                     return InsecureRequestsPolicy::Upgrade;
                 }
@@ -3957,12 +3948,17 @@ impl Document {
         self.delayed_tasks.borrow_mut().push(Box::new(task));
     }
 
+    /// Returns true if the DOM is in a state that will allow running content JS or
+    /// performing a layout operation.
+    pub(crate) fn is_safe_to_run_script_or_layout(&self) -> bool {
+        self.script_and_layout_blockers.get() == 0
+    }
+
     /// Assert that the DOM is in a state that will allow running content JS or
     /// performing a layout operation.
     pub(crate) fn ensure_safe_to_run_script_or_layout(&self) {
-        assert_eq!(
-            self.script_and_layout_blockers.get(),
-            0,
+        assert!(
+            self.is_safe_to_run_script_or_layout(),
             "Attempt to use script or layout while DOM not in a stable state"
         );
     }
@@ -4049,7 +4045,8 @@ impl Document {
         image_cache: StdArc<dyn ImageCache>,
     ) -> DomRoot<Document> {
         let timeline = DocumentTimeline::new(cx, window);
-        let document = reflect_dom_object_with_proto_and_cx(
+        let document = reflect_dom_object_with_proto(
+            cx,
             Box::new(Document::new_inherited(
                 window,
                 has_browsing_context,
@@ -4077,7 +4074,6 @@ impl Document {
             )),
             window,
             proto,
-            cx,
         );
         {
             let node = document.upcast::<Node>();
@@ -4149,15 +4145,18 @@ impl Document {
         self.count_node_list(|n| Document::is_element_in_get_by_name(n, name))
     }
 
-    pub(crate) fn nth_element_by_name(
+    pub(crate) fn nth_element_by_name<'a>(
         &self,
+        no_gc: &'a NoGC,
         index: u32,
         name: &DOMString,
-    ) -> Option<DomRoot<Node>> {
+    ) -> Option<UnrootedDom<'a, Node>> {
         if name.is_empty() {
             return None;
         }
-        self.nth_in_node_list(index, |n| Document::is_element_in_get_by_name(n, name))
+        self.nth_in_node_list(no_gc, index, |n| {
+            Document::is_element_in_get_by_name(n, name)
+        })
     }
 
     // Note that document.getByName does not match on the same conditions
@@ -4183,19 +4182,17 @@ impl Document {
             .count() as u32
     }
 
-    fn nth_in_node_list<F: Fn(&Node) -> bool>(
+    fn nth_in_node_list<'a, F: Fn(&Node) -> bool>(
         &self,
+        no_gc: &'a NoGC,
         index: u32,
         callback: F,
-    ) -> Option<DomRoot<Node>> {
-        let doc = self.GetDocumentElement();
-        let maybe_node = doc.as_deref().map(Castable::upcast::<Node>);
-        maybe_node
-            .iter()
-            .flat_map(|node| node.traverse_preorder(ShadowIncluding::No))
+    ) -> Option<UnrootedDom<'a, Node>> {
+        let doc = self.get_document_element_unrooted(no_gc)?;
+        doc.upcast::<Node>()
+            .traverse_preorder_non_rooting(no_gc, ShadowIncluding::No)
             .filter(|node| callback(node))
             .nth(index as usize)
-            .map(|n| DomRoot::from_ref(&*n))
     }
 
     fn get_html_element(&self) -> Option<DomRoot<HTMLHtmlElement>> {
@@ -4313,8 +4310,8 @@ impl Document {
             entry.hint.insert(RestyleHint::RESTYLE_STYLE_ATTRIBUTE);
         }
 
-        if vtable_for(el.upcast()).attribute_affects_presentational_hints(attr)
-            || el.check_style_on_self_or_eager_pseudos(|style| {
+        if vtable_for(el.upcast()).attribute_affects_presentational_hints(attr) ||
+            el.check_style_on_self_or_eager_pseudos(|style| {
                 if let Some(ref attribute_references) = style.attribute_references {
                     return attribute_references.contains_key(attr.local_name());
                 }
@@ -4431,10 +4428,6 @@ impl Document {
         self.shadow_roots_styles_changed.set(true);
     }
 
-    pub(crate) fn shadow_roots_styles_changed(&self) -> bool {
-        self.shadow_roots_styles_changed.get()
-    }
-
     pub(crate) fn flush_shadow_root_stylesheets_if_necessary_for_layout(
         &self,
         stylist: &mut Stylist,
@@ -4457,12 +4450,16 @@ impl Document {
         self.stylesheets.borrow().len()
     }
 
-    pub(crate) fn stylesheet_at(&self, index: usize) -> Option<DomRoot<CSSStyleSheet>> {
+    pub(crate) fn stylesheet_at(
+        &self,
+        cx: &mut JSContext,
+        index: usize,
+    ) -> Option<DomRoot<CSSStyleSheet>> {
         let stylesheets = self.stylesheets.borrow();
 
         stylesheets
             .get(Origin::Author, index)
-            .and_then(|s| s.owner.get_cssom_object())
+            .and_then(|s| s.owner.get_cssom_object(cx))
     }
 
     /// Add a stylesheet owned by `owner_node` to the list of document sheets, in the
@@ -4471,38 +4468,35 @@ impl Document {
     ///
     /// <https://drafts.csswg.org/cssom/#documentorshadowroot-final-css-style-sheets>
     #[cfg_attr(crown, expect(crown::unrooted_must_root))] // Owner needs to be rooted already necessarily.
-    pub(crate) fn add_owned_stylesheet(
-        &self,
-        cx: &mut JSContext,
-        owner_node: &Element,
-        sheet: Arc<Stylesheet>,
-    ) {
-        let stylesheets = &mut *self.stylesheets.borrow_mut();
+    pub(crate) fn add_owned_stylesheet(&self, owner_node: &Element, sheet: Arc<Stylesheet>) {
+        let insertion_point = {
+            let stylesheets = &mut *self.stylesheets.borrow_mut();
 
-        // FIXME(stevennovaryo): This is almost identical with the one in ShadowRoot::add_stylesheet.
-        let insertion_point = stylesheets
-            .iter()
-            .map(|(sheet, _origin)| sheet)
-            .find(|sheet_in_doc| {
-                match &sheet_in_doc.owner {
-                    StylesheetSource::Element(other_node) => {
-                        owner_node.upcast::<Node>().is_before(other_node.upcast())
-                    },
-                    // Non-constructed stylesheet should be ordered before the
-                    // constructed ones.
-                    StylesheetSource::Constructed(_) => true,
-                }
-            })
-            .cloned();
+            // FIXME(stevennovaryo): This is almost identical with the one in ShadowRoot::add_stylesheet.
+            stylesheets
+                .iter()
+                .map(|(sheet, _origin)| sheet)
+                .find(|sheet_in_doc| {
+                    match &sheet_in_doc.owner {
+                        StylesheetSource::Element(other_node) => {
+                            owner_node.upcast::<Node>().is_before(other_node.upcast())
+                        },
+                        // Non-constructed stylesheet should be ordered before the
+                        // constructed ones.
+                        StylesheetSource::Constructed(_) => true,
+                    }
+                })
+                .cloned()
+        };
 
         if self.has_browsing_context() {
             self.add_stylesheet_to_stylist(
-                cx,
                 sheet.clone(),
                 insertion_point.as_ref().map(|s| s.sheet.clone()),
             );
         }
 
+        let stylesheets = &mut *self.stylesheets.borrow_mut();
         DocumentOrShadowRoot::add_stylesheet(
             StylesheetSource::Element(Dom::from_ref(owner_node)),
             StylesheetSetRef::Document(stylesheets),
@@ -4517,30 +4511,28 @@ impl Document {
     ///
     /// <https://drafts.csswg.org/cssom/#documentorshadowroot-final-css-style-sheets>
     #[cfg_attr(crown, expect(crown::unrooted_must_root))]
-    pub(crate) fn append_constructed_stylesheet(
-        &self,
-        cx: &mut JSContext,
-        cssom_stylesheet: &CSSStyleSheet,
-    ) {
+    pub(crate) fn append_constructed_stylesheet(&self, cssom_stylesheet: &CSSStyleSheet) {
         debug_assert!(cssom_stylesheet.is_constructed());
 
-        let stylesheets = &mut *self.stylesheets.borrow_mut();
         let sheet = cssom_stylesheet.style_stylesheet().clone();
+        let insertion_point = {
+            let stylesheets = &mut *self.stylesheets.borrow_mut();
 
-        let insertion_point = stylesheets
-            .iter()
-            .last()
-            .map(|(sheet, _origin)| sheet)
-            .cloned();
+            stylesheets
+                .iter()
+                .last()
+                .map(|(sheet, _origin)| sheet)
+                .cloned()
+        };
 
         if self.has_browsing_context() {
             self.add_stylesheet_to_stylist(
-                cx,
                 sheet.clone(),
                 insertion_point.as_ref().map(|s| s.sheet.clone()),
             );
         }
 
+        let stylesheets = &mut *self.stylesheets.borrow_mut();
         DocumentOrShadowRoot::add_stylesheet(
             StylesheetSource::Constructed(Dom::from_ref(cssom_stylesheet)),
             StylesheetSetRef::Document(stylesheets),
@@ -4550,38 +4542,14 @@ impl Document {
         );
     }
 
-    fn switch_font_face_set_to_loading_if_needed(&self, cx: &mut JSContext) {
-        if self.window.font_context().web_fonts_still_loading() != 0
-            && let Some(font_face_set) = self.fonts.get()
-        {
-            font_face_set.switch_to_loading(cx);
-        }
-    }
-
-    /// Given a stylesheet, load all web fonts from it in Layout.
-    pub(crate) fn load_web_fonts_from_stylesheet(
-        &self,
-        cx: &mut JSContext,
-        stylesheet: &Arc<Stylesheet>,
-    ) {
-        self.window
-            .layout()
-            .load_web_fonts_from_stylesheet(stylesheet, &self.window.web_font_context(cx.no_gc()));
-        self.switch_font_face_set_to_loading_if_needed(cx);
-    }
-
     pub(crate) fn add_stylesheet_to_stylist(
         &self,
-        cx: &mut JSContext,
         stylesheet: Arc<Stylesheet>,
         before_stylesheet: Option<Arc<Stylesheet>>,
     ) {
-        self.window.layout_mut().add_stylesheet(
-            stylesheet,
-            before_stylesheet,
-            &self.window.web_font_context(cx.no_gc()),
-        );
-        self.switch_font_face_set_to_loading_if_needed(cx);
+        self.window
+            .layout_mut()
+            .add_stylesheet(stylesheet, before_stylesheet);
     }
 
     /// Remove a stylesheet owned by `owner` from the list of document sheets.
@@ -4616,7 +4584,10 @@ impl Document {
         self.name_map.get_all(cx.no_gc(), self.upcast(), name)
     }
 
-    pub(crate) fn drain_pending_restyles(&self) -> Vec<(TrustedNodeAddress, PendingRestyle)> {
+    pub(crate) fn drain_pending_restyles(
+        &self,
+        no_gc: &NoGC,
+    ) -> Vec<(TrustedNodeAddress, PendingRestyle)> {
         self.pending_restyles
             .borrow_mut()
             .drain()
@@ -4625,7 +4596,7 @@ impl Document {
                 if !node.get_flag(NodeFlags::IS_CONNECTED) {
                     return None;
                 }
-                node.note_dirty_descendants();
+                node.note_dirty_descendants(no_gc);
                 Some((node.to_trusted_node_address(), restyle.0))
             })
             .collect()
@@ -4779,7 +4750,6 @@ impl Document {
         if self.completely_loaded() {
             self.window.as_global_scope().schedule_callback(
                 OneshotTimerCallback::RefreshRedirectDue(RefreshRedirectDue {
-                    window: DomRoot::from_ref(self.window()),
                     url: url_record,
                     from_meta_element,
                 }),
@@ -4817,13 +4787,13 @@ impl Document {
         // Step 3 Queue a new VisibilityStateEntry whose visibility state is visibilityState and whose timestamp is
         // the current high resolution time given document's relevant global object.
         let entry = VisibilityStateEntry::new(
+            cx,
             &self.global(),
             visibility_state,
             CrossProcessInstant::now(),
-            CanGc::from_cx(cx),
         );
         self.window
-            .Performance()
+            .Performance(cx)
             .queue_entry(entry.upcast::<PerformanceEntry>());
 
         // Step 4 Run the screen orientation change steps with document.
@@ -4839,8 +4809,8 @@ impl Document {
         #[cfg(feature = "gamepad")]
         if visibility_state == DocumentVisibilityState::Hidden {
             self.window
-                .Navigator()
-                .GetGamepads()
+                .Navigator(cx)
+                .GetGamepads(cx)
                 .unwrap_or_default()
                 .iter_mut()
                 .for_each(|gamepad| {
@@ -4870,8 +4840,8 @@ impl Document {
     }
 
     pub(crate) fn has_trustworthy_ancestor_or_current_origin(&self) -> bool {
-        self.has_trustworthy_ancestor_origin.get()
-            || self.origin().immutable().is_potentially_trustworthy()
+        self.has_trustworthy_ancestor_origin.get() ||
+            self.origin().immutable().is_potentially_trustworthy()
     }
 
     pub(crate) fn highlight_dom_node(&self, node: Option<&Node>) {
@@ -5761,11 +5731,12 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
     /// <https://dom.spec.whatwg.org/#dom-document-createtreewalker>
     fn CreateTreeWalker(
         &self,
+        cx: &mut JSContext,
         root: &Node,
         what_to_show: u32,
         filter: Option<Rc<NodeFilter>>,
     ) -> DomRoot<TreeWalker> {
-        TreeWalker::new(self, root, what_to_show, filter)
+        TreeWalker::new(cx, self, root, what_to_show, filter)
     }
 
     /// <https://html.spec.whatwg.org/multipage/#document.title>
@@ -5882,8 +5853,8 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
 
         let node = new_body.upcast::<Node>();
         match node.type_id() {
-            NodeTypeId::Element(ElementTypeId::HTMLElement(HTMLElementTypeId::HTMLBodyElement))
-            | NodeTypeId::Element(ElementTypeId::HTMLElement(
+            NodeTypeId::Element(ElementTypeId::HTMLElement(HTMLElementTypeId::HTMLBodyElement)) |
+            NodeTypeId::Element(ElementTypeId::HTMLElement(
                 HTMLElementTypeId::HTMLFrameSetElement,
             )) => {},
             _ => return Err(Error::HierarchyRequest(None)),
@@ -5917,8 +5888,8 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-document-getelementsbyname>
-    fn GetElementsByName(&self, name: DOMString, can_gc: CanGc) -> DomRoot<NodeList> {
-        NodeList::new_elements_by_name_list(self.window(), self, name, can_gc)
+    fn GetElementsByName(&self, cx: &mut JSContext, name: DOMString) -> DomRoot<NodeList> {
+        NodeList::new_elements_by_name_list(cx, self.window(), self, name)
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-document-images>
@@ -5948,8 +5919,8 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
     fn Links(&self, cx: &mut JSContext) -> DomRoot<HTMLCollection> {
         self.links.or_init(|| {
             HTMLCollection::new_with_filter_fn(cx, &self.window, self.upcast(), |element, _| {
-                (element.is::<HTMLAnchorElement>() || element.is::<HTMLAreaElement>())
-                    && element.has_attribute(&local_name!("href"))
+                (element.is::<HTMLAnchorElement>() || element.is::<HTMLAreaElement>()) &&
+                    element.has_attribute(&local_name!("href"))
             })
         })
     }
@@ -6196,8 +6167,8 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
                         elem.get_name().as_ref() == Some(&self.name)
                     },
                     HTMLElementTypeId::HTMLImageElement => elem.get_name().is_some_and(|name| {
-                        name == *self.name
-                            || !name.is_empty() && elem.get_id().as_ref() == Some(&self.name)
+                        name == *self.name ||
+                            !name.is_empty() && elem.get_id().as_ref() == Some(&self.name)
                     }),
                     // TODO handle <embed> and <object>; these depend on whether the element is
                     // “exposed”, a concept that doesn’t fully make sense until embed/object
@@ -6462,7 +6433,7 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
         let resource_threads = self.window.as_global_scope().resource_threads().clone();
         *self.loader.borrow_mut() =
             DocumentLoader::new_with_threads(resource_threads, Some(self.url()));
-        ServoParser::parse_html_script_input(self, self.url());
+        ServoParser::parse_html_script_input(cx, self, self.url());
 
         // Step 17. Set the insertion point to point at just before the end of the input stream
         // (which at this point will be empty).
@@ -6710,12 +6681,11 @@ impl DocumentMethods<crate::DomTypeHolder> for Document {
     fn SetAdoptedStyleSheets(&self, cx: &mut JSContext, val: HandleValue) -> ErrorResult {
         let result = DocumentOrShadowRoot::set_adopted_stylesheet_from_jsval(
             cx,
-            self.adopted_stylesheets.borrow_mut().as_mut(),
+            &self.adopted_stylesheets,
             val,
             &StyleSheetListOwner::Document(Dom::from_ref(self)),
         );
 
-        // If update is successful, clear the FrozenArray cache.
         if result.is_ok() {
             self.adopted_stylesheets_frozen_types.clear()
         }
@@ -6841,9 +6811,9 @@ fn is_named_element_with_name_attribute(elem: &Element) -> bool {
         _ => return false,
     };
     match type_ {
-        HTMLElementTypeId::HTMLFormElement
-        | HTMLElementTypeId::HTMLIFrameElement
-        | HTMLElementTypeId::HTMLImageElement => true,
+        HTMLElementTypeId::HTMLFormElement |
+        HTMLElementTypeId::HTMLIFrameElement |
+        HTMLElementTypeId::HTMLImageElement => true,
         // TODO handle <embed> and <object>; these depend on whether the element is
         // “exposed”, a concept that doesn’t fully make sense until embed/object
         // behaviour is actually implemented
@@ -6896,7 +6866,7 @@ pub(crate) struct SameOriginDescendantNavigablesIterator {
 }
 
 impl SameOriginDescendantNavigablesIterator {
-    pub(crate) fn new(document: DomRoot<Document>) -> Self {
+    pub(crate) fn new(document: &Document) -> Self {
         let iframes: Vec<DomRoot<HTMLIFrameElement>> = document.iframes().iter().collect();
         Self {
             stack: vec![Box::new(iframes.into_iter())],

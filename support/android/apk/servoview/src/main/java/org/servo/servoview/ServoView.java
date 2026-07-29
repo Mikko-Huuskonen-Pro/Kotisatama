@@ -194,22 +194,22 @@ public class ServoView extends SurfaceView
     }
 
     public String kotisatamaSearch(String query) {
-        if (mServo != null) {
-            return mServo.kotisatamaSearch(query);
+        if (servo != null) {
+            return servo.kotisatamaSearch(query);
         }
         return "{\"type\":\"error\",\"message\":\"Servo not initialized\"}";
     }
 
     public String kotisatamaSubmitReport(String kind, String domain, String message, String contextUrl) {
-        if (mServo != null) {
-            return mServo.kotisatamaSubmitReport(kind, domain, message, contextUrl);
+        if (servo != null) {
+            return servo.kotisatamaSubmitReport(kind, domain, message, contextUrl);
         }
         return "Servo not initialized";
     }
 
     public boolean kotisatamaShouldShowReport(String currentUrl) {
-        if (mServo != null) {
-            return mServo.kotisatamaShouldShowReport(currentUrl);
+        if (servo != null) {
+            return servo.kotisatamaShouldShowReport(currentUrl);
         }
         return !currentUrl.contains("startpage.com");
     }

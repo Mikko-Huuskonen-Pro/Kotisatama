@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta data-i18n-title="title" />
+    <link rel="stylesheet" href="resource:///avomeri.css" />
+  </head>
+  <body>
+    <main class="card" role="main">
+      <h1 data-i18n="heading">Avomeri</h1>
+      <p class="muted" data-i18n="intro">
+        Avomeri on erillinen poikkeustila avoimelle netille. Satama ei avaa sitä
+        automaattisesti.
+      </p>
+
+      <section id="request" class="request hidden" aria-live="polite">
+        <h2 data-i18n="requestHeading">Avomerelle pyydetty haku</h2>
+        <p id="query"></p>
+        <p class="muted" data-i18n="requestHelp">
+          Jatka vain, jos haluat poistua Sataman whitelist-suojasta.
+        </p>
+      </section>
+
+      <p class="actions">
+        <a id="openAvomeri" class="button" href="servo:avomeri/open" data-i18n="openAvomeri">Jatka Avomerelle</a>
+        <a href="servo:avomeri/leave" data-i18n="backSatama">Takaisin Satamaan</a>
+        <a href="servo:whitelist" data-i18n="manageSites">Ehdota tai lisaa sivusto</a>
+      </p>
+
+      <p id="offline" class="offline hidden" aria-live="polite" data-i18n="offline"></p>
+      <p id="pullopostiPrompt" class="pulloposti hidden" aria-live="polite" data-i18n-html="pullopostiPrompt"></p>
+    </main>
+
+    <script src="resource:///kotisatama-i18n.js"></script>
+    <script>
+      (function () {
+        KotisatamaI18n.applyDocument("avomeri");
+
+        const params = new URLSearchParams(location.search);
+        const q = params.get("q") || "";
+        const requestEl = document.getElementById("request");
+        const queryEl = document.getElementById("query");
+        const openLink = document.getElementById("openAvomeri");
+        const offlineEl = document.getElementById("offline");
+        const pullopostiEl = document.getElementById("pullopostiPrompt");
+
+        if (q) {
+          requestEl.classList.remove("hidden");
+          queryEl.textContent = q;
+          openLink.href = "servo:avomeri/open?q=" + encodeURIComponent(q);
+        }
+
+        function setOffline(isOffline) {
+          document.documentElement.classList.toggle("is-offline", isOffline);
+          offlineEl.classList.toggle("hidden", !isOffline);
+          pullopostiEl.classList.toggle("hidden", !isOffline);
+        }
+
+        function updateOffline() {
+          setOffline(navigator.onLine === false);
+        }
+
+        window.addEventListener("online", updateOffline);
+        window.addEventListener("offline", updateOffline);
+        updateOffline();
+      })();
+    </script>
+  </body>
+</html>

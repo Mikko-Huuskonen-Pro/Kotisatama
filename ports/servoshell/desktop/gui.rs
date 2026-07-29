@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-// KOTISATAMA-PATCH: taustahaku ja raportointi käyttävät mpsc-kanavaa (ks. suljetun repon Docs/KIELIROADMAP.md Vaihe 0).
+// KOTISATAMA-PATCH: taustahaku ja raportointi käyttävät mpsc-kanavaa (ks. suljetun repon Docs/KIELIROADMAP.md Vaihe 0) — 后台搜索和报告使用mpsc通道。
 use std::sync::mpsc::{self, Receiver};
 
 use dpi::PhysicalSize;
@@ -76,7 +76,7 @@ pub struct Gui {
     /// This allows us to ensure that graft nodes are sent before the subtrees they graft.
     pending_accesskit_updates: Vec<accesskit::TreeUpdate>,
 
-    // KOTISATAMA-PATCH: desktop-raportointi ja suomenkielinen UI (ks. suljetun repon Docs/KIELIROADMAP.md).
+    // KOTISATAMA-PATCH: desktop-raportointi ja suomenkielinen UI (ks. suljetun repon Docs/KIELIROADMAP.md) — 桌面报告和芬兰语UI。
     /// Kotisatama anonymous report dialog.
     #[cfg(feature = "kotisatama")]
     report_dialog_open: bool,
@@ -252,7 +252,7 @@ impl Gui {
             can_go_forward: false,
             favicon_textures: Default::default(),
             pending_accesskit_updates: vec![],
-            // KOTISATAMA-PATCH: alusta raportointitila (ks. suljetun repon Docs/KIELIROADMAP.md).
+            // KOTISATAMA-PATCH: alusta raportointitila (ks. suljetun repon Docs/KIELIROADMAP.md) — 初始化报告状态。
             #[cfg(feature = "kotisatama")]
             report_dialog_open: false,
             #[cfg(feature = "kotisatama")]
@@ -419,7 +419,7 @@ impl Gui {
         context.run(winit_window, |ctx| {
             load_pending_favicons(ctx, window, favicon_textures);
 
-            // KOTISATAMA-PATCH: Satama/Avomeri/Myrsky-tausta työkalupalkin takana (ks. suljetun repon Docs/VAIHE7-TEEMAT.md).
+            // KOTISATAMA-PATCH: Satama/Avomeri/Myrsky-tausta työkalupalkin takana (ks. suljetun repon Docs/VAIHE7-TEEMAT.md) — 工具栏后面的Satama/Avomeri/Myrsky主题背景。
             #[cfg(feature = "kotisatama")]
             let kotisatama_theme = {
                 let current_location = window
@@ -510,7 +510,7 @@ impl Gui {
                             }
                             ui.add_space(2.0);
 
-                            // KOTISATAMA-PATCH: mainosteneston laskuri + sivustopoikkeus.
+                            // KOTISATAMA-PATCH: mainosteneston laskuri + sivustopoikkeus — 广告拦截计数器+站点例外。
                             #[cfg(feature = "kotisatama")]
                             {
                                 if crate::kotisatama::content_blocking_active() {
@@ -550,7 +550,7 @@ impl Gui {
                                 }
                             }
 
-                            // KOTISATAMA-PATCH: "Ilmoita"-painike työkalupalkissa.
+                            // KOTISATAMA-PATCH: "Ilmoita"-painike työkalupalkissa — 工具栏中的"报告"按钮。
                             #[cfg(feature = "kotisatama")]
                             if crate::kotisatama::should_show_report_button(location) {
                                 let report_button = ui.add(Gui::toolbar_button(t("report_button")));
@@ -567,7 +567,7 @@ impl Gui {
                                     window.set_needs_repaint();
                                 }
                             }
-                            // KOTISATAMA-PATCH: Varustamo parkkeerattu — ei ydintoimintoa.
+                            // KOTISATAMA-PATCH: Varustamo parkkeerattu — ei ydintoimintoa — Varustamo已停放——无核心功能。
                             #[cfg(feature = "kotisatama")]
                             if crate::kotisatama::varustamo_enabled() {
                                 let varustamo_button =
@@ -765,7 +765,7 @@ impl Gui {
                 .show(|ui| ui.add(Label::new(status_text.clone()).extend()));
             }
 
-            // KOTISATAMA-PATCH: raporttien vastausten kuuntelu.
+            // KOTISATAMA-PATCH: raporttien vastausten kuuntelu — 监听报告响应。
             #[cfg(feature = "kotisatama")]
             {
                 if let Some(rx) = &self.report_pending {
@@ -777,7 +777,7 @@ impl Gui {
                 }
             }
 
-            // KOTISATAMA-PATCH: anonyymi raportointidialogi (suomenkielinen teksti).
+            // KOTISATAMA-PATCH: anonyymi raportointidialogi (suomenkielinen teksti) — 匿名报告对话框（芬兰语文本）。
             #[cfg(feature = "kotisatama")]
             if self.report_dialog_open {
                 use kotisatama_report::ReportKind;

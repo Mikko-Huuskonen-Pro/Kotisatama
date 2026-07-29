@@ -8,7 +8,23 @@ Tämä tiedosto ohjaa koodiagentin toimintaa Kotisatama-repossa. Lue ennen kuin 
 
 **Älä koskaan muokkaa Servo-upstream-tiedostoja suoraan.**
 
-Kaikki Kotisatama-spesifinen koodi elää `components/kotisatama/`-hakemistossa, `ports/servoshell/`-hookissa tai erillisissä hakemistoissa (`tauri/`, `crawler/`). Jos jokin muutos tuntuu vaativan upstream-tiedoston muokkaamista, pysähdy ja kysy ensin. Koska Servo on 100% englanniksi, käytetään kotisatamassa kommenteissa (//) ja elementeissä suomea. Näin nopealla silmäyksellä erottaa mistä koodi on tullut. 
+Kaikki Kotisatama-spesifinen koodi elää `components/kotisatama/`-hakemistossa, `ports/servoshell/`-hookissa tai erillisissä hakemistoissa (`tauri/`, `crawler/`). Jos jokin muutos tuntuu vaativan upstream-tiedoston muokkaamista, pysähdy ja kysy ensin.
+
+### Kommenttikieli — 注释语言
+
+Servo on 100 % englanniksi. Kotisataman omat kommentit (`//`, `<!-- -->` ym.) kirjoitetaan **suomeksi ensisijaisesti ja mandariinikiinaksi käännöksenä** samalla rivillä tai seuraavalla. Näin sekä suomenkieliset kehittäjät että kiinan- tai englanninkieliset tekoälyagentit ymmärtävät tarkoituksen.
+
+Muoto:
+
+```rust
+// KOTISATAMA-PATCH: suomenkielinen selitys — 中文翻译
+```
+
+```xml
+<!-- KOTISATAMA-PATCH: suomenkielinen selitys — 中文翻译 -->
+```
+
+Suomi on aina ensimmäinen, kiina tulee ajatusviivan `—` jälkeen. Vanhat kommentit päivitetään samaan muotoon kun tiedostoa muutenkin muokataan.
 
 ---
 

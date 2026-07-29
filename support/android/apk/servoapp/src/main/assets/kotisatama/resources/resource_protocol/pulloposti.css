@@ -1,0 +1,117 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+html,
+body {
+  height: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  display: grid;
+  place-items: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+
+main.card {
+  width: min(720px, calc(100vw - 2rem));
+  padding: 1.25rem 1.25rem;
+  border-radius: 14px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.muted {
+  opacity: 0.88;
+  margin-top: 0.35rem;
+}
+
+.muted.small {
+  font-size: 0.9rem;
+  margin-top: 1.25rem;
+}
+
+.status {
+  margin-top: 1rem;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.button,
+button {
+  border-radius: 10px;
+  border: 0;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button.secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.hidden {
+  display: none;
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    background-image:
+      linear-gradient(rgba(248, 250, 252, 0.88), rgba(248, 250, 252, 0.88)),
+      url("resource:///themes/myrsky.svg");
+    color: #0e1726;
+  }
+  main.card {
+    background: rgba(255, 255, 255, 0.70);
+    border: 1px solid rgba(10, 20, 30, 0.10);
+  }
+  .button {
+    background: #42bf64;
+    color: #ffffff;
+  }
+  button.secondary {
+    color: #0e1726;
+    border-color: rgba(10, 20, 30, 0.15);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-image:
+      linear-gradient(rgba(12, 16, 22, 0.78), rgba(12, 16, 22, 0.78)),
+      url("resource:///themes/myrsky.svg");
+    color: hsl(0, 0%, 96%);
+  }
+  main.card {
+    background: rgba(15, 22, 33, 0.70);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+  }
+  .button {
+    background: rgba(255, 255, 255, 0.10);
+    color: #42bf64;
+  }
+  button.secondary {
+    color: hsl(0, 0%, 96%);
+  }
+}
+
+html.is-offline body {
+  background-image:
+    linear-gradient(rgba(12, 16, 22, 0.85), rgba(12, 16, 22, 0.85)),
+    url("resource:///themes/myrsky.svg");
+}

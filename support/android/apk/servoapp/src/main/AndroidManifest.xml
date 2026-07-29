@@ -10,7 +10,8 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
-    <application android:label="@string/app_name" android:icon="@mipmap/servo">
+    <!-- KOTISATAMA-PATCH: Kotisatama-launcher-ikoni (ei servo.webp upstream-ikonin tilalle) — Kotisatama启动图标（不替换upstream的servo.webp） -->
+    <application android:label="@string/app_name" android:icon="@mipmap/kotisatama">
         <activity android:name=".MainActivity"
             android:configChanges="density|keyboardHidden|navigation|orientation|screenSize|uiMode"
             android:exported="true"

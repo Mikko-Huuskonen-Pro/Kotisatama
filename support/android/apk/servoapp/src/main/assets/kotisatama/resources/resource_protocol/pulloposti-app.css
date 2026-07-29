@@ -1,0 +1,184 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+html,
+body {
+  height: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+
+.page {
+  width: min(920px, calc(100vw - 2rem));
+  margin: 1.25rem auto 2rem;
+  padding: 1.25rem;
+  border-radius: 14px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.muted {
+  opacity: 0.88;
+}
+
+.small {
+  font-size: 0.9rem;
+}
+
+section {
+  margin-top: 1.5rem;
+}
+
+section:first-of-type {
+  margin-top: 0.75rem;
+}
+
+h1,
+h2 {
+  margin: 0 0 0.5rem;
+}
+
+.status {
+  font-weight: 600;
+  margin: 0.5rem 0 0;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+input,
+textarea,
+select,
+button,
+a.button {
+  font: inherit;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.55rem 0.7rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+
+textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+button,
+a.button {
+  border-radius: 10px;
+  border: 0;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button.secondary,
+a.button.secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.letters {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+}
+
+.letters li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.letters li:last-child {
+  border-bottom: 0;
+}
+
+.letter-meta {
+  min-width: 0;
+}
+
+.letter-preview {
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    background-image:
+      linear-gradient(rgba(248, 250, 252, 0.88), rgba(248, 250, 252, 0.88)),
+      url("resource:///themes/myrsky.svg");
+    color: #0e1726;
+  }
+
+  .page {
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  input,
+  textarea,
+  select {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(15, 23, 42, 0.12);
+  }
+
+  button.secondary,
+  a.button.secondary {
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-image:
+      linear-gradient(rgba(8, 18, 32, 0.82), rgba(8, 18, 32, 0.82)),
+      url("resource:///themes/myrsky.svg");
+    color: #f8fafc;
+  }
+
+  .page {
+    background: rgba(15, 23, 42, 0.72);
+  }
+}

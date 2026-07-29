@@ -4,7 +4,7 @@
 
 #![allow(non_snake_case)]
 
-// KOTISATAMA-PATCH: JNI-sillat Android-hakuun ja raportointiin.
+// KOTISATAMA-PATCH: JNI-sillat Android-hakuun ja raportointiin — Android搜索和报告的JNI桥接。
 #[cfg(feature = "kotisatama")]
 mod kotisatama;
 

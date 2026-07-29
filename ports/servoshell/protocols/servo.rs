@@ -78,7 +78,7 @@ impl ProtocolHandler for ServoProtocolHandler {
                 context,
                 "/newtab.html",
             ),
-            // KOTISATAMA-PATCH: sisäiset avomeri- ja pulloposti-sivut (resource_protocol).
+            // KOTISATAMA-PATCH: sisäiset avomeri- ja pulloposti-sivut (resource_protocol) — 内部avomeri和漂流瓶页面（resource_protocol）。
             "avomeri" => ResourceProtocolHandler::response_for_path(
                 request,
                 done_chan,
@@ -105,7 +105,7 @@ impl ProtocolHandler for ServoProtocolHandler {
                 return redirect_response(request, "servo:newtab");
             },
 
-            // KOTISATAMA-PATCH: sisäinen hakutulossivu (resource_protocol/haku.html).
+            // KOTISATAMA-PATCH: sisäinen hakutulossivu (resource_protocol/haku.html) — 内部搜索结果页面（resource_protocol/haku.html）。
             #[cfg(feature = "kotisatama")]
             "haku" => ResourceProtocolHandler::response_for_path(
                 request,
@@ -185,7 +185,7 @@ impl ProtocolHandler for ServoProtocolHandler {
                 "/missa-olen.html",
             ),
 
-            // KOTISATAMA-PATCH: whitelist-blokkaussivu (i18n: blocked.html + kotisatama-i18n.js).
+            // KOTISATAMA-PATCH: whitelist-blokkaussivu (i18n: blocked.html + kotisatama-i18n.js) — 白名单阻止页面（国际化：blocked.html + kotisatama-i18n.js）。
             "blocked" => ResourceProtocolHandler::response_for_path(
                 request,
                 done_chan,
@@ -193,7 +193,7 @@ impl ProtocolHandler for ServoProtocolHandler {
                 "/blocked.html",
             ),
 
-            // KOTISATAMA-PATCH: käyttäjän omat whitelist-sivut (overlay, ei CDN:ää).
+            // KOTISATAMA-PATCH: käyttäjän omat whitelist-sivut (overlay, ei CDN:ää) — 用户自定义白名单页面（覆盖，无CDN）。
             #[cfg(feature = "kotisatama")]
             "whitelist/add" => {
                 use kotisatama_whitelist::normalize_domain;
@@ -293,7 +293,7 @@ impl ProtocolHandler for ServoProtocolHandler {
                 "/my-sites.html",
             ),
 
-            // KOTISATAMA-PATCH: tallenna kielivalinta desktop-UI:lle ja ohjaa takaisin configiin.
+            // KOTISATAMA-PATCH: tallenna kielivalinta desktop-UI:lle ja ohjaa takaisin configiin — 保存桌面UI的语言选择并重定向回配置。
             #[cfg(feature = "kotisatama")]
             "locale" => {
                 if let Some(set) = url

@@ -139,7 +139,7 @@ project.afterEvaluate {
         val ndkBuildTask = tasks.create<Exec>("ndkbuild" + compileTask.name) {
             val debug = compileTask.name.contains("Debug")
             commandLine(
-                getNdkDir() + "/ndk-build",
+                getNdkBuildPath(),
                 "APP_BUILD_SCRIPT=../jni/Android.mk",
                 "NDK_APPLICATION_MK=../jni/Application.mk",
                 "NDK_LIBS_OUT=" + getJniLibsPath(debug, arch),

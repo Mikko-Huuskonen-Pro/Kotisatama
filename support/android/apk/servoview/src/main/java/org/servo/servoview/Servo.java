@@ -134,15 +134,15 @@ public class Servo {
     }
 
     public String kotisatamaSearch(String query) {
-        return mJNI.kotisatamaSearch(query);
+        return jni.kotisatamaSearch(query);
     }
 
     public String kotisatamaSubmitReport(String kind, String domain, String message, String contextUrl) {
-        return mJNI.kotisatamaSubmitReport(kind, domain, message, contextUrl);
+        return jni.kotisatamaSubmitReport(kind, domain, message, contextUrl);
     }
 
     public boolean kotisatamaShouldShowReport(String currentUrl) {
-        return mJNI.kotisatamaShouldShowReport(currentUrl);
+        return jni.kotisatamaShouldShowReport(currentUrl);
     }
 
     public interface Client {

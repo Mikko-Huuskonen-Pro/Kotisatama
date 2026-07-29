@@ -19,7 +19,7 @@ mod egl;
 mod panic_hook;
 mod parser;
 mod prefs;
-// KOTISATAMA-PATCH: servo:/resource:-protokollat myös Androidilla (haku ym.).
+// KOTISATAMA-PATCH: servo:/resource:-protokollat myös Androidilla (haku ym.) — servo:/resource:协议也适用于Android（搜索等）。
 #[cfg(not(target_env = "ohos"))]
 mod protocols;
 #[cfg(not(target_env = "ohos"))]
@@ -28,7 +28,7 @@ mod running_app_state;
 mod webdriver;
 mod window;
 
-// KOTISATAMA-PATCH: Kotisatama-integraatio (whitelist, haku, raportti, pulloposti).
+// KOTISATAMA-PATCH: Kotisatama-integraatio (whitelist, haku, raportti, pulloposti) — Kotisatama集成（白名单、搜索、报告、漂流瓶）。
 #[cfg(feature = "kotisatama")]
 mod kotisatama;
 

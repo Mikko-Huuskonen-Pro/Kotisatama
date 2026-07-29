@@ -72,13 +72,16 @@ mod tests {
     fn enrich_hit_without_whitelist_uses_title_and_url() {
         let hit = SearchHit {
             id: 1,
-            url: "https://www.kela.fi/elake".into(),
+            url: "https://www.example.com/elake".into(),
             title: "Eläke".into(),
         };
         let enriched = enrich_hit(&hit);
         assert_eq!(enriched.title, "Eläke");
-        assert_eq!(enriched.url, "https://www.kela.fi/elake");
+        assert_eq!(enriched.url, "https://www.example.com/elake");
         assert!(enriched.label.is_none());
+        assert!(enriched.category.is_none());
+        assert!(enriched.entry_type.is_none());
+        assert!(enriched.tags.is_empty());
     }
 
     #[test]

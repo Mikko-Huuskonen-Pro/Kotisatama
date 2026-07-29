@@ -60,7 +60,7 @@ pub(crate) static EXPERIMENTAL_PREFS: &[&str] = &[
 
 // KOTISATAMA-PATCH: Kotisatama ships with experimental web platform prefs
 // enabled so app surfaces such as Varustamo work without a manual CLI flag
-// or menu toggle.
+// or menu toggle. — Kotisatama默认启用实验性Web平台首选项，无需手动CLI标志。
 const KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED: bool = true;
 
 #[cfg_attr(any(target_os = "android", target_env = "ohos"), expect(dead_code))]
@@ -124,7 +124,7 @@ impl Default for ServoShellPreferences {
             clean_shutdown: false,
             device_pixel_ratio_override: None,
             headless: false,
-            // KOTISATAMA-PATCH: Kotisataman etusivu käynnistyksessä.
+            // KOTISATAMA-PATCH: Kotisataman etusivu käynnistyksessä — Kotisatama启动时的主页。
             #[cfg(feature = "kotisatama")]
             homepage: KOTISATAMA_DEFAULT_HOMEPAGE.into(),
             #[cfg(not(feature = "kotisatama"))]
@@ -133,7 +133,7 @@ impl Default for ServoShellPreferences {
             no_native_titlebar: true,
             screen_size_override: None,
             simulate_touch_events: false,
-            // KOTISATAMA-PATCH: avoin haku ei ole oletusfallback; ohjaa sisäiseen Avomeri-porttiin.
+            // KOTISATAMA-PATCH: avoin haku ei ole oletusfallback; ohjaa sisäiseen Avomeri-porttiin — 开放搜索不是默认回退；重定向到内部Avomeri端口。
             searchpage: "servo:avomeri?q=%s".into(),
             tracing_filter: None,
             url: None,
@@ -602,7 +602,7 @@ struct CmdArgs {
     zealous_gc: bool,
 
     /// The url we should load.
-    // KOTISATAMA-PATCH: tyhjä oletus → käytä homepage-prefiä (katselin.fi).
+    // KOTISATAMA-PATCH: tyhjä oletus → käytä homepage-prefiä (katselin.fi) — 空默认值→使用主页首选项（katselin.fi）。
     #[cfg(feature = "kotisatama")]
     #[bpaf(positional("URL"), fallback(String::new()))]
     url: String,
@@ -623,6 +623,7 @@ fn update_preferences_from_command_line_arguments(
     // KOTISATAMA-PATCH: keep experimental web platform prefs enabled by default
     // in Kotisatama. The upstream CLI flag still maps to the same state, but it
     // is no longer required for Kotisatama builds.
+    // — 在Kotisatama中默认保持实验性Web平台首选项启用。
     let experimental_preferences_enabled =
         KOTISATAMA_EXPERIMENTAL_PREFS_ENABLED || cmd_args.enable_experimental_web_platform_features;
 
@@ -909,7 +910,7 @@ fn test_create_prefs_map() {
     let json_str = "{
         \"layout.writing-mode.enabled\": true,
         \"network.mime.sniff\": false,
-        // KOTISATAMA-PATCH: testi vastaa oletuskotisatama-homepagea.
+        // KOTISATAMA-PATCH: testi vastaa oletuskotisatama-homepagea — 测试匹配默认Kotisatama主页。
         \"shell.homepage\": \"https://katselin.fi/fi/\"
     }";
     assert_eq!(read_prefs_map(json_str).len(), 3);

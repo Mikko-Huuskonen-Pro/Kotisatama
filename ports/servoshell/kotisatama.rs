@@ -93,7 +93,7 @@ pub fn init() {
     }
 
     // Meilisearch, Pulloposti and Varustamo apps start lazily on first use.
-    // KOTISATAMA-PATCH: Varustamo parkkeerattu (ei ydintoimintoa).
+    // KOTISATAMA-PATCH: Varustamo parkkeerattu (ei ydintoimintoa) — Varustamo已停放（无核心功能）。
     if varustamo_enabled() {
         match load_registry() {
             Ok(registry) => info!(
@@ -106,7 +106,7 @@ pub fn init() {
         info!("Varustamo: pois käytöstä (parkkeerattu)");
     }
 
-    // KOTISATAMA-PATCH: mainostenesto (adblock-Katselin) — fail-open jos lista puuttuu.
+    // KOTISATAMA-PATCH: mainostenesto (adblock-Katselin) — fail-open jos lista puuttuu — 广告拦截（adblock-Katselin）——如果列表缺失则fail-open。
     let blocking = kotisatama_content_blocking::ContentBlockingService::from_bundled_filters();
     info!("Kotisatama content-blocking: {:?}", blocking.status());
     let _ = CONTENT_BLOCKING.set(blocking);
@@ -182,7 +182,7 @@ pub fn should_allow_navigation(webview: &WebView, target: &Url) -> bool {
 /// Track allowed navigations.
 pub fn on_allowed_navigation(url: &Url) {
     let _ = url;
-    // KOTISATAMA-PATCH: nollaa sivukohtainen estolaskuri uudella sivulla.
+    // KOTISATAMA-PATCH: nollaa sivukohtainen estolaskuri uudella sivulla — 在新页面上重置每页阻止计数器。
     content_blocking().reset_page_stats();
 }
 
@@ -445,7 +445,7 @@ pub fn varustamo_registry() -> Option<VarustamoRegistry> {
     load_registry().ok()
 }
 
-/// KOTISATAMA-PATCH: Varustamo parkkeerattu oletuksena (ei ydintoimintoa).
+/// KOTISATAMA-PATCH: Varustamo parkkeerattu oletuksena (ei ydintoimintoa) — Varustamo默认停放（无核心功能）。
 /// Takaisin: `KOTISATAMA_VARUSTAMO=1` tai vaihda oletus `true`.
 pub fn varustamo_enabled() -> bool {
     match std::env::var("KOTISATAMA_VARUSTAMO") {

@@ -219,7 +219,8 @@ class MachCommands(CommandBase):
             try:
                 import Cocoa  # pyrefly: ignore[missing-import]
 
-                icon_path = path.join(self.get_top_dir(), "resources", "servo_1024.png")
+                # KOTISATAMA-PATCH: Kotisatama-ikoni macOS-binaarille (ei servo_1024.png) — macOS二进制文件的Kotisatama图标（不替换servo_1024.png）。
+                icon_path = path.join(self.get_top_dir(), "resources", "kotisatama_1024.png")
                 icon = Cocoa.NSImage.alloc().initWithContentsOfFile_(icon_path)
                 if icon is not None:
                     Cocoa.NSWorkspace.sharedWorkspace().setIcon_forFile_options_(icon, built_binary, 0)

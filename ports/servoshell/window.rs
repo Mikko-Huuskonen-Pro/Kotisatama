@@ -118,7 +118,7 @@ impl ServoShellWindow {
         state: Rc<RunningAppState>,
         url: Url,
     ) -> WebView {
-        // KOTISATAMA-PATCH: ensimmäinen sivu whitelistatun tai blokkaussivun kautta.
+        // KOTISATAMA-PATCH: ensimmäinen sivu whitelistatun tai blokkaussivun kautta — 第一页通过白名单或阻止页面。
         #[cfg(feature = "kotisatama")]
         let url = if crate::kotisatama::check_url(&url) {
             url
@@ -366,7 +366,7 @@ impl ServoShellWindow {
                             warn!("failed to parse location");
                             break;
                         };
-                        // KOTISATAMA-PATCH: osoitepalkin Go → whitelist/blokkaussivu.
+                        // KOTISATAMA-PATCH: osoitepalkin Go → whitelist/blokkaussivu — 地址栏Go→白名单/阻止页面。
                         #[cfg(feature = "kotisatama")]
                         crate::kotisatama::load_url_or_blocked(&active_webview, url.into_url());
                         #[cfg(not(feature = "kotisatama"))]

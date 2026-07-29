@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta data-i18n-title="title" />
+    <style>
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        line-height: 1.5;
+        color: #1a1a1a;
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-position: center;
+        background-image:
+          linear-gradient(rgba(250, 250, 250, 0.92), rgba(250, 250, 250, 0.92)),
+          url("resource:///themes/kotisatama.svg");
+      }
+      main {
+        max-width: 52rem;
+        margin: 2.5rem;
+        padding: 1.25rem;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.65);
+        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.15);
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.75rem;
+      }
+      p {
+        margin: 0.5rem 0;
+      }
+      a {
+        font-size: 1.05rem;
+      }
+      .url {
+        color: #555;
+        font-size: 0.95rem;
+        word-break: break-all;
+      }
+      .report-hint {
+        margin-top: 1.5rem;
+        color: #666;
+        font-size: 0.9rem;
+      }
+      .actions {
+        margin-top: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .add-site {
+        display: inline-block;
+        padding: 0.55rem 1rem;
+        border-radius: 8px;
+        background: #1f6b4a;
+        color: #fff;
+        text-decoration: none;
+        width: fit-content;
+      }
+      .manage-link {
+        font-size: 0.95rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 data-i18n="heading">Sivusto ei ole sataman listalla</h1>
+      <p id="blockedUrl" class="url"></p>
+      <div class="actions">
+        <a id="addSiteLink" class="add-site" data-i18n="addSiteLink">Lisää sivusto sallittuihin</a>
+        <a id="avomeriLink" data-i18n="avomeriLink">Avaa Avomeri-portti</a>
+        <a class="manage-link" href="servo:whitelist" data-i18n="manageSitesLink">Hallitse sallittuja sivustoja</a>
+      </div>
+      <p class="report-hint" data-i18n-html="reportHint"></p>
+    </main>
+
+    <script src="resource:///kotisatama-i18n.js"></script>
+    <script>
+      (function () {
+        KotisatamaI18n.applyDocument("blocked");
+
+        const params = new URLSearchParams(location.search);
+        const blockedUrl = params.get("u") || "";
+
+        document.getElementById("blockedUrl").textContent = blockedUrl;
+
+        const addSiteLink = document.getElementById("addSiteLink");
+        const avomeriLink = document.getElementById("avomeriLink");
+        if (blockedUrl) {
+          try {
+            const host = new URL(blockedUrl).hostname.replace(/^www\./i, "");
+            if (host) {
+              avomeriLink.href = "servo:avomeri?q=" + encodeURIComponent(host);
+              const returnParam = encodeURIComponent(blockedUrl);
+              addSiteLink.href =
+                "servo:whitelist/add?domain=" +
+                encodeURIComponent(host) +
+                "&return=" +
+                returnParam;
+            } else {
+              addSiteLink.hidden = true;
+            }
+          } catch (_) {
+            addSiteLink.hidden = true;
+            avomeriLink.href = "servo:avomeri";
+          }
+        } else {
+          addSiteLink.hidden = true;
+          avomeriLink.href = "servo:avomeri";
+        }
+      })();
+    </script>
+  </body>
+</html>

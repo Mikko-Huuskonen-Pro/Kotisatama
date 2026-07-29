@@ -56,7 +56,7 @@ impl ServoHttpConnector {
     }
 }
 
-// KOTISATAMA-PATCH: selainmainen TCP-yhteysraja per host.
+// KOTISATAMA-PATCH: selainmainen TCP-yhteysraja per host — 类浏览器的每主机TCP连接限制。
 //
 // Syy: Next.js-sivut (esim. www.kela.fi) avaavat kymmeniä chunk-GETejä kerralla.
 // Hyper avaa ilman rajaa yhtä monta HTTP/1.1-TCP-yhteyttä → CDN/Windows 10054

@@ -41,7 +41,7 @@ OriginalFilename = "servoshell.exe"
 ProductName = "ServoShell"
 
 [features]
-# KOTISATAMA-PATCH: kotisatama oletuksena päällä; pois päältä upstream-käyttäytyminen.
+# KOTISATAMA-PATCH: kotisatama oletuksena päällä; pois päältä upstream-käyttäytyminen — Kotisatama默认启用；禁用时为upstream行为。
 default = ["baked-in-resources", "bundled_freetype", "gamepad", "kotisatama", "servo/clipboard", "js_jit", "max_log_level", "webgpu", "webxr"]
 baked-in-resources = ["servo/baked-in-resources"]
 bundled_freetype = ["servo/bundled_freetype"]
@@ -62,7 +62,7 @@ vello = ["servo/vello"]
 webgl_backtrace = ["servo/webgl_backtrace"]
 webgpu = ["servo/webgpu"]
 webxr = ["servo/webxr"]
-# KOTISATAMA-PATCH: feature flag Kotisatama-cratesille.
+# KOTISATAMA-PATCH: feature flag Kotisatama-cratesille — Kotisatama crate的feature flag。
 kotisatama = ["dep:kotisatama-whitelist", "dep:kotisatama-search", "dep:kotisatama-report", "dep:kotisatama-pulloposti", "dep:kotisatama-varustamo", "dep:kotisatama-missa-olen", "dep:kotisatama-i18n", "dep:kotisatama-content-blocking"]
 
 [dependencies]
@@ -75,7 +75,7 @@ euclid = { workspace = true }
 hitrace = { workspace = true, optional = true }
 image = { workspace = true }
 keyboard-types = { workspace = true }
-# KOTISATAMA-PATCH: valinnaiset Kotisatama-crates (aktivoituu kotisatama-featurella).
+# KOTISATAMA-PATCH: valinnaiset Kotisatama-crates (aktivoituu kotisatama-featurella) — 可选的Kotisatama crate（通过kotisatama feature激活）。
 kotisatama-whitelist = { workspace = true, optional = true }
 kotisatama-search = { workspace = true, optional = true }
 kotisatama-report = { workspace = true, optional = true }

@@ -37,7 +37,7 @@ use servo::{
     WebDriverCommandMsg, WebDriverJSResult, WebDriverLoadStatus, WebDriverScriptCommand,
     WebDriverSenders, WebResourceLoad, WebResourceResponse, WebView, WebViewDelegate, WebViewId,
 };
-// KOTISATAMA-PATCH: whitelist-navigointi WebViewDelegate-hookissa (ks. AGENT.md).
+// KOTISATAMA-PATCH: whitelist-navigointi WebViewDelegate-hookissa (ks. AGENT.md) — 白名单导航在WebViewDelegate钩子中（参见AGENT.md）。
 #[cfg(feature = "kotisatama")]
 use servo::NavigationRequest;
 use url::Url;
@@ -162,7 +162,7 @@ impl WebViewCollection {
 #[cfg_attr(any(target_os = "android", target_env = "ohos"), expect(dead_code))]
 pub(crate) enum UserInterfaceCommand {
     Go(String),
-    /// KOTISATAMA-PATCH: avaa aina hakutulossivu (hakupainike).
+    /// KOTISATAMA-PATCH: avaa aina hakutulossivu (hakupainike) — 始终打开搜索结果页面（搜索按钮）。
     #[cfg(feature = "kotisatama")]
     Search(String),
     Back,
@@ -250,7 +250,7 @@ impl RunningAppState {
         ))]
         gamepad_delegate: Option<Rc<ServoshellGamepadDelegate>>,
     ) -> Self {
-        // KOTISATAMA-PATCH: lataa whitelist ja käynnistä haku/pulloposti-subprocessit.
+        // KOTISATAMA-PATCH: lataa whitelist ja käynnistä haku/pulloposti-subprocessit — 加载白名单并启动搜索/漂流瓶子进程。
         #[cfg(feature = "kotisatama")]
         crate::kotisatama::init();
 
@@ -641,7 +641,7 @@ impl RunningAppState {
 
         info!("Loading URL in webview {}: {}", webview_id, url);
         self.set_load_status_sender(webview_id, load_status_sender);
-        // KOTISATAMA-PATCH: ohjaa estetyt URL:t blokkaussivulle ennen webview.load().
+        // KOTISATAMA-PATCH: ohjaa estetyt URL:t blokkaussivulle ennen webview.load() — 在webview.load()之前将被阻止的URL重定向到阻止页面。
         #[cfg(feature = "kotisatama")]
         crate::kotisatama::load_url_or_blocked(&webview, url);
         #[cfg(not(feature = "kotisatama"))]
@@ -913,7 +913,7 @@ impl WebViewDelegate for RunningAppState {
             .notify_accessibility_tree_update(webview, tree_update);
     }
 
-    // KOTISATAMA-PATCH: whitelist-tarkistus navigoinnissa; estetty → data: blokkaussivu.
+    // KOTISATAMA-PATCH: whitelist-tarkistus navigoinnissa; estetty → data: blokkaussivu — 导航中的白名单检查；被阻止→data:阻止页面。
     #[cfg(feature = "kotisatama")]
     fn request_navigation(&self, webview: WebView, request: NavigationRequest) {
         let blocked_target = request.url.clone();
@@ -926,7 +926,7 @@ impl WebViewDelegate for RunningAppState {
         }
     }
 
-    // KOTISATAMA-PATCH: alipyyntöjen mainostenesto ennen verkkoa (WebResourceLoad).
+    // KOTISATAMA-PATCH: alipyyntöjen mainostenesto ennen verkkoa (WebResourceLoad) — 在网络之前阻止子请求广告（WebResourceLoad）。
     #[cfg(feature = "kotisatama")]
     fn load_web_resource(&self, webview: WebView, load: WebResourceLoad) {
         let (url, source_url, destination_name, is_for_main_frame) = {

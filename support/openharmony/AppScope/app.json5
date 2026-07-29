@@ -4,7 +4,8 @@
     "vendor": "example",
     "versionCode": 1000000,
     "versionName": "1.0.0",
-    "icon": "$media:servo_64",
+    // KOTISATAMA-PATCH: Kotisatama-launcher-ikoni (ei servo_64 upstream-ikonin tilalle) — Kotisatama启动图标（不替换upstream的servo_64）。
+    "icon": "$media:kotisatama_64",
     "label": "$string:app_name"
   }
 }

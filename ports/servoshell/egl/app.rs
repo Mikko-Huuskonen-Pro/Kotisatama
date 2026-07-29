@@ -309,7 +309,7 @@ impl App {
     #[servo::servo_tracing::instrument(skip_all, name = "App::new", level = "info")]
     pub(super) fn new(init: AppInitOptions) -> Rc<Self> {
         // KOTISATAMA-PATCH: Android tarvitsee samat servo:/resource:-handlerit kuin desktop
-        // (muuten servo:haku → Unsupported scheme).
+        // (muuten servo:haku → Unsupported scheme) — Android需要与桌面相同的servo:/resource:处理程序。
         #[cfg(all(feature = "kotisatama", target_os = "android"))]
         if let Ok(dir) = std::env::var("KOTISATAMA_RESOURCES_DIR") {
             let path = std::path::PathBuf::from(dir);
@@ -328,7 +328,7 @@ impl App {
             .preferences(init.preferences.clone())
             .event_loop_waker(init.event_loop_waker.clone());
 
-        // KOTISATAMA-PATCH: rekisteröi protokollat EGL:ssä (desktop tekee tämän app.rs:ssä).
+        // KOTISATAMA-PATCH: rekisteröi protokollat EGL:ssä (desktop tekee tämän app.rs:ssä) — 在EGL中注册协议（桌面在app.rs中执行此操作）。
         #[cfg(all(feature = "kotisatama", not(target_env = "ohos")))]
         {
             let mut protocol_registry = ProtocolRegistry::default();

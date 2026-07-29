@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta data-i18n-title="title" />
+    <link rel="stylesheet" href="resource:///varustamo.css" />
+  </head>
+  <body>
+    <main class="card" role="main">
+      <h1 data-i18n="heading"></h1>
+      <p class="muted" data-i18n="intro"></p>
+      <p id="status" class="muted" aria-live="polite"></p>
+      <div id="appGrid" class="app-grid" hidden></div>
+      <a class="back-link" href="servo:newtab" data-i18n="backLink"></a>
+    </main>
+
+    <script src="resource:///kotisatama-i18n.js"></script>
+    <script>
+      (function () {
+        const locale = KotisatamaI18n.applyDocument("varustamo");
+        const statusEl = document.getElementById("status");
+        const gridEl = document.getElementById("appGrid");
+
+        function appHref(id) {
+          return "servo:varustamo/app?id=" + encodeURIComponent(id);
+        }
+
+        function formatPermissions(app) {
+          const allowed = (app.permissions || []).join(", ");
+          const denied = (app.noPermissions || []).join(", ");
+          let text = "";
+          if (allowed) {
+            text += KotisatamaI18n.t("varustamo", "permAllowed", locale) + " " + allowed;
+          }
+          if (denied) {
+            if (text) text += " · ";
+            text += KotisatamaI18n.t("varustamo", "permDenied", locale) + " " + denied;
+          }
+          return text;
+        }
+
+        async function loadRegistry() {
+          statusEl.textContent = KotisatamaI18n.t("varustamo", "loading", locale);
+          gridEl.hidden = true;
+          gridEl.replaceChildren();
+          try {
+            const response = await fetch("servo:varustamo/registry", {
+              cache: "no-store",
+            });
+            const registry = await response.json();
+            if (registry.error) {
+              statusEl.textContent = registry.error;
+              statusEl.classList.add("error");
+              return;
+            }
+            const apps = (registry.apps || []).filter((app) =>
+              ["testable", "bundled", "installed"].includes(app.status)
+            );
+            if (!apps.length) {
+              statusEl.textContent = KotisatamaI18n.t("varustamo", "empty", locale);
+              return;
+            }
+            statusEl.textContent = "";
+            for (const app of apps) {
+              const card = document.createElement("a");
+              card.className = "app-card";
+              card.href = appHref(app.id);
+              card.innerHTML =
+                '<div class="status">' +
+                app.status +
+                "</div><h2>" +
+                app.name +
+                "</h2><p class='perms'>" +
+                formatPermissions(app) +
+                "</p>";
+              gridEl.appendChild(card);
+            }
+            gridEl.hidden = false;
+          } catch (error) {
+            statusEl.textContent = KotisatamaI18n.t("varustamo", "loadError", locale);
+            statusEl.classList.add("error");
+          }
+        }
+
+        loadRegistry();
+      })();
+    </script>
+  </body>
+</html>

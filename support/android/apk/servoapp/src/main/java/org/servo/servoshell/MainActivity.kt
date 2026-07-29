@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity(), Servo.Client {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // KOTISATAMA-PATCH: valmistele whitelist, hakuindeksi ja Meilisearch-polku ennen ServoView:ta
+        // KOTISATAMA-PATCH: valmistele whitelist, hakuindeksi ja Meilisearch-polku ennen ServoView:ta — 在ServoView之前准备白名单、搜索索引和Meilisearch路径。
         KotisatamaAssets.prepare(this)
 
         servoView = ServoView(this)

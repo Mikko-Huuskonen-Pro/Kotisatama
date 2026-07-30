@@ -37,7 +37,9 @@ Whenever possible, fixes are intended to be contributed upstream to Servo.
 
 - Adblock integration is on process
 - First win 11 test user aqruired
-- Android version is broken mess, try to find time to fix it to the working state. Win11 version is working
+- Android version is broken mess, try to find time to fix it to the working state (Fixed 30.7.2026).
+- First Androis version user aqruired
+Win11 version is working
 
 ## Mikä on katselin (归港)? 
 

@@ -7,6 +7,10 @@ package org.servo.servoshell;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
 import android.text.InputType;
 import android.view.View;
 import android.widget.EditText;
@@ -22,6 +26,45 @@ import org.servo.servoview.ServoView;
  */
 public final class KotisatamaUi {
     private KotisatamaUi() {}
+
+    // KOTISATAMA-PATCH: "Avaa sovelluksessa" — lähettää URL:n Androidin ACTION_VIEW-intentillä;
+    // käyttöjärjestelmä ratkaisee käsittelijän, ei domain-listaa.
+    // API 30+: FLAG_ACTIVITY_REQUIRE_NON_BROWSER suosii natiivisovellusta selaimen sijaan
+    // ja epäonnistuu, jos sopivaa sovellusta ei ole — "在应用中打开"——通过Android ACTION_VIEW意图发送URL；
+    // 由系统决定处理器，无域名列表。API 30+：FLAG_ACTIVITY_REQUIRE_NON_BROWSER优先使用原生应用而非浏览器，无匹配时失败
+    public static void openInApp(Activity activity, String url) {
+        if (url == null || url.isEmpty()) {
+            Toast.makeText(activity, R.string.open_in_app_none, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addCategory(Intent.CATEGORY_BROWSABLE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER);
+            } else if (!hasExternalHandler(activity, intent)) {
+                Toast.makeText(activity, R.string.open_in_app_none, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            activity.startActivity(intent);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(activity, R.string.open_in_app_none, Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(activity, R.string.open_in_app_none, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // Tosi, jos jokin muu paketti kuin tämä sovellus voi käsitellä intentin — 如果有除本应用外的其他包能处理该意图则为真
+    private static boolean hasExternalHandler(Activity activity, Intent intent) {
+        String self = activity.getPackageName();
+        for (android.content.pm.ResolveInfo info :
+                activity.getPackageManager().queryIntentActivities(intent, 0)) {
+            if (info.activityInfo != null && !self.equals(info.activityInfo.packageName)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public static boolean isLikelyUrl(String text) {
         if (text == null || text.isEmpty()) {

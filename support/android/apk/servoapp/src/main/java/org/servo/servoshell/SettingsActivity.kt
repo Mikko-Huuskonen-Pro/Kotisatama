@@ -76,7 +76,8 @@ class SettingsActivity : ComponentActivity() {
                 Text(summary)
             },
             trailingContent = {
-                var checked by remember { mutableStateOf(preferences.getBoolean(preferenceKey, false)) }
+                // KOTISATAMA-PATCH: kokeelliset prefs oletuksena päällä
+                var checked by remember { mutableStateOf(preferences.getBoolean(preferenceKey, true)) }
                 Switch(
                     checked = checked,
                     onCheckedChange = {

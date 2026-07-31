@@ -8,6 +8,8 @@
   <string name="options">Asetukset</string>
   <string name="url_or_search">Hae satamasta tai syötä osoite</string>
   <string name="report">Lokikirja</string>
+  <string name="open_in_app">Avaa sovelluksessa</string>
+  <string name="open_in_app_none">Tälle sivulle ei löytynyt sovellusta.</string>
   <string name="refresh">Päivitä</string>
   <string name="cancel">Peruuta</string>
 

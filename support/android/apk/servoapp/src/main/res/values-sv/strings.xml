@@ -7,22 +7,15 @@
   <string name="options">Inställningar</string>
   <string name="url_or_search">Sök i hamnen eller ange en adress</string>
   <string name="report">Loggbok</string>
+  <string name="open_in_app">Öppna i app</string>
+  <string name="open_in_app_none">Ingen app hittades för den här sidan.</string>
   <string name="refresh">Uppdatera</string>
-  <string name="idle">vila</string>
   <string name="cancel">Avbryt</string>
 
   <!-- Inställningar -->
   <string name="settings_title">Inställningar</string>
-  <string name="settings_section_features">Funktioner</string>
   <string name="settings_experimental_title">Experimentella funktioner</string>
   <string name="settings_experimental_summary">Aktivera experimentella funktioner för webbplattformen</string>
-  <string name="settings_animating_title">Indikator för vila/animering</string>
-  <string name="settings_animating_summary">Visa visuell indikator för renderingsstatus</string>
-  <string name="settings_section_language">Språk</string>
-  <string name="settings_language_auto">Automatiskt (system)</string>
-  <string name="settings_language_fi">Finska</string>
-  <string name="settings_language_sv">Svenska</string>
-  <string name="loop">UPPREPA</string>
 
   <!-- Historik -->
   <string name="history_title">Historik</string>

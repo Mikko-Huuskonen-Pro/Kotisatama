@@ -196,19 +196,7 @@ impl SearchClient {
     }
 
     fn load_seed_documents(&self) -> Result<(), SearchError> {
-        let path = std::env::var("KOTISATAMA_SEARCH_DOCUMENTS")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                packaged_path("config/search-index/documents.json")
-                    .unwrap_or_else(|| PathBuf::from("config/search-index/documents.json"))
-            });
-        let contents = fs::read_to_string(&path).unwrap_or_else(|error| {
-            log::warn!("Kotisatama search: seed documents not found at {path:?}: {error}");
-            "[]".to_owned()
-        });
-        let mut documents: Vec<SeedDocument> =
-            serde_json::from_str(&contents).map_err(SearchError::Json)?;
-        append_whitelist_documents(&mut documents);
+        let documents = seed_documents()?;
         if documents.is_empty() {
             return Ok(());
         }
@@ -267,6 +255,85 @@ struct SeedDocument {
     title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     keywords: Option<String>,
+}
+
+fn seed_documents() -> Result<Vec<SeedDocument>, SearchError> {
+    let path = std::env::var("KOTISATAMA_SEARCH_DOCUMENTS")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            packaged_path("config/search-index/documents.json")
+                .unwrap_or_else(|| PathBuf::from("config/search-index/documents.json"))
+        });
+    let contents = fs::read_to_string(&path).unwrap_or_else(|error| {
+        log::warn!("Kotisatama search: seed documents not found at {path:?}: {error}");
+        "[]".to_owned()
+    });
+    let mut documents: Vec<SeedDocument> =
+        serde_json::from_str(&contents).map_err(SearchError::Json)?;
+    append_whitelist_documents(&mut documents);
+    Ok(documents)
+}
+
+/// In-memory search over the curated seed documents.
+///
+/// Used when Meilisearch cannot run — e.g. on Android, where the prebuilt
+/// Meilisearch binary is dynamically linked against glibc and will not
+/// execute under bionic. Matching is intentionally simple (case-insensitive
+/// substring over title, URL and keywords) since the curated set is small.
+pub fn seed_search(query: &str) -> SearchOutcome {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return SearchOutcome::NoResults;
+    }
+    let documents = match seed_documents() {
+        Ok(documents) => documents,
+        Err(error) => {
+            log::warn!("Kotisatama search: seed fallback failed: {error}");
+            return SearchOutcome::Error(error.to_string());
+        },
+    };
+    let mut scored: Vec<(i32, SearchHit)> = documents
+        .iter()
+        .filter_map(|doc| {
+            let score = seed_match_score(doc, &query)?;
+            Some((
+                score,
+                SearchHit {
+                    id: doc.id,
+                    url: doc.url.clone(),
+                    title: doc.title.clone(),
+                },
+            ))
+        })
+        .collect();
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.id.cmp(&b.1.id)));
+    let hits: Vec<SearchHit> = scored.into_iter().take(25).map(|(_, hit)| hit).collect();
+    if hits.is_empty() {
+        SearchOutcome::NoResults
+    } else {
+        SearchOutcome::Hits(hits)
+    }
+}
+
+fn seed_match_score(doc: &SeedDocument, query: &str) -> Option<i32> {
+    let query = query.to_lowercase();
+    let query = query.as_str();
+    let title = doc.title.to_lowercase();
+    let url = doc.url.to_lowercase();
+    let keywords = doc.keywords.as_deref().unwrap_or_default().to_lowercase();
+    if title == query {
+        Some(400)
+    } else if title.starts_with(query) {
+        Some(300)
+    } else if title.contains(query) {
+        Some(200)
+    } else if url.contains(query) {
+        Some(150)
+    } else if keywords.contains(query) {
+        Some(100)
+    } else {
+        None
+    }
 }
 
 fn append_whitelist_documents(documents: &mut Vec<SeedDocument>) {
@@ -401,6 +468,36 @@ fn should_import_dump(dump_path: &str, db_path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn doc(title: &str, url: &str, keywords: Option<&str>) -> SeedDocument {
+        SeedDocument {
+            id: 1,
+            url: url.to_owned(),
+            title: title.to_owned(),
+            keywords: keywords.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn seed_match_score_ranks_title_over_keywords() {
+        let by_title = doc("Kela", "https://kela.fi/", None);
+        let by_keywords = doc("OmaKanta", "https://omakanta.fi/", Some("kela etuudet"));
+        let title_score = seed_match_score(&by_title, "kela").unwrap();
+        let keyword_score = seed_match_score(&by_keywords, "kela").unwrap();
+        assert!(title_score > keyword_score);
+    }
+
+    #[test]
+    fn seed_match_score_is_case_insensitive() {
+        let document = doc("Kanta.fi", "https://kanta.fi/", None);
+        assert!(seed_match_score(&document, "KANTA").is_some());
+    }
+
+    #[test]
+    fn seed_match_score_misses_unrelated_document() {
+        let document = doc("Kela", "https://kela.fi/", Some("eläke toimeentulotuki"));
+        assert!(seed_match_score(&document, "golf").is_none());
+    }
 
     #[test]
     fn seed_document_json_parses() {

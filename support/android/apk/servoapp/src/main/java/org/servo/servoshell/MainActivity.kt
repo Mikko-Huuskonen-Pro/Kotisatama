@@ -37,6 +37,7 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,8 +65,9 @@ class MainActivity : ComponentActivity(), Servo.Client {
     private var currentUrl = ""
     private var currentTitle = ""
 
+    // KOTISATAMA-PATCH: kokeelliset web-alustan prefs oletuksena päällä (sama kuin desktop Kotisatama).
     private class Settings(preferences: SharedPreferences) {
-        var experimental = preferences.getBoolean("experimental", false)
+        var experimental = preferences.getBoolean("experimental", true)
     }
 
     private lateinit var settings: Settings
@@ -126,10 +128,9 @@ class MainActivity : ComponentActivity(), Servo.Client {
                                     .size(20.dp),
                             )
                         }
-                        if (showReportState.value) {
-                            TextButton(onClick = ::onReportMenuItemClicked) {
-                                Text(stringResource(R.string.report))
-                            }
+                        // KOTISATAMA-PATCH: "Avaa sovelluksessa" yläpalkissa; Lokikirja vain alapalkissa — "在应用中打开"在顶栏；日志本仅在底栏
+                        TextButton(onClick = ::onOpenInAppMenuItemClicked) {
+                            Text(stringResource(R.string.open_in_app))
                         }
                         if (isWindowWidthAtLeastMedium) {
                             IconButton(onClick = ::onSettingsMenuItemClicked) {
@@ -201,8 +202,9 @@ class MainActivity : ComponentActivity(), Servo.Client {
                     factory = { _ -> servoView },
                     modifier = Modifier.padding(innerPadding),
                 )
+                // KOTISATAMA-PATCH: järjestelmän takaisin-painike/ele tekee täsmälleen saman kuin oma Takaisin-painike; kun historia loppuu, BackHandler on pois käytöstä ja Android suorittaa oletustoiminnon — 系统返回键/手势执行与自带返回按钮完全相同的操作；历史耗尽时BackHandler被禁用，Android执行默认行为
                 BackHandler(enabled = canGoBackState.value) {
-                    servoView.goBack()
+                    onHistoryBackMenuItemClicked()
                 }
             }
         }
@@ -271,6 +273,10 @@ class MainActivity : ComponentActivity(), Servo.Client {
 
     private fun onReportMenuItemClicked() {
         KotisatamaUi.showReportDialog(this, servoView, currentUrl)
+    }
+
+    private fun onOpenInAppMenuItemClicked() {
+        KotisatamaUi.openInApp(this, currentUrl)
     }
 
     private fun loadUrl(search: String) {

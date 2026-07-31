@@ -108,7 +108,10 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
     surface: JObject<'local>,
 ) {
     env.with_env(|env| -> jni::errors::Result<_> {
-        let (init_opts, log, log_str) = get_options(env, &opts, &surface)?;
+        let (init_opts, log, log_str) = get_options(env, &opts, &surface).map_err(|e| {
+            error!("JNIServo_init: get_options failed: {e:?}");
+            e
+        })?;
 
         if log {
             // Note: Android debug logs are stripped from a release build.
@@ -163,13 +166,20 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
             error!("Failed to redirect stdout and stderr to logcat due to: {e:?}");
         }
 
-        let callbacks: Global<JObject<'static>> = env.new_global_ref(callbacks_obj)?;
+        let callbacks: Global<JObject<'static>> = env.new_global_ref(callbacks_obj).map_err(|e| {
+            error!("JNIServo_init: new_global_ref failed: {e:?}");
+            e
+        })?;
 
-        CALLBACK_OBJECT
-            .set(callbacks)
-            .expect("CALLBACK_OBJECT was already initialized.");
+        if let Err(_already) = CALLBACK_OBJECT.set(callbacks) {
+            error!("JNIServo_init: CALLBACK_OBJECT already set (re-init)");
+            // Reuse the existing callback object instead of panicking on surface re-create.
+        }
 
-        let jvm = env.get_java_vm()?;
+        let jvm = env.get_java_vm().map_err(|e| {
+            error!("JNIServo_init: get_java_vm failed: {e:?}");
+            e
+        })?;
         let event_loop_waker = Box::new(WakeupCallback::new(jvm.clone()));
 
         let host = Rc::new(HostCallbacks::new(jvm));
@@ -191,7 +201,10 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
                 ArgumentParsingResult::Exit => {
                     std::process::exit(0);
                 },
-                ArgumentParsingResult::ErrorParsing => std::process::exit(1),
+                ArgumentParsingResult::ErrorParsing => {
+                    error!("JNIServo_init: argument parsing failed");
+                    std::process::exit(1);
+                },
             };
 
         preferences.set_value("viewport_meta_enabled", servo::PrefValue::Bool(true));

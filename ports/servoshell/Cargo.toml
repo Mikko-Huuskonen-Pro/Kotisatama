@@ -72,6 +72,8 @@ cfg-if = { workspace = true }
 crossbeam-channel = { workspace = true }
 dpi = { workspace = true }
 euclid = { workspace = true }
+# KOTISATAMA-PATCH: headers tarvitaan protocols/-moduuleissa kaikilla alustoilla (myös Android), ei vain desktopilla — protocols/模块在所有平台（包括Android）都需要headers，不仅仅是桌面端。
+headers = { workspace = true }
 hitrace = { workspace = true, optional = true }
 image = { workspace = true }
 keyboard-types = { workspace = true }
@@ -135,7 +137,6 @@ egui-winit = { workspace = true, features = ["accesskit", "clipboard", "wayland"
 egui_glow = { workspace = true, features = ["winit"] }
 gilrs = { workspace = true }
 glow = { workspace = true }
-headers = { workspace = true }
 serde_json = { workspace = true }
 # For optional feature servo-allocator/use-system-allocator and servo-allocator/allocation-tracking
 servo-allocator = { workspace = true }

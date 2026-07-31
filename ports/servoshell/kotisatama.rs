@@ -504,10 +504,8 @@ pub fn search(query: &str) -> KotisatamaSearchPanel {
     });
     let outcome = match client {
         Some(client) => client.search(&query),
-        None => SearchOutcome::Error(
-            "Paikallinen haku ei kaytettavissa. Asenna Meilisearch tai aseta KOTISATAMA_MEILISEARCH_BIN."
-                .into(),
-        ),
+        // Meilisearch puuttuu tai ei käynnisty (esim. Android bionic) — seed-varahaku.
+        None => kotisatama_search::seed_search(&query),
     };
     if matches!(outcome, SearchOutcome::NoResults) {
         kotisatama_report::log_fallback_search(&query, platform);

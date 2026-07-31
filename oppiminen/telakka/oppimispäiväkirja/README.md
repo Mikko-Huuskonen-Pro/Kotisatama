@@ -49,6 +49,7 @@ Kopioi alla oleva pohja uuteen tiedostoon:
 ## Esimerkkimerkinnät
 
 - [2026-06-29-kela-etusivu.md](2026-06-29-kela-etusivu.md) — navigointi (`kela` / `kela.fi`), kerrosten erottelu, MVP-tarkistus
+- [2026-07-31-android-ensimmainen-build.md](2026-07-31-android-ensimmainen-build.md) — ensimmäinen APK emulaattorissa (WSL-käskyt)
 
 ## Liittyvät dokumentit
 

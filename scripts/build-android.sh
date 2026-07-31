@@ -281,16 +281,31 @@ fi
 
 if [[ $SKIP_MEILISEARCH -eq 0 ]]; then
   step "Meilisearch for Android assets"
-  ./support/android/fetch-meilisearch.sh
+  case "$TARGET" in
+    x86_64-*) MEILISEARCH_ARCH=amd64 ./support/android/fetch-meilisearch.sh ;;
+    *) ./support/android/fetch-meilisearch.sh ;;
+  esac
 fi
 
 step "mach build --target $TARGET --profile $PROFILE"
 ./mach build --target "$TARGET" --profile "$PROFILE"
 
-step "mach package --android --target $TARGET --profile $PROFILE"
-./mach package --android --target "$TARGET" --profile "$PROFILE"
+# NOTE: mach package does not accept --android together with --target.
+# mach build already runs the Gradle assemble step and produces the APK,
+# so a separate package step is skipped here.
+
+if [[ "$TARGET" == aarch64-* ]]; then
+  GRADLE_APK="$ROOT/support/android/apk/servoapp/build/outputs/apk/arm64Release/servoapp-arm64Release.apk"
+elif [[ "$TARGET" == x86_64-* ]]; then
+  GRADLE_APK="$ROOT/support/android/apk/servoapp/build/outputs/apk/x64Release/servoapp-x64Release.apk"
+else
+  GRADLE_APK=""
+fi
 
 APK="$ROOT/target/$TARGET/$PROFILE/servoapp.apk"
+if [[ ! -f "$APK" && -n "$GRADLE_APK" && -f "$GRADLE_APK" ]]; then
+  APK="$GRADLE_APK"
+fi
 if [[ ! -f "$APK" ]]; then
   echo "APK not found: $APK" >&2
   exit 1
@@ -300,9 +315,9 @@ echo ""
 echo "Android build ready: $APK"
 
 if [[ $DO_INSTALL -eq 1 ]]; then
-  step "mach install --android"
-  ARGS=(install --android --target "$TARGET" --profile "$PROFILE")
-  [[ $INSTALL_USB -eq 1 ]] && ARGS+=(--usb)
-  [[ $INSTALL_EMU -eq 1 ]] && ARGS+=(--emulator)
-  ./mach "${ARGS[@]}"
+  step "adb install"
+  if ! adb install -r "$APK"; then
+    echo "adb install failed; check device/emulator connection" >&2
+    exit 1
+  fi
 fi

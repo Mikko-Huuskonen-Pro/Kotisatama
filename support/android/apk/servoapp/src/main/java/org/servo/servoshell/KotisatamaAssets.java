@@ -91,9 +91,10 @@ public final class KotisatamaAssets {
     }
 
     private static File extractAssetIfPresent(Context context, String assetPath, File dest) {
-        if (dest.exists() && dest.length() > 0) {
+        if (dest.exists() && dest.length() > 0 && assetSizeMatches(context.getAssets(), assetPath, dest)) {
             return dest;
         }
+        // Stale or wrong-arch binary from a previous install — re-extract.
         File parent = dest.getParentFile();
         if (parent != null && !parent.exists()) {
             parent.mkdirs();
@@ -102,6 +103,20 @@ public final class KotisatamaAssets {
             return dest;
         }
         return null;
+    }
+
+    private static boolean assetSizeMatches(AssetManager assets, String assetPath, File dest) {
+        try (InputStream in = assets.open(assetPath)) {
+            long expected = 0;
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                expected += read;
+            }
+            return expected == dest.length();
+        } catch (IOException e) {
+            return true;
+        }
     }
 
     /** Copy an asset directory tree (overwrites files so APK updates apply). */

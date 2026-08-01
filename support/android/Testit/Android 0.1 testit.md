@@ -240,7 +240,7 @@ Lisätään automatiikka:
 - hyväksyy vain pakolliset evästeet
 - vähentää käyttäjän klikkailua
 
-Tähän etsitään avoimen lähdekoodin ratkaisu.
+Tähän etsitään avoimen lähdekoodin ratkaisu. Ehdotus: Consent-O-Matic ja sille asetuksiin valinta vaihtoehdot. Oletuksena "Hyväksy pakolliset" 
 
 ---
 

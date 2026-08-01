@@ -299,4 +299,4 @@ Selvitä meilisearch ei onnistu android versiossa, mitä kimi k3 tarkoitti sill�
 
 Perustoiminnot toimivat hyvin ja tärkein turvallisuusominaisuus (huijausviestien blokkaus) toimii erinomaisesti.
 
-Suurimmat puutteet liittyvät Android-version viimeistelyyn, Sataman toimintaan sekä seurannaneston integrointiin. Näistä erityisesti **Adblock-Katselinin integrointi Androidiin** on kriittinen, koska se liittyy suoraan Katselimen keskeiseen tuotelupaukseen.
+Suurimmat puutteet liittyvät Android-version viimeistelyyn, Sataman toimintaan sekä seurannaneston integrointiin. Näistä erityisesti **Adblock-Katselinin integrointi Androidiin** on kriittinen, koska se liittyy suoraan Katselimen keskeiseen tuotelupaukseen. Myöskin meilisearch pitää saada toimimaan androidilla

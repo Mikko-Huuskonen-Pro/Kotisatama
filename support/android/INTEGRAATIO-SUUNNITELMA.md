@@ -288,12 +288,15 @@ Vaiheistus forkissa (haara `android-ndk`):
 
 ## 8. Avoimet päätökset (tarvitaan ennen vaiheiden loppuunviemistä)
 
-1. **Satama-portin UX** (#6): säilyykö Avomeri→Qwant-käytös sellaisenaan vai muutetaanko? (Suositus: selkeämpi "Poistut Satamasta" -välisivu, toiminnallisuus säilyy.)
+1. **Satama-portin UX** (#6): säilyykö Avomeri→Qwant-käytös sellaisenaan vai muutetaanko? (Suositus: selkeämpi "Poistut Satamasta" -välisivu, toiminnallisuus säilyy.) Päätös: Ei tehdä muutoksia toimintaan
 2. ~~Meilisearch-toteustapa~~ → **ratkaistu AGENT.md:llä:** subprocess + HTTP säilyy; binääri paketoidaan native-lib-hakemistoon (`libmeilisearch.so`). Kirjastomalli sallittu vain jos AGENT.md:tä päätetään erikseen muuttaa.
+Päätös: Jos meilisearch saadaan toimimaan subprocess-mallilla, etenemme sillä
 3. **Consent-sääntöjen lähde**: build-aikainen bundle (suositus, offline) vs. ajonaikainen haku upstreamista + cache.
+Päätös: Build-aikainen bundle
 4. **Cosmetic-esto** otetaanko julkaisuun vai myöhempään (verkko-esto riittää Cover Your Tracks -tavoitteeseen).
+Päätös: Tarvitaan lisätietoa
 5. **Hakukokemus ilman Googlea** (#3): riittääkö whitelist-poisto vai tarvitaanko Satama-hakuun parannuksia ensin?
-
+Päätös: Whitelist poisto riittää
 ---
 
 ## 9. AGENT.md-yhteensopivuus ja upstream-strategia

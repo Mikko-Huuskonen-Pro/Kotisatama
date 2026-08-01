@@ -59,7 +59,7 @@ Linkkien blokkaus toimii odotetulla tavalla.
 
 Googlen hakutulosten kautta pääsee lähes kaikille sivuille, jolloin Sataman rajoitukset voidaan kiertää.
 
-Mielenkiintoisesti ChatGPT-linkeissä esto toimii eri tavalla.
+Mielenkiintoisesti ChatGPT-linkeissä esto toimii eri tavalla.Se selvästi käyttää selaimen oman osoitepalkin kautta, taas kun google ei toimi samoin. 
 
 ### Ehdotus
 

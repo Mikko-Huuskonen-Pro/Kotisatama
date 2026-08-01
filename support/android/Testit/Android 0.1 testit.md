@@ -229,7 +229,7 @@ Tämä todennäköisesti parantaa myös välilehtien muistamista.
 
 Suunnitelma:
 
-Etsitään avoimen lähdekoodin ratkaisu.
+Etsitään avoimen lähdekoodin ratkaisu. Rust toteutus, suunnittele
 
 ---
 
@@ -294,6 +294,8 @@ Sivustolle tehtävät muutokset:
 ---
 
 # Kokonaisarvio
+
+Selvitä meilisearch ei onnistu android versiossa, mitä kimi k3 tarkoitti sillä? 
 
 Perustoiminnot toimivat hyvin ja tärkein turvallisuusominaisuus (huijausviestien blokkaus) toimii erinomaisesti.
 

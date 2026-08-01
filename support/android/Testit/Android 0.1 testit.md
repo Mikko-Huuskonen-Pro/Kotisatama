@@ -79,7 +79,7 @@ Hakutuloksissa olevat kuvakkeet/emojit eivät näy oikein.
 
 ---
 
-## 5. Oikotie
+## 5. Oikotie.fi
 
 **Tila:** ✅ OK
 
@@ -87,6 +87,7 @@ Hakutuloksissa olevat kuvakkeet/emojit eivät näy oikein.
 
 - Oikotie toimii.
 - "Avaa sovelluksessa" toimii hyvin.
+- Youtube ei pelaa, mutta avaa sovelluksessa pelastaa tilanteen. sama Yt music kanssa
 
 ---
 
@@ -154,7 +155,8 @@ Android-versioon tulee integroida:
 
 https://github.com/Mikko-Huuskonen-Pro/adblock-Katselin
 
-Windows-versiossa tämä toimii jo.
+Lokikirja alapalkissa, sen tilalle laskuri kuinka paljon seuraajia estetty. Kun sitä klikkaa saa lisätietoa estoista. Lokikirja voi siirtyä yläpalkkiin kolmen pisteen taakse, eli sieltä voi valita lokirjan. 
+Windows-versiossa seuraimen estot pelaa jo. 
 
 **Huomio**
 

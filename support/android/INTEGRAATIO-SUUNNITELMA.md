@@ -204,6 +204,8 @@ flowchart TB
 **Hyväksymiskriteerit (vaihe 2):** yle.fi:n ja hs.fi:n evästepanneri käsitellään automaattisesti pakollisilla; asetusvalinta vaikuttaa uudelleenkäynnistyksessä; sivu ilman CMP-sääntöä toimii normaalisti; ei uusia virheitä logcatissa.
 
 ### Vaihe 3 – Meilisearch Androidille (`Katselin-haku`, kokonaisarvion vaatimus)
+https://github.com/Mikko-Huuskonen-Pro/Katselin-haku/Docs
+/ANDROID-PORT-SUUNNITELMA.md
 
 **Strateginen valinta (AGENT.md-yhteensopiva, lukittu):** arkkitehtuuri säilyy **subprocess + HTTP** kuten AGENT.md määrää (`kotisatama-search` = HTTP-client + prosessinhallinta, `127.0.0.1:7700`). Kirjastotason upotusta (JNI, prosessin sisään) **ei tehdä** – AGENT.md kieltää sen eksplisiittisesti. Exec-rajoitus kiertyy paketoimalla NDK-binääri **native library directoryyn** (`libmeilisearch.so`-malli), ei app-private-hakemistoon.
 
@@ -294,7 +296,7 @@ Päätös: Jos meilisearch saadaan toimimaan subprocess-mallilla, etenemme sill�
 3. **Consent-sääntöjen lähde**: build-aikainen bundle (suositus, offline) vs. ajonaikainen haku upstreamista + cache.
 Päätös: Build-aikainen bundle
 4. **Cosmetic-esto** otetaanko julkaisuun vai myöhempään (verkko-esto riittää Cover Your Tracks -tavoitteeseen).
-Päätös: Tarvitaan lisätietoa
+Päätös: Myöhemmin
 5. **Hakukokemus ilman Googlea** (#3): riittääkö whitelist-poisto vai tarvitaanko Satama-hakuun parannuksia ensin?
 Päätös: Whitelist poisto riittää
 ---

@@ -91,3 +91,6 @@ justfile
 
 # Varustamo registry synced from closed repo (example stays in git)
 /config/varustamo/registry.json
+
+# Android APK source lives in Katselin; local junction/symlink only (see scripts/link-android-apk.*)
+/support/android/apk/

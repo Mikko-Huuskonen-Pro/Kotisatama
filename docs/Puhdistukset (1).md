@@ -4,6 +4,68 @@ Tahan tiedostoon kirjataan Kotisataman repo- ja koodipohjan puhdistuskierrokset.
 Tarkoitus on erottaa Kotisataman toimintaan kuuluvat osat vanhoista Servo-projektin
 ja upstream-infran jaanneista.
 
+## 2026-08-03: V3 — Android-APK pois forkista (Katselin-päärepo)
+
+Branch: paikallinen työ (ei vielä commitoitu; osana Katselin-repojakoa)  
+Liittyy: `../Katselin/docs/REPO-JAKO-SUUNNITELMA.md` (V3), `support/android/README.md`
+
+### Tavoite
+
+Hillitä Servo-forkin (Kotisatama) muutospintaa: Android-sovelluksen Gradle-projekti
+ei elä enää tässä repossa. Ainoa lähde on Katselin-päärepo
+(`https://github.com/Mikko-Huuskonen-Pro/Katselin`, polku `android/apk/`).
+Upstream-merge ei koske APK/UI-tiedostoja; mach löytää polun paikallisella
+junctionilla/symlinkillä.
+
+### Poistetut / siirretty pois tämän repon lähdepuusta
+
+- `support/android/apk/` **kokonaan** (servoapp, servoview, Gradle, buildSrc, jne.)
+  - Levyllä: Windows-**junction** → `../Katselin/android/apk` (ei gittiin).
+  - Git-indeksistä: `git rm -r --cached support/android/apk` (staged deletions,
+    commit myöhemmin yhdessä muun reporakenteen kanssa).
+  - `.gitignore`: `/support/android/apk/` — kloonin jälkeen junction luodaan
+    skriptillä, ei seurata gittiin.
+- Vanhasta apk-puusta poistettu myös paikallinen backup `apk.bak-v3` (~3.7 GB)
+  junctionin varmistuksen jälkeen.
+
+### Muutetut asiat (tässä forkissa)
+
+- `support/android/README.md`
+  - Korvattu osoittimella Katselin-repoon + junction-ohjeisiin.
+- `support/android/fetch-meilisearch.sh` / `.ps1`
+  - Deprecated-wrapperit; ohjaavat `../Katselin/android/fetch-meilisearch.*`.
+- `AGENT.md` (Android-kohta)
+  - APK-paketointi = Katselin; paikallinen linkitys `scripts/link-android-apk.*`.
+- `.gitignore`
+  - Lisätty `/support/android/apk/`.
+
+### Lisätyt asiat
+
+- `scripts/link-android-apk.ps1` — `mklink /J` Windowsilla
+- `scripts/link-android-apk.sh` — `ln -s` WSL/Linuxissa
+
+### Varmistus
+
+- WSL-build Katselin-orkestroijalla (`x86_64-linux-android`): exit 0;
+  logi `Engine apk path OK`, Gradle-polut `Katselin/android/apk/...`,
+  ei pre-V3 -varoitusta.
+- Emulaattori: uninstall + install + `MainActivity` OK
+  (`target/x86_64-linux-android/checked-release/servoapp.apk`).
+
+### Jää tähän forkkiin (tarkoituksella)
+
+- `ports/servoshell/egl/android/` — JNI + EGL
+- `components/kotisatama/*` — whitelist, search, content-blocking, …
+- `resources/resource_protocol/`, `config/` — jaettu desktopin kanssa
+- `scripts/build-android.sh` — legacy; suositus: `../Katselin/scripts/build-android.sh`
+
+### Commit-huomio
+
+Kun kokonaisuus commitoitaan: staged `D`-rivit `support/android/apk/**` + yllä
+olevat dokumentti-/skriptimuutokset. Junction/symlink **ei** kuulu committiin.
+
+---
+
 ## 2026-06-13: Servo-projektijaanteiden ensimmainen siivous
 
 github/workflows poistettu kaikki muut paitsi kotisatamaan liittyvä crawler. 

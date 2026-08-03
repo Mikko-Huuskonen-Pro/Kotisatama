@@ -130,7 +130,7 @@ Suosi `ports/servoshell/` embedder-hookia whitelistille. Jos muutos on pakko teh
 Android-build käyttää Servon omaa polkua:
 
 - `ports/servoshell/egl/android/` — JNI + `ANativeWindow`
-- `support/android/apk/` — APK-paketointi
+- APK-paketointi: **Katselin-päärepo** (`../Katselin/android/apk`). Paikallinen junction: `./scripts/link-android-apk.ps1` / `.sh` → `support/android/apk` (ei gittiin).
 
 **Tauri ei kantaa Servo-moottoria Androidilla.** Tauri 2.0 käyttää Androidilla System WebViewia (Chromium). Älä yritä wrappaa Servoa Taurin sisään selaimen kantajana.
 

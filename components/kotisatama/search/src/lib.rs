@@ -97,6 +97,25 @@ impl SearchClient {
         });
         fs::create_dir_all(&db_path).map_err(SearchError::Io)?;
 
+        let dump_dir = std::env::var("KOTISATAMA_MEILISEARCH_DUMP_DIR").unwrap_or_else(|_| {
+            data_dir()
+                .join("meilisearch-dumps")
+                .to_string_lossy()
+                .into_owned()
+        });
+        let snapshot_dir = std::env::var("KOTISATAMA_MEILISEARCH_SNAPSHOT_DIR").unwrap_or_else(|_| {
+            data_dir()
+                .join("meilisearch-snapshots")
+                .to_string_lossy()
+                .into_owned()
+        });
+        let cwd = std::env::var("KOTISATAMA_MEILISEARCH_CWD").unwrap_or_else(|_| {
+            data_dir().to_string_lossy().into_owned()
+        });
+        fs::create_dir_all(&dump_dir).map_err(SearchError::Io)?;
+        fs::create_dir_all(&snapshot_dir).map_err(SearchError::Io)?;
+        fs::create_dir_all(&cwd).map_err(SearchError::Io)?;
+
         let dump_path = std::env::var("KOTISATAMA_INDEX_DUMP")
             .unwrap_or_else(|_| data_dir().join("index.dump").to_string_lossy().into_owned());
         let import_dump = should_import_dump(&dump_path, &db_path);
@@ -106,13 +125,19 @@ impl SearchClient {
             fs::create_dir_all(&db_path).map_err(SearchError::Io)?;
         }
 
+        // --dump-dir/--snapshot-dir/--no-analytics + writable cwd: Android bionic (M1).
         let mut args = vec![
             "--http-addr".to_string(),
             "127.0.0.1:7700".to_string(),
             "--db-path".to_string(),
             db_path.clone(),
+            "--dump-dir".to_string(),
+            dump_dir,
+            "--snapshot-dir".to_string(),
+            snapshot_dir,
             "--env".to_string(),
             "development".to_string(),
+            "--no-analytics".to_string(),
         ];
         if import_dump {
             args.push("--import-dump".to_string());
@@ -122,6 +147,7 @@ impl SearchClient {
 
         let child = Command::new(&binary)
             .args(&args)
+            .current_dir(&cwd)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()

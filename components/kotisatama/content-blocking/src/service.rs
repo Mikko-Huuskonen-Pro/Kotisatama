@@ -46,18 +46,33 @@ impl ContentBlockingService {
         }
     }
 
-    /// Lataa paketoitu `assets/filters.txt`.
+    /// Lataa suodatinlista: `KOTISATAMA_FILTER_LIST_PATH` → upotettu lista → fail-open.
     pub fn from_bundled_filters() -> Self {
-        let store = FilterListStore::bundled();
-        match store.load() {
-            Ok(rules) => Self::from_rules(&rules),
-            Err(err) => {
-                log::warn!(
-                    "kotisatama-content-blocking: listaa ei voitu lukea ({}): {err}",
-                    store.path().display()
-                );
-                Self::inactive()
+        if let Ok(path) = std::env::var("KOTISATAMA_FILTER_LIST_PATH") {
+            let store = FilterListStore::from_path(path);
+            match store.load() {
+                Ok(rules) => {
+                    log::info!(
+                        "kotisatama-content-blocking: lista env-polusta ({})",
+                        store.path().display()
+                    );
+                    return Self::from_rules(&rules);
+                },
+                Err(err) => {
+                    log::warn!(
+                        "kotisatama-content-blocking: env-listaa ei voitu lukea ({}): {err}; kokeillaan upotettua",
+                        store.path().display()
+                    );
+                },
             }
+        }
+
+        let rules = crate::filter_store::BUNDLED_FILTERS;
+        if rules.trim().is_empty() {
+            log::warn!("kotisatama-content-blocking: upotettu lista on tyhjä");
+            Self::inactive()
+        } else {
+            Self::from_rules(rules)
         }
     }
 
@@ -177,5 +192,37 @@ mod tests {
             resource_type: ResourceType::Image,
         };
         assert_eq!(service.check(&req), BlockingDecision::Block);
+    }
+
+    #[test]
+    fn bundled_filters_block_eff_simulators() {
+        let service = ContentBlockingService::from_bundled_filters();
+        assert_eq!(service.status(), ContentBlockingStatus::Active);
+        for url in [
+            "https://trackersimulator.org/?action=tracking_tally&ad_url=1",
+            "https://eviltracker.net/?action=tracking_tally&trackingserver=1",
+        ] {
+            let req = BlockingRequest {
+                url,
+                source_url: "https://coveryourtracks.eff.org/",
+                resource_type: ResourceType::Image,
+            };
+            assert_eq!(
+                service.check(&req),
+                BlockingDecision::Block,
+                "expected block for {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn bundled_filters_allow_dnt_domain() {
+        let service = ContentBlockingService::from_bundled_filters();
+        let req = BlockingRequest {
+            url: "https://do-not-tracker.org/?action=tracking_tally&random=1",
+            source_url: "https://coveryourtracks.eff.org/",
+            resource_type: ResourceType::Script,
+        };
+        assert_eq!(service.check(&req), BlockingDecision::Allow);
     }
 }

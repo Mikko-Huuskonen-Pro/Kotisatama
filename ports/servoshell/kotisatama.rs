@@ -191,6 +191,11 @@ pub fn blocked_count_on_page() -> u64 {
     content_blocking().statistics().blocked_count()
 }
 
+/// Estettyjen pyyntöjen kokonaismäärä (ei nollaudu sivunvaihdossa).
+pub fn blocked_count_total() -> u64 {
+    content_blocking().statistics().blocked_total()
+}
+
 /// Onko suodatusmoottori aktiivinen.
 pub fn content_blocking_active() -> bool {
     use kotisatama_content_blocking::ContentBlockingStatus;

@@ -1,5 +1,5 @@
 ! Title: Kotisatama default network filters (moderate)
-! Version: 2026-07-27
+! Version: 2026-08-03
 ! License: see FILTER-LICENSES.md
 ! Purpose: Maltillinen oletuslista — mainokset ja yleinen seuranta, ei aggressiivisia häirintäsääntöjä.
 !
@@ -8,6 +8,11 @@
 -advertisement-management/
 -advertisement.
 -advertisement/script.
+
+! --- EFF Cover Your Tracks simulators (must block ads + invisible trackers) ---
+||trackersimulator.org^
+||eviltracker.net^
+! do-not-tracker.org must NOT be blocked (DNT-compliant domain)
 
 ! --- Google Ads / DoubleClick ---
 ||doubleclick.net^

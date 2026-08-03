@@ -105,6 +105,23 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_kotisatamaShouldShowReport<'
     .resolve::<ThrowRuntimeExAndDefault>()
 }
 
+/// KOTISATAMA-PATCH: estotilastot UI:lle (sivukohtainen, total, active) — 向UI提供拦截统计。
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_kotisatamaBlockedStats<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+) -> jstring {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        let body = json!({
+            "page": kotisatama::blocked_count_on_page(),
+            "total": kotisatama::blocked_count_total(),
+            "active": kotisatama::content_blocking_active(),
+        });
+        Ok(jstring_from(env, body.to_string()))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 fn parse_report_kind(raw: &str) -> ReportKind {
     match raw {
         "suggest_site" => ReportKind::SuggestSite,

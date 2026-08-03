@@ -13,7 +13,7 @@ mod statistics;
 
 pub use decision::BlockingDecision;
 pub use exceptions::SiteExceptionStore;
-pub use filter_store::FilterListStore;
+pub use filter_store::{FilterListStore, BUNDLED_FILTERS};
 pub use request::{BlockingRequest, ResourceType};
 pub use service::{ContentBlockingService, ContentBlockingStatus};
 pub use statistics::BlockingStatistics;

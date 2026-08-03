@@ -1,20 +1,20 @@
 //! Paketoidun suodatinlistan lukeminen.
+//!
+//! Bundled lista upotetaan binääriin (`include_str!`), jotta Androidilla
+//! `CARGO_MANIFEST_DIR`-polku ei tarvitse olla olemassa laitteella.
 
 use std::path::{Path, PathBuf};
 
-/// Oletuslista craten `assets/filters.txt`-tiedostosta (tai annetusta polusta).
+/// Upotettu oletuslista (kääntyy binääriin).
+pub const BUNDLED_FILTERS: &str = include_str!("../assets/filters.txt");
+
+/// Tiedostopohjainen lista (OTA / testit env-polun kautta).
 #[derive(Debug, Clone)]
 pub struct FilterListStore {
     path: PathBuf,
 }
 
 impl FilterListStore {
-    pub fn bundled() -> Self {
-        Self {
-            path: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/filters.txt"),
-        }
-    }
-
     pub fn from_path(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }

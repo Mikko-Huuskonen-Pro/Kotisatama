@@ -95,11 +95,17 @@ body {
   flex: 0 0 auto;
 }
 
-.category-emoji {
+.category-emoji,
+.category-svg {
   display: inline-grid;
   place-items: center;
   font-size: 1.1rem;
   line-height: 1;
+}
+
+.category-svg svg {
+  display: block;
+  fill: currentColor;
 }
 
 .type-dot {

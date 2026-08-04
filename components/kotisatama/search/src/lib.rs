@@ -19,7 +19,9 @@ use kotisatama_subprocess_app::{
     HealthCheckConfig, ManagedSubprocess, SubprocessError, find_binary, find_on_path, is_healthy,
     wait_for_health,
 };
-use kotisatama_whitelist::{WhitelistEntry, curated_document};
+use kotisatama_whitelist::{
+    UserWhitelistEntry, WhitelistEntry, curated_document, user_entries,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -238,6 +240,25 @@ impl SearchClient {
         Ok(())
     }
 
+    /// Re-POST seed + curated + user whitelist documents into Meilisearch.
+    ///
+    /// Call after local Satama add/remove so mid-session search stays in sync.
+    /// Clears the index first so removals take effect (POST alone only upserts).
+    pub fn reload_seed_documents(&self) -> Result<(), SearchError> {
+        let url = format!("{}/indexes/{}/documents", self.base_url, INDEX_UID);
+        match ureq::delete(&url).call() {
+            Ok(resp) => {
+                if let Ok(task) = resp.into_json::<MeiliTask>() {
+                    let _ = self.wait_for_task(task.task_uid);
+                }
+            },
+            Err(error) => {
+                log::warn!("Kotisatama search: clear documents before reload: {error}");
+            },
+        }
+        self.load_seed_documents()
+    }
+
     fn wait_for_task(&self, task_uid: u64) -> Result<(), SearchError> {
         let deadline = Instant::now() + Duration::from_secs(30);
         let url = format!("{}/tasks/{task_uid}", self.base_url);
@@ -363,17 +384,28 @@ fn seed_match_score(doc: &SeedDocument, query: &str) -> Option<i32> {
 }
 
 fn append_whitelist_documents(documents: &mut Vec<SeedDocument>) {
-    let Some(whitelist) = curated_document() else {
-        return;
-    };
     let mut seen_urls = documents
         .iter()
         .map(|document| document.url.to_ascii_lowercase())
         .collect::<HashSet<_>>();
 
-    for entry in whitelist.domains {
-        let Some(document) = whitelist_entry_document(1_000_000 + documents.len() as u64, &entry)
-        else {
+    // KOTISATAMA-PATCH: curated CDN whitelist → hakuindeksi — 策划白名单进入搜索索引。
+    if let Some(whitelist) = curated_document() {
+        for entry in whitelist.domains {
+            let Some(document) =
+                whitelist_entry_document(1_000_000 + documents.len() as u64, &entry)
+            else {
+                continue;
+            };
+            if seen_urls.insert(document.url.to_ascii_lowercase()) {
+                documents.push(document);
+            }
+        }
+    }
+
+    // KOTISATAMA-PATCH: käyttäjän omat Satama-lisäykset hakuun — 用户自有港口条目进入搜索。
+    for (index, entry) in user_entries().into_iter().enumerate() {
+        let Some(document) = user_entry_document(2_000_000 + index as u64, &entry) else {
             continue;
         };
         if seen_urls.insert(document.url.to_ascii_lowercase()) {
@@ -415,6 +447,25 @@ fn whitelist_entry_document(id: u64, entry: &WhitelistEntry) -> Option<SeedDocum
         url: format!("https://{domain}/"),
         title,
         keywords: Some(keywords.join(" ")),
+    })
+}
+
+fn user_entry_document(id: u64, entry: &UserWhitelistEntry) -> Option<SeedDocument> {
+    let domain = entry.domain.trim();
+    if domain.is_empty() {
+        return None;
+    }
+    let title = entry
+        .label
+        .as_deref()
+        .unwrap_or(domain)
+        .trim()
+        .to_owned();
+    Some(SeedDocument {
+        id,
+        url: format!("https://{domain}/"),
+        title,
+        keywords: Some(domain.to_owned()),
     })
 }
 
@@ -547,5 +598,30 @@ mod tests {
         assert_eq!(document.url, "https://example-golf.fi/");
         assert_eq!(document.title, "Example Golf");
         assert!(document.keywords.unwrap().contains("golfkenttään"));
+    }
+
+    #[test]
+    fn user_entry_document_uses_label_and_stable_url() {
+        let entry = UserWhitelistEntry {
+            domain: "oma-esimerkki.fi".into(),
+            label: Some("Oma esimerkki".into()),
+            added: None,
+        };
+        let document = user_entry_document(2_000_000, &entry).unwrap();
+        assert_eq!(document.id, 2_000_000);
+        assert_eq!(document.url, "https://oma-esimerkki.fi/");
+        assert_eq!(document.title, "Oma esimerkki");
+        assert_eq!(document.keywords.as_deref(), Some("oma-esimerkki.fi"));
+    }
+
+    #[test]
+    fn user_entry_document_falls_back_to_domain_title() {
+        let entry = UserWhitelistEntry {
+            domain: "pelkka-domain.fi".into(),
+            label: None,
+            added: None,
+        };
+        let document = user_entry_document(2_000_001, &entry).unwrap();
+        assert_eq!(document.title, "pelkka-domain.fi");
     }
 }

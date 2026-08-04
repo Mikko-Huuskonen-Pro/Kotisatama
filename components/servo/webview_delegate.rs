@@ -1069,6 +1069,19 @@ pub trait WebViewDelegate {
     /// will call [`crate::ServoDelegate::load_web_resource`].
     fn load_web_resource(&self, _webview: WebView, _load: WebResourceLoad) {}
 
+    // KOTISATAMA-PATCH: ei-renderöitävä resurssi (PDF/ZIP/…) → embedder — 不可渲染资源交给嵌入层。
+    // Upstream PR: ei auki
+    // Revisit: kun Servolla on virallinen download-API
+    /// Hand off a non-renderable resource (for example a PDF or ZIP) to the embedder.
+    fn open_external_resource(
+        &self,
+        _webview: WebView,
+        _url: String,
+        _mime_type: Option<String>,
+        _filename: Option<String>,
+    ) {
+    }
+
     /// Request to display a notification.
     fn show_notification(&self, _webview: WebView, _notification: Notification) {}
 

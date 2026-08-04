@@ -537,6 +537,11 @@ pub enum EmbedderMsg {
     /// Let the embedder process a DOM Console API message.
     /// <https://developer.mozilla.org/en-US/docs/Web/API/Console_API>
     ShowConsoleApiMessage(Option<WebViewId>, ConsoleLogLevel, String),
+    // KOTISATAMA-PATCH: PDF/ZIP/attachment → Android DownloadManager — PDF/ZIP/附件交给Android下载管理器。
+    // Upstream PR: ei auki
+    // Revisit: kun Servolla on virallinen download-API
+    /// Ask the embedder to hand off a non-renderable resource to the platform.
+    OpenExternalResource(WebViewId, String, Option<String>, Option<String>),
     /// Request to the embedder to display a user interace control.
     ShowEmbedderControl(EmbedderControlId, DeviceIntRect, EmbedderControlRequest),
     /// Request to the embedder to hide a user interface control.

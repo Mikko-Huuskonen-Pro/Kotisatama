@@ -357,6 +357,68 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_goForward<'local>(
     .resolve::<ThrowRuntimeExAndDefault>()
 }
 
+// KOTISATAMA-PATCH: Android-välilehdet (list/new/activate/close) — Android标签页API。
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_listWebViews<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+) -> jni::sys::jstring {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        let json = APP.with(|app| match app.borrow().as_ref() {
+            Some(app) => app.list_webviews_json(),
+            None => "[]".to_owned(),
+        });
+        Ok(env
+            .new_string(json)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_newWebView<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        APP.with(|app| match app.borrow().as_ref() {
+            Some(app) => app.new_webview_blank(),
+            None => throw(env, jni_str!("Servo not available in this thread")),
+        });
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_activateWebView<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    index: jint,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        let index = index.max(0) as usize;
+        call(env, |s| s.activate_webview_index(index));
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_closeWebView<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    index: jint,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        let index = index.max(0) as usize;
+        call(env, |s| s.close_webview_index(index));
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn Java_org_servo_servoview_JNIServo_scroll<'local>(
     mut env: EnvUnowned<'local>,
@@ -879,6 +941,37 @@ impl HostTrait for HostCallbacks {
                     jni_str!("onMediaSessionSetPositionState"),
                     jni_sig!("(FFF)V"),
                     &[duration, position, playback_rate],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    // KOTISATAMA-PATCH: JNI onOpenExternalResource → Android DownloadManager — JNI下载回调。
+    fn on_open_external_resource(
+        &self,
+        url: String,
+        mime_type: Option<String>,
+        filename: Option<String>,
+    ) {
+        self.jvm
+            .attach_current_thread(|env| -> Result<(), Error> {
+                let Ok(url) = new_string_as_jvalue(env, &url) else {
+                    return Ok(());
+                };
+                let mime_type = mime_type.unwrap_or_default();
+                let filename = filename.unwrap_or_default();
+                let Ok(mime_type) = new_string_as_jvalue(env, &mime_type) else {
+                    return Ok(());
+                };
+                let Ok(filename) = new_string_as_jvalue(env, &filename) else {
+                    return Ok(());
+                };
+                env.call_method(
+                    callback_ref(),
+                    jni_str!("onOpenExternalResource"),
+                    jni_sig!("(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
+                    &[(&url).into(), (&mime_type).into(), (&filename).into()],
                 )?;
                 Ok(())
             })

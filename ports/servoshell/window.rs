@@ -200,7 +200,15 @@ impl ServoShellWindow {
     }
 
     pub(crate) fn add_webview(&self, webview: WebView) {
-        self.webview_collection.borrow_mut().add(webview);
+        let to_close = {
+            let mut collection = self.webview_collection.borrow_mut();
+            collection.add(webview);
+            // KOTISATAMA-PATCH: sulje LRU-välilehti jos yli MAX_WEBVIEWS — 超过上限时关闭LRU标签。
+            collection.ids_to_evict(crate::running_app_state::MAX_WEBVIEWS)
+        };
+        for id in to_close {
+            self.close_webview(id);
+        }
         self.set_needs_update();
         self.set_needs_repaint();
     }
@@ -225,7 +233,6 @@ impl ServoShellWindow {
         self.set_needs_update();
     }
 
-    #[cfg_attr(any(target_os = "android", target_env = "ohos"), expect(dead_code))]
     pub(crate) fn activate_webview_by_index(&self, index_to_activate: usize) {
         self.webview_collection
             .borrow_mut()
@@ -500,6 +507,14 @@ pub(crate) trait PlatformWindow {
     fn notify_media_session_event(&self, _: MediaSessionEvent) {}
     fn notify_crashed(&self, _: WebView, _reason: String, _backtrace: Option<String>) {}
     fn show_console_message(&self, _level: ConsoleLogLevel, _message: &str) {}
+    // KOTISATAMA-PATCH: PlatformWindow-hook latauksille (Android DownloadManager) — 平台窗口下载钩子。
+    fn open_external_resource(
+        &self,
+        _url: &str,
+        _mime_type: Option<String>,
+        _filename: Option<String>,
+    ) {
+    }
 
     #[cfg(not(any(target_os = "android", target_env = "ohos")))]
     /// If this window is a headed window, access the concrete type.

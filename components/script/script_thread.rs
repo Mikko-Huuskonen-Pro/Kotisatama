@@ -48,7 +48,8 @@ use embedder_traits::{
 use encoding_rs::Encoding;
 use fonts::{FontContext, SystemFontServiceProxy, WebFontLoadEvent};
 use headers::{HeaderMapExt, LastModified, ReferrerPolicy as ReferrerPolicyHeader};
-use http::header::REFRESH;
+// KOTISATAMA-PATCH: CONTENT_DISPOSITION lataustunnistukseen — 用于识别下载附件。
+use http::header::{CONTENT_DISPOSITION, REFRESH};
 use hyper_serde::Serde;
 use ipc_channel::router::ROUTER;
 use js::context::{JSContext, NoGC};
@@ -166,6 +167,41 @@ use crate::webdriver_handlers::jsval_to_webdriver;
 use crate::{devtools, webdriver_handlers};
 
 thread_local!(static SCRIPT_THREAD_ROOT: Cell<Option<*const ScriptThread>> = const { Cell::new(None) });
+
+// KOTISATAMA-PATCH: tunnista ei-renderöitävät MIME-tyypit (PDF/ZIP/…) — 识别不可渲染MIME类型。
+// Upstream PR: ei auki
+// Revisit: kun Servolla on virallinen download-API
+fn should_download_mime_type(mime: &str) -> bool {
+    mime.starts_with("application/") &&
+        mime != "application/xhtml+xml" &&
+        mime != "application/xml" &&
+        !mime.ends_with("+xml")
+}
+
+// KOTISATAMA-PATCH: poimi filename Content-Dispositionista — 从Content-Disposition提取文件名。
+fn extract_filename_from_content_disposition_value(value: &str) -> Option<String> {
+    if let Some(index) = value.find("filename*=UTF-8''") {
+        let start = index + "filename*=UTF-8''".len();
+        return Some(
+            value
+                .get(start..)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_owned(),
+        );
+    }
+    if let Some(index) = value.find("filename=") {
+        let start = index + "filename=".len();
+        return Some(
+            value
+                .get(start..)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_owned(),
+        );
+    }
+    None
+}
 
 fn with_optional_script_thread<R>(f: impl FnOnce(Option<&ScriptThread>) -> R) -> R {
     SCRIPT_THREAD_ROOT.with(|root| {
@@ -3218,6 +3254,63 @@ impl ScriptThread {
                 .unwrap();
             return None;
         };
+
+        // KOTISATAMA-PATCH: attachment / ei-renderöitävä MIME → AbortLoadUrl + OpenExternalResource
+        // (Android DownloadManager) sen sijaan että HTML-parseri yrittäisi renderöidä — 附件/不可渲染MIME中止加载并交给嵌入层，避免当HTML解析。
+        // Upstream PR: ei auki
+        // Revisit: kun Servolla on virallinen download-API
+        if let Some(metadata) = metadata {
+            let content_disposition = metadata
+                .headers
+                .as_deref()
+                .and_then(|headers| headers.get(CONTENT_DISPOSITION))
+                .and_then(|value| value.to_str().ok());
+            let is_attachment = content_disposition.is_some_and(|value| {
+                value
+                    .split(';')
+                    .any(|part| part.trim().eq_ignore_ascii_case("attachment"))
+            });
+            let filename =
+                content_disposition.and_then(extract_filename_from_content_disposition_value);
+            let mime_type = metadata
+                .content_type
+                .clone()
+                .map(Serde::into_inner)
+                .map(Mime::from_ct)
+                .map(|mime| mime.to_string());
+            let should_open_external = is_attachment ||
+                mime_type
+                    .as_deref()
+                    .is_some_and(should_download_mime_type);
+
+            if should_open_external {
+                if let Some(window) = self.documents.borrow().find_window(pipeline_id) {
+                    let window_proxy = window.window_proxy();
+                    if window_proxy.parent().is_some() {
+                        window_proxy.stop_delaying_load_events_mode();
+                    }
+                }
+                self.incomplete_loads.borrow_mut().remove(idx);
+                self.senders
+                    .pipeline_to_constellation_sender
+                    .send((
+                        webview_id,
+                        pipeline_id,
+                        ScriptToConstellationMessage::AbortLoadUrl,
+                    ))
+                    .unwrap();
+                let _ = self
+                    .senders
+                    .pipeline_to_embedder_sender
+                    .send(EmbedderMsg::OpenExternalResource(
+                        webview_id,
+                        metadata.final_url.to_string(),
+                        mime_type,
+                        filename,
+                    ));
+                return None;
+            }
+        }
 
         let load = self.incomplete_loads.borrow_mut().remove(idx);
         metadata.map(|meta| self.load(meta, load, origin, cx))

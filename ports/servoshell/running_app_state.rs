@@ -70,15 +70,24 @@ pub struct WebViewCollection {
     /// The order in which the webviews were created.
     pub(crate) creation_order: Vec<WebViewId>,
 
+    /// Least-recently-used order (oldest access first). Touched on add/activate.
+    // KOTISATAMA-PATCH: LRU max-välilehdille — LRU用于标签页上限。
+    access_order: Vec<WebViewId>,
+
     /// The [`WebView`] that is currently active. This is the [`WebView`] that is shown and has
     /// input focus.
     active_webview_id: Option<WebViewId>,
 }
 
+/// Soft cap on open top-level webviews (desktop tabs / Android window.open).
+// KOTISATAMA-PATCH: enintään 20 välilehteä — 最多20个标签页。
+pub(crate) const MAX_WEBVIEWS: usize = 20;
+
 impl WebViewCollection {
     pub fn add(&mut self, webview: WebView) {
         let id = webview.id();
         self.creation_order.push(id);
+        self.touch(id);
         self.webviews.insert(id, webview);
     }
 
@@ -86,6 +95,7 @@ impl WebViewCollection {
     /// [`WebView`] then the next newest [`WebView`] will be activated.
     pub fn remove(&mut self, id: WebViewId) -> Option<WebView> {
         self.creation_order.retain(|&webview_id| webview_id != id);
+        self.access_order.retain(|&webview_id| webview_id != id);
         let removed_webview = self.webviews.remove(&id);
 
         if self.active_webview_id == Some(id) {
@@ -96,6 +106,34 @@ impl WebViewCollection {
         }
 
         removed_webview
+    }
+
+    fn touch(&mut self, id: WebViewId) {
+        self.access_order.retain(|&webview_id| webview_id != id);
+        self.access_order.push(id);
+    }
+
+    /// WebView ids to close so that `len() <= max`, never including the active tab.
+    pub(crate) fn ids_to_evict(&self, max: usize) -> Vec<WebViewId> {
+        if self.webviews.len() <= max {
+            return Vec::new();
+        }
+        let active = self.active_webview_id;
+        let mut evict = Vec::new();
+        for &id in &self.access_order {
+            if self.webviews.len() - evict.len() <= max {
+                break;
+            }
+            if active == Some(id) {
+                continue;
+            }
+            // Always keep at least one webview.
+            if self.webviews.len() - evict.len() <= 1 {
+                break;
+            }
+            evict.push(id);
+        }
+        evict
     }
 
     pub fn get(&self, id: WebViewId) -> Option<&WebView> {
@@ -136,6 +174,7 @@ impl WebViewCollection {
     pub(crate) fn activate_webview(&mut self, id_to_activate: WebViewId) {
         assert!(self.creation_order.contains(&id_to_activate));
 
+        self.touch(id_to_activate);
         self.active_webview_id = Some(id_to_activate);
         for (webview_id, webview) in self.all_in_creation_order() {
             if id_to_activate == webview_id {
@@ -902,6 +941,18 @@ impl WebViewDelegate for RunningAppState {
     fn show_console_message(&self, webview: WebView, level: ConsoleLogLevel, message: String) {
         self.platform_window_for_webview(&webview)
             .show_console_message(level, &message);
+    }
+
+    // KOTISATAMA-PATCH: WebViewDelegate → PlatformWindow latauksille — WebViewDelegate到平台窗口的下载转发。
+    fn open_external_resource(
+        &self,
+        webview: WebView,
+        url: String,
+        mime_type: Option<String>,
+        filename: Option<String>,
+    ) {
+        self.platform_window_for_webview(&webview)
+            .open_external_resource(&url, mime_type, filename);
     }
 
     fn notify_accessibility_tree_update(

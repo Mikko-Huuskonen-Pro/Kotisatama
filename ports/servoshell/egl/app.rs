@@ -237,6 +237,17 @@ impl PlatformWindow for EmbeddedPlatformWindow {
     fn show_console_message(&self, level: servo::ConsoleLogLevel, message: &str) {
         log::log!(level.into(), "{message}");
     }
+
+    // KOTISATAMA-PATCH: välitä latauspyyntö HostTraitille — 将下载请求转发给HostTrait。
+    fn open_external_resource(
+        &self,
+        url: &str,
+        mime_type: Option<String>,
+        filename: Option<String>,
+    ) {
+        self.host
+            .on_open_external_resource(url.to_string(), mime_type, filename);
+    }
 }
 
 pub(crate) struct VsyncRefreshDriver {
@@ -354,6 +365,10 @@ impl App {
             .expect("Failed to parse initial URL");
 
         let user_content_manager = Rc::new(UserContentManager::new(&servo));
+        // KOTISATAMA-PATCH: Consent-O-Matic userscript (Android) — Consent-O-Matic用户脚本
+        // Revisit: hot-reload ilman restartia
+        #[cfg(all(feature = "kotisatama", target_os = "android"))]
+        crate::kotisatama::register_consent_script(&user_content_manager);
         let state = Rc::new(RunningAppState::new(
             servo,
             init.servoshell_preferences,
@@ -485,6 +500,55 @@ impl App {
         self.window()
             .queue_user_interface_command(UserInterfaceCommand::Forward);
         self.spin_event_loop();
+    }
+
+    /// JSON list of open top-level webviews for the Android tab UI.
+    // KOTISATAMA-PATCH: välilehtilista JNI:lle — 标签页列表供JNI使用。
+    pub fn list_webviews_json(&self) -> String {
+        use serde_json::json;
+        let window = self.window();
+        let active_id = window
+            .active_or_newest_webview()
+            .map(|webview| webview.id());
+        let tabs: Vec<_> = window
+            .webviews()
+            .into_iter()
+            .enumerate()
+            .map(|(index, (id, webview))| {
+                json!({
+                    "index": index,
+                    "title": webview.page_title().unwrap_or_default(),
+                    "url": webview.url().map(|url| url.to_string()).unwrap_or_default(),
+                    "active": Some(id) == active_id,
+                })
+            })
+            .collect();
+        json!(tabs).to_string()
+    }
+
+    /// Open a new blank top-level webview (Android tabs).
+    pub fn new_webview_blank(self: &Rc<Self>) {
+        let url = Url::parse("about:blank").expect("about:blank");
+        self.create_and_activate_toplevel_webview(url);
+        self.spin_event_loop();
+    }
+
+    /// Activate webview by creation-order index.
+    pub fn activate_webview_index(&self, index: usize) {
+        self.window().activate_webview_by_index(index);
+        self.spin_event_loop();
+    }
+
+    /// Close webview by creation-order index (keeps at least one).
+    pub fn close_webview_index(&self, index: usize) {
+        let webviews = self.window().webviews();
+        if webviews.len() <= 1 {
+            return;
+        }
+        if let Some((id, _)) = webviews.get(index) {
+            self.window().close_webview(*id);
+            self.spin_event_loop();
+        }
     }
 
     /// Let Servo know that the window has been resized.

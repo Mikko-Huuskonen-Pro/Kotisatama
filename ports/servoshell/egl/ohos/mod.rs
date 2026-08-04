@@ -1235,6 +1235,16 @@ impl HostTrait for HostCallbacks {
         warn!("on_media_session_set_position_state not implemented");
     }
 
+    // KOTISATAMA-PATCH: HostTrait-stub latauksille (OHOS ei vielä käytä) — OHOS下载回调占位。
+    fn on_open_external_resource(
+        &self,
+        _url: String,
+        _mime_type: Option<String>,
+        _filename: Option<String>,
+    ) {
+        warn!("on_open_external_resource not implemented");
+    }
+
     fn on_show_select_element(&self, _webview_id: WebViewId, _prompt: SelectElement) {}
 
     fn on_panic(&self, reason: String, backtrace: Option<String>) {

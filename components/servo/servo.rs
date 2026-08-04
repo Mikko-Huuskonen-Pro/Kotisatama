@@ -685,6 +685,14 @@ impl ServoInner {
                     None => self.delegate.borrow().show_console_message(level, message),
                 }
             },
+            // KOTISATAMA-PATCH: ohjaa OpenExternalResource WebViewDelegateen — 将OpenExternalResource转发到WebViewDelegate。
+            EmbedderMsg::OpenExternalResource(webview_id, url, mime_type, filename) => {
+                if let Some(webview) = self.get_webview_handle(webview_id) {
+                    webview
+                        .delegate()
+                        .open_external_resource(webview, url, mime_type, filename);
+                }
+            },
             EmbedderMsg::ShowEmbedderControl(control_id, position, embedder_control_request) => {
                 if let Some(webview) = self.get_webview_handle(control_id.webview_id) {
                     webview.show_embedder_control(control_id, position, embedder_control_request);

@@ -112,6 +112,60 @@ pub fn init() {
     let _ = CONTENT_BLOCKING.set(blocking);
 }
 
+/// Register Consent-O-Matic userscript (Android / optional desktop).
+///
+/// Env:
+/// - `KOTISATAMA_CONSENT_MODE`: `required` (default) | `all` | `off`
+/// - `KOTISATAMA_CONSENT_SCRIPT`: path to standalone `consent-katselin.js`
+///
+/// Revisit: hot-reload without app restart.
+pub fn register_consent_script(user_content_manager: &servo::UserContentManager) {
+    let mode = std::env::var("KOTISATAMA_CONSENT_MODE")
+        .unwrap_or_else(|_| "required".to_string())
+        .to_ascii_lowercase();
+    if mode == "off" || mode == "0" || mode == "false" || mode == "no" {
+        info!("Kotisatama consent: pois käytöstä (KOTISATAMA_CONSENT_MODE={mode})");
+        return;
+    }
+
+    let mode_token = if mode == "all" { "all" } else { "required" };
+
+    let script_path = match std::env::var("KOTISATAMA_CONSENT_SCRIPT") {
+        Ok(path) if !path.is_empty() => PathBuf::from(path),
+        _ => {
+            warn!("Kotisatama consent: KOTISATAMA_CONSENT_SCRIPT not set — skip");
+            return;
+        },
+    };
+
+    let bundle = match std::fs::read_to_string(&script_path) {
+        Ok(source) => source,
+        Err(error) => {
+            warn!(
+                "Kotisatama consent: failed to read {}: {error}",
+                script_path.display()
+            );
+            return;
+        },
+    };
+
+    // Preamble so the JS shim can seed GDPRConfig consent categories.
+    let source = format!(
+        "window.__KATSELIN_CONSENT_MODE__={mode_js};\n{bundle}",
+        mode_js = serde_json::to_string(mode_token).unwrap_or_else(|_| "\"required\"".to_string()),
+        bundle = bundle
+    );
+
+    user_content_manager.add_script(std::rc::Rc::new(servo::UserScript::new(
+        source,
+        Some(script_path.clone()),
+    )));
+    info!(
+        "Kotisatama consent: script registered (mode={mode_token}, {})",
+        script_path.display()
+    );
+}
+
 /// Whether navigation to `url` is allowed.
 pub fn check_url(url: &Url) -> bool {
     is_navigation_allowed(url)
@@ -484,6 +538,21 @@ pub fn ensure_missa_olen() {
             None
         },
     });
+}
+
+/// Reindex Meilisearch with current seed + curated + user Satama entries.
+///
+/// No-op if search client was never started or is unavailable (seed_search
+/// rebuilds from disk on every query anyway).
+pub fn reload_search_index() {
+    let Some(Some(client)) = SEARCH.get() else {
+        return;
+    };
+    if let Err(error) = client.reload_seed_documents() {
+        warn!("Kotisatama search reindex failed: {error}");
+    } else {
+        info!("Kotisatama search: seed documents reloaded (incl. user Satama)");
+    }
 }
 
 /// Search the local Kotisatama index.

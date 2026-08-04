@@ -233,7 +233,11 @@ impl ProtocolHandler for ServoProtocolHandler {
                     return redirect_response(request, "servo:whitelist?error=failed");
                 };
                 let redirect = match add_user_domain(&pending.domain, None) {
-                    Ok(_) => whitelist_add_redirect(&pending.domain, pending.return_url.as_deref()),
+                    Ok(_) => {
+                        // KOTISATAMA-PATCH: päivitä hakuindeksi heti lisäyksen jälkeen — 添加后立即刷新搜索索引。
+                        crate::kotisatama::reload_search_index();
+                        whitelist_add_redirect(&pending.domain, pending.return_url.as_deref())
+                    },
                     Err(_) => "servo:whitelist?error=failed".to_owned(),
                 };
                 if let Ok(parsed) = Url::parse(&redirect) {
@@ -273,7 +277,11 @@ impl ProtocolHandler for ServoProtocolHandler {
                     return redirect_response(request, "servo:whitelist?error=failed");
                 };
                 match remove_user_domain(&pending.domain) {
-                    Ok(_) => redirect_response(request, "servo:whitelist"),
+                    Ok(_) => {
+                        // KOTISATAMA-PATCH: päivitä hakuindeksi poiston jälkeen — 删除后刷新搜索索引。
+                        crate::kotisatama::reload_search_index();
+                        redirect_response(request, "servo:whitelist")
+                    },
                     Err(_) => redirect_response(request, "servo:whitelist?error=failed"),
                 }
             },

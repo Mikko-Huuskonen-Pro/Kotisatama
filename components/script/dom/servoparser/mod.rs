@@ -1940,7 +1940,6 @@ impl TreeSink for Sink {
                 cx,
                 attr.name,
                 DOMString::from(String::from(attr.value)),
-                None,
             );
         }
     }
@@ -2116,13 +2115,13 @@ fn create_element_for_token(
 
     // Step 11. Append each attribute in the given token to element.
     for attr in attrs {
-        element.set_attribute_from_parser(cx, attr.name, attr.value, None);
+        element.set_attribute_from_parser(cx, attr.name, attr.value);
     }
 
     // Record if the tokenizer saw duplicate attributes on this element,
     // used for CSP nonce validation (step 3 of "is element nonceable").
     if had_duplicate_attributes {
-        element.set_had_duplicate_attributes();
+        element.set_had_duplicate_attributes(cx.no_gc());
     }
 
     // Step 12. If willExecuteScript is true:

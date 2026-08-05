@@ -150,7 +150,7 @@ use crate::microtask::MicrotaskRunnable;
 use crate::network_listener::{FetchResponseListener, NetworkListener};
 use crate::realms::enter_auto_realm;
 use crate::script_module::{
-    ImportMap, ModuleRequest, ModuleStatus, ResolvedModule, ScriptFetchOptions,
+    ImportMap, ModuleRequest, ModuleStatus, ModuleTree, ResolvedModule, ScriptFetchOptions,
 };
 use crate::script_runtime::ThreadSafeJSContext;
 use crate::script_thread::{ScriptThread, with_script_thread};
@@ -2421,12 +2421,25 @@ impl GlobalScope {
         &self.consumed_rejections
     }
 
-    pub(crate) fn set_module_map(&self, request: ModuleRequest, module: ModuleStatus) {
-        self.module_map.borrow_mut().insert(request, module);
+    pub(crate) fn module_map(
+        &self,
+    ) -> &DomRefCell<HashMapTracedValues<ModuleRequest, ModuleStatus>> {
+        &self.module_map
     }
 
-    pub(crate) fn get_module_map_entry(&self, request: &ModuleRequest) -> Option<ModuleStatus> {
-        self.module_map.borrow().get(request).cloned()
+    /// Return the [`ModuleTree`] for a given [`ModuleRequest`] or `None` if there is no
+    /// tree for the request or if that tree is still being fetched.
+    pub(crate) fn module_tree_for_request_if_loaded(
+        &self,
+        request: &ModuleRequest,
+    ) -> Option<Rc<ModuleTree>> {
+        self.module_map
+            .borrow()
+            .get(request)
+            .and_then(|status| match status {
+                ModuleStatus::Fetching(_) => None,
+                ModuleStatus::Loaded(module_tree) => Some(module_tree.clone()),
+            })
     }
 
     pub(crate) fn time(&self, label: DOMString) -> Result<(), ()> {
@@ -2915,6 +2928,8 @@ impl GlobalScope {
             worker.task_manager()
         } else if let Some(window) = self.downcast::<Window>() {
             window.task_manager()
+        } else if let Some(worklet) = self.downcast::<WorkletGlobalScope>() {
+            worklet.task_manager()
         } else {
             unreachable!("Attempted to use task manager with unsupported global");
         }
@@ -3069,6 +3084,8 @@ impl GlobalScope {
             window.perform_a_microtask_checkpoint(cx);
         } else if let Some(worker) = self.downcast::<WorkerGlobalScope>() {
             worker.perform_a_microtask_checkpoint(cx);
+        } else if let Some(worklet) = self.downcast::<WorkletGlobalScope>() {
+            worklet.perform_a_microtask_checkpoint(cx);
         }
     }
 

@@ -16,6 +16,7 @@ use encoding_rs::UTF_8;
 use fonts::FontContext;
 use headers::{HeaderMapExt, ReferrerPolicy as ReferrerPolicyHeader};
 use js::context::JSContext;
+use js::conversions::ToJSValConvertible;
 use js::jsapi::{Heap, JSContext as RawJSContext, Value};
 use js::realm::CurrentRealm;
 use js::rust::{HandleValue, MutableHandleValue, ParentRuntime};
@@ -28,7 +29,7 @@ use net_traits::request::{
 use net_traits::{FetchMetadata, Metadata, NetworkError, ReferrerPolicy, ResourceFetchTiming};
 use profile_traits::mem::{ProcessReports, perform_memory_report};
 use script_bindings::cell::{DomRefCell, Ref};
-use script_bindings::conversions::{SafeToJSValConvertible, root_from_handlevalue};
+use script_bindings::conversions::root_from_handlevalue;
 use script_bindings::reflector::DomObject;
 use script_bindings::root::rooted_heap_handle;
 use script_bindings::trace::CustomTraceable;
@@ -347,7 +348,7 @@ pub(crate) struct WorkerGlobalScope {
     /// <https://w3c.github.io/ServiceWorker/#global-caches-attribute>
     caches: MutNullableDom<CacheStorage>,
 
-    /// A [`TaskManager`] for this [`WorkerGlobalScope`].
+    /// The [`TaskManager`] for this [`WorkerGlobalScope`].
     #[conditional_malloc_size_of]
     task_manager: Rc<TaskManager>,
 
@@ -1014,7 +1015,7 @@ impl WorkerGlobalScopeMethods<crate::DomTypeHolder> for WorkerGlobalScope {
     fn Performance(&self, cx: &mut JSContext) -> DomRoot<Performance> {
         self.performance.or_init(|| {
             let global_scope = self.upcast::<GlobalScope>();
-            Performance::new(cx, global_scope, self.navigation_start)
+            Performance::new(cx, global_scope, self.navigation_start, Default::default())
         })
     }
 

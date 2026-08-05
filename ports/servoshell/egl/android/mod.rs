@@ -48,17 +48,6 @@ fn callback_ref() -> &'static JObject<'static> {
     CALLBACK_OBJECT.get().expect("Servo init failed").as_ref()
 }
 
-struct InitOptions {
-    args: Vec<String>,
-    url: Option<String>,
-    viewport_rect: Rect<i32, DevicePixel>,
-    density: f32,
-    #[cfg(feature = "webxr")]
-    xr_discovery: Option<servo::webxr::Discovery>,
-    window_handle: RawWindowHandle,
-    display_handle: RawDisplayHandle,
-}
-
 struct HostCallbacks {
     jvm: JavaVM,
 }
@@ -103,15 +92,42 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     context: JObject<'local>,
-    opts: JObject<'local>,
+    args: JString<'local>,
+    url: JString<'local>,
+    size: JObject<'local>,
+    density: jfloat,
+    logStr: JString<'local>,
+    log: jboolean,
+    experimental_mode: jboolean,
     callbacks_obj: JObject<'local>,
     surface: JObject<'local>,
 ) {
     env.with_env(|env| -> jni::errors::Result<_> {
-        let (init_opts, log, log_str) = get_options(env, &opts, &surface).map_err(|e| {
-            error!("JNIServo_init: get_options failed: {e:?}");
-            e
-        })?;
+        // Upstream: InitOptions inlined (servo#46994). Kotisatama keeps map_err-käsittely alempana.
+        // 上游：InitOptions 已内联；Kotisatama 在下方保留 map_err 错误处理。
+        let args = JString::cast_local(env, args)?.try_to_string(env).ok();
+        let url = JString::cast_local(env, url)?.try_to_string(env).ok();
+        let log_str = JString::cast_local(env, logStr)?.try_to_string(env).ok();
+
+        let viewport_rect = jni_coordinate_to_rust_viewport_rect(env, &size)?;
+
+        let mut args: Vec<String> = args
+            .and_then(|args| {
+                serde_json::from_str(&args)
+                    .inspect_err(|_| {
+                        error!(
+                            "Invalid arguments. Servo arguments must be formatted as a JSON array"
+                        )
+                    })
+                    .ok()
+            })
+            .unwrap_or_default();
+
+        if experimental_mode {
+            args.push("--enable-experimental-web-platform-features".to_owned());
+        }
+
+        let (display_handle, window_handle) = display_and_window_handle(env, &surface);
 
         if log {
             // Note: Android debug logs are stripped from a release build.
@@ -191,7 +207,7 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
         }
 
         let (opts, mut preferences, servoshell_preferences) =
-            match parse_command_line_arguments(init_opts.args.as_slice()) {
+            match parse_command_line_arguments(args.as_slice()) {
                 ArgumentParsingResult::ContentProcess(..) => {
                     unreachable!("Android does not have support for multiprocess yet.")
                 },
@@ -213,28 +229,28 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
 
         let (display_handle, window_handle) = unsafe {
             (
-                DisplayHandle::borrow_raw(init_opts.display_handle),
-                WindowHandle::borrow_raw(init_opts.window_handle),
+                DisplayHandle::borrow_raw(display_handle),
+                WindowHandle::borrow_raw(window_handle),
             )
         };
 
-        let hidpi_scale_factor = Scale::new(init_opts.density);
+        let hidpi_scale_factor = Scale::new(density);
 
         APP.with(|app| {
             let new_app = App::new(AppInitOptions {
                 host,
                 event_loop_waker,
-                initial_url: init_opts.url,
+                initial_url: url,
                 opts,
                 preferences,
                 servoshell_preferences,
                 #[cfg(feature = "webxr")]
-                xr_discovery: init_opts.xr_discovery,
+                xr_discovery: None,
             });
             new_app.add_platform_window(
                 display_handle,
                 window_handle,
-                init_opts.viewport_rect,
+                viewport_rect,
                 hidpi_scale_factor,
                 None,
             );
@@ -267,10 +283,10 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_setExperimentalMode<'local>(
 pub extern "C" fn Java_org_servo_servoview_JNIServo_resize<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    coordinates: JObject<'local>,
+    size: JObject<'local>,
 ) {
     env.with_env(|env| -> jni::errors::Result<_> {
-        let viewport_rect = jni_coordinate_to_rust_viewport_rect(env, &coordinates)?;
+        let viewport_rect = jni_coordinate_to_rust_viewport_rect(env, &size)?;
         debug!("resize {viewport_rect:#?}");
         call(env, |s| s.resize(viewport_rect));
         Ok(())
@@ -679,11 +695,11 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_resumePainting<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     surface: JObject<'local>,
-    coordinates: JObject<'local>,
+    size: JObject<'local>,
 ) {
     env.with_env(|env| -> jni::errors::Result<_> {
         debug!("resumePainting");
-        let viewport_rect = jni_coordinate_to_rust_viewport_rect(env, &coordinates)?;
+        let viewport_rect = jni_coordinate_to_rust_viewport_rect(env, &size)?;
         let (_, window_handle) = display_and_window_handle(env, &surface);
 
         call(env, |s| {
@@ -1012,23 +1028,16 @@ fn new_string_as_jvalue<'local>(
 
 fn jni_coordinate_to_rust_viewport_rect<'local>(
     env: &mut Env<'local>,
-    obj: &JObject<'local>,
+    size: &JObject<'local>,
 ) -> Result<Rect<i32, DevicePixel>, Error> {
-    let width = env.get_field(obj, jni_str!("width"), jni_sig!("I"))?.i()?;
-    let height = env.get_field(obj, jni_str!("height"), jni_sig!("I"))?.i()?;
+    let width = env
+        .call_method(size, jni_str!("getWidth"), jni_sig!("()I"), &[])?
+        .i()?;
+    let height = env
+        .call_method(size, jni_str!("getHeight"), jni_sig!("()I"), &[])?
+        .i()?;
 
     Ok(Rect::new(Point2D::origin(), Size2D::new(width, height)))
-}
-
-fn get_field_as_string<'local>(
-    env: &mut Env<'local>,
-    obj: &JObject<'local>,
-    field: &JNIStr,
-) -> Result<String, Error> {
-    let string_value = env
-        .get_field(obj, field, jni_sig!("Ljava/lang/String;"))?
-        .l()?;
-    JString::cast_local(env, string_value)?.try_to_string(env)
 }
 
 fn set_default_config_dir<'local>(
@@ -1062,65 +1071,6 @@ fn set_default_config_dir<'local>(
         .set(config_dir)
         .inspect_err(|path| warn!("Default config dir was already set to {path:?}"));
     Ok(())
-}
-
-fn get_options<'local>(
-    env: &mut Env<'local>,
-    opts: &JObject<'local>,
-    surface: &JObject<'local>,
-) -> Result<(InitOptions, bool, Option<String>), Error> {
-    let args = get_field_as_string(env, opts, jni_str!("args")).ok();
-    let url = get_field_as_string(env, opts, jni_str!("url")).ok();
-    let log_str = get_field_as_string(env, opts, jni_str!("logStr")).ok();
-
-    let experimental_mode = env
-        .get_field(opts, jni_str!("experimentalMode"), jni_sig!("Z"))?
-        .z()?;
-
-    let density = env
-        .get_field(opts, jni_str!("density"), jni_sig!("F"))?
-        .f()?;
-
-    let log = env
-        .get_field(opts, jni_str!("enableLogs"), jni_sig!("Z"))?
-        .z()?;
-
-    let coordinates = env
-        .get_field(
-            opts,
-            jni_str!("coordinates"),
-            jni_sig!("Lorg/servo/servoview/JNIServo$ServoCoordinates;"),
-        )?
-        .l()?;
-
-    let viewport_rect = jni_coordinate_to_rust_viewport_rect(env, &coordinates)?;
-
-    let mut args: Vec<String> = args
-        .and_then(|args| {
-            serde_json::from_str(&args)
-                .inspect_err(|_| {
-                    error!("Invalid arguments. Servo arguments must be formatted as a JSON array")
-                })
-                .ok()
-        })
-        .unwrap_or_default();
-
-    if experimental_mode {
-        args.push("--enable-experimental-web-platform-features".to_owned());
-    }
-
-    let (display_handle, window_handle) = display_and_window_handle(env, surface);
-    let opts = InitOptions {
-        args,
-        url,
-        viewport_rect,
-        density,
-        xr_discovery: None,
-        window_handle,
-        display_handle,
-    };
-
-    Ok((opts, log, log_str))
 }
 
 fn display_and_window_handle(

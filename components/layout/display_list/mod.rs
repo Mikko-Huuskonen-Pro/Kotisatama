@@ -33,7 +33,7 @@ use style::dom::OpaqueNode;
 use style::properties::ComputedValues;
 use style::properties::longhands::visibility::computed_value::T as Visibility;
 use style::properties::style_structs::Border;
-use style::values::computed::basic_shape::ClipPath;
+use style::values::computed::basic_shape::ClipPath as ComputedClipPath;
 use style::values::computed::{
     BorderImageSideWidth, BorderImageWidth, BorderStyle, LengthPercentage,
     NonNegativeLengthOrNumber, NumberOrPercentage, OutlineStyle,
@@ -41,7 +41,6 @@ use style::values::computed::{
 use style::values::generics::NonNegative;
 use style::values::generics::color::ColorOrAuto;
 use style::values::generics::rect::Rect as StyleRect;
-use style::values::specified::TransformStyle;
 use style::values::specified::text::TextDecorationLine;
 use style_traits::{CSSPixel as StyloCSSPixel, DevicePixel as StyloDevicePixel};
 use webrender_api::units::{
@@ -50,8 +49,9 @@ use webrender_api::units::{
 use webrender_api::{
     self as wr, BorderDetails, BorderRadius, BorderSide, BoxShadowClipMode, BuiltDisplayList,
     ClipChainId, ClipMode, ColorF, CommonItemProperties, ComplexClipRegion, GlyphInstance,
-    NinePatchBorder, NinePatchBorderSource, NormalBorder, PrimitiveFlags, PropertyBinding,
-    PropertyBindingKey, RasterSpace, SpatialId, StackingContextFlags, units,
+    MixBlendMode, NinePatchBorder, NinePatchBorderSource, NormalBorder, PrimitiveFlags,
+    PropertyBinding, PropertyBindingKey, RasterSpace, SpatialId, StackingContextFlags,
+    TransformStyle, units,
 };
 use wr::units::LayoutVector2D;
 
@@ -401,47 +401,78 @@ impl DisplayListBuilder<'_> {
             return false;
         }
 
-        let StackingContextFragments::Fragment(fragment) = &stacking_context.fragment else {
-            return false;
+        let mut is_blend_container = stacking_context.children.iter().any(|child| {
+            child.fragment().is_some_and(|fragment| {
+                fragment.style().clone_mix_blend_mode() != ComputedMixBlendMode::Normal
+            })
+        });
+
+        let primitive_flags;
+        let transform_style;
+        let mix_blend_mode;
+        let mut filters: Vec<_>;
+        let mut stacking_context_flags = StackingContextFlags::empty();
+        match &stacking_context.fragment {
+            StackingContextFragments::Fragment(fragment) => {
+                let style = fragment.style();
+                let effects = style.get_effects();
+
+                transform_style = style
+                    .used_transform_style(fragment.base.flags)
+                    .to_webrender();
+                mix_blend_mode = effects.mix_blend_mode.to_webrender();
+                primitive_flags = style.get_webrender_primitive_flags();
+
+                // Do not create another blend container stacking context started by the root
+                // element, because the root background is painted above of it (at the root
+                // stacking context, which sits above the root fragment).
+                //
+                // TODO: Would it be cleaner to paint the root background at the root fragment
+                // instead of the root stacking context?
+                is_blend_container &= !fragment.base.flags.contains(FragmentFlags::IS_ROOT_ELEMENT);
+
+                // WebRender only uses the stacking context to apply certain effects. If we don't
+                // actually need to create a stacking context, just avoid creating one.
+                if !is_blend_container &&
+                    effects.filter.0.is_empty() &&
+                    effects.opacity == 1.0 &&
+                    effects.mix_blend_mode == ComputedMixBlendMode::Normal &&
+                    !style.has_effective_transform_or_perspective(FragmentFlags::empty()) &&
+                    style.get_svg().clip_path == ComputedClipPath::None &&
+                    transform_style == TransformStyle::Flat
+                {
+                    return false;
+                }
+
+                // Create the filter pipeline.
+                let current_color = &style.get_inherited_text().color;
+                filters = effects
+                    .filter
+                    .0
+                    .iter()
+                    .map(|filter| FilterToWebRender::to_webrender(filter, current_color))
+                    .collect();
+                if effects.opacity != 1.0 {
+                    filters.push(wr::FilterOp::Opacity(
+                        effects.opacity.into(),
+                        effects.opacity,
+                    ));
+                }
+            },
+            // WebRender only needs a stacking context at the root when the root stacking
+            // context itself is a blend container.
+            StackingContextFragments::Root if is_blend_container => {
+                transform_style = TransformStyle::Flat;
+                primitive_flags = PrimitiveFlags::empty();
+                mix_blend_mode = MixBlendMode::Normal;
+                filters = Vec::new();
+            },
+            _ => return false,
         };
 
-        // WebRender only uses the stacking context to apply certain effects. If we don't
-        // actually need to create a stacking context, just avoid creating one.
-        let style = fragment.style();
-        let effects = style.get_effects();
-        let transform_style = style.used_transform_style(fragment.base.flags);
-        if effects.filter.0.is_empty()
-            && effects.opacity == 1.0
-            && effects.mix_blend_mode == ComputedMixBlendMode::Normal
-            && !style.has_effective_transform_or_perspective(FragmentFlags::empty())
-            && style.get_svg().clip_path == ClipPath::None
-            && transform_style == TransformStyle::Flat
-        {
-            return false;
+        if is_blend_container {
+            stacking_context_flags.insert(StackingContextFlags::IS_BLEND_CONTAINER);
         }
-
-        // Create the filter pipeline.
-        let current_color = style.clone_color();
-        let mut filters: Vec<wr::FilterOp> = effects
-            .filter
-            .0
-            .iter()
-            .map(|filter| FilterToWebRender::to_webrender(filter, &current_color))
-            .collect();
-        if effects.opacity != 1.0 {
-            filters.push(wr::FilterOp::Opacity(
-                effects.opacity.into(),
-                effects.opacity,
-            ));
-        }
-
-        // TODO(jdm): WebRender now requires us to create stacking context items
-        //            with the IS_BLEND_CONTAINER flag enabled if any children
-        //            of the stacking context have a blend mode applied.
-        //            This will require additional tracking during layout
-        //            before we start collecting stacking contexts so that
-        //            information will be available when we reach this point.
-        let spatial_id = self.spatial_id(stacking_context.scroll_tree_node_id);
 
         // WebRender has two different ways of expressing "no clip." ClipChainId::INVALID
         // should be used for primitives, but `None` is used for stacking contexts and
@@ -451,17 +482,18 @@ impl DisplayListBuilder<'_> {
             ClipId::INVALID => None,
             clip_id => Some(self.clip_chain_id(clip_id)),
         };
+        let spatial_id = self.spatial_id(stacking_context.scroll_tree_node_id);
 
         self.wr().push_stacking_context(
             spatial_id,
-            style.get_webrender_primitive_flags(),
+            primitive_flags,
             clip_chain_id,
-            transform_style.to_webrender(),
-            effects.mix_blend_mode.to_webrender(),
+            transform_style,
+            mix_blend_mode,
             &filters,
             &[], // filter_datas
             wr::RasterSpace::Screen,
-            wr::StackingContextFlags::empty(),
+            stacking_context_flags,
             None, // snapshot
         );
 
@@ -720,8 +752,8 @@ impl PaintTraversalHandler for DisplayListBuilder<'_> {
     fn visit_box(&mut self, state: &TraversalState, fragment: &BoxFragmentWithStyle<'_>) {
         fragment.base.visit_fragment(self);
 
-        if let Some(mut inspector_highlight) = self.inspector_highlight.take()
-            && fragment.base.tag == Some(inspector_highlight.tag)
+        if let Some(mut inspector_highlight) = self.inspector_highlight.take() &&
+            fragment.base.tag == Some(inspector_highlight.tag)
         {
             inspector_highlight.register_fragment_of_highlighted_dom_node(self, state, fragment);
             self.inspector_highlight = Some(inspector_highlight);
@@ -737,7 +769,7 @@ impl PaintTraversalHandler for DisplayListBuilder<'_> {
     fn visit_iframe(&mut self, state: &TraversalState, fragment: &Arc<IFrameFragment>) {
         fragment.base.visit_fragment(self);
 
-        let style = fragment.base.style();
+        let style = fragment.style.borrow();
         if style.get_inherited_box().visibility != Visibility::Visible {
             return;
         }
@@ -769,7 +801,7 @@ impl PaintTraversalHandler for DisplayListBuilder<'_> {
     ) {
         fragment.base.visit_fragment(self);
 
-        let style = fragment.base.style();
+        let style = fragment.style.borrow();
         if style.get_inherited_box().visibility != Visibility::Visible {
             return;
         }
@@ -831,7 +863,7 @@ impl PaintTraversalHandler for DisplayListBuilder<'_> {
     ) {
         fragment.base.visit_fragment(self);
 
-        let style = fragment.base.style();
+        let style = fragment.style();
         if style.get_inherited_box().visibility != Visibility::Visible {
             return;
         }
@@ -1001,8 +1033,8 @@ impl Fragment {
         let mut baseline_origin = rect.origin;
         baseline_origin.y += fragment.font_metrics.ascent;
 
-        let include_whitespace = fragment.offsets.is_some()
-            || state
+        let include_whitespace = fragment.run_data.selection.is_some() ||
+            state
                 .text_decorations
                 .iter()
                 .any(|item| !item.line.is_empty());
@@ -1018,7 +1050,7 @@ impl Fragment {
             return;
         }
 
-        let parent_style = fragment.base.style();
+        let parent_style = fragment.style();
         let color = parent_style.clone_color();
         let font_size = parent_style.clone_font_size();
         let font_metrics = &fragment.font_metrics;
@@ -1180,9 +1212,9 @@ impl Fragment {
         let expand_rect_for_text_decoration = |mut rect: Box2D<f32, LayoutPixel>| {
             if matches!(
                 text_decoration.style,
-                ComputedTextDecorationStyle::Dotted
-                    | ComputedTextDecorationStyle::Dashed
-                    | ComputedTextDecorationStyle::Wavy,
+                ComputedTextDecorationStyle::Dotted |
+                    ComputedTextDecorationStyle::Dashed |
+                    ComputedTextDecorationStyle::Wavy,
             ) {
                 rect.min.x = rect.min.x.min(0.0);
             }
@@ -1252,17 +1284,17 @@ impl Fragment {
         fragment_x_offset: Au,
         justification_adjustment: Au,
     ) {
-        let Some(offsets) = fragment.offsets.as_ref() else {
+        let Some(shared_selection) = &fragment.run_data.selection else {
             return;
         };
 
-        let shared_selection = offsets.shared_selection.borrow();
+        let shared_selection = shared_selection.borrow();
         if !shared_selection.enabled {
             return;
         }
 
-        if offsets.character_range.start > shared_selection.character_range.end
-            || offsets.character_range.end < shared_selection.character_range.start
+        if fragment.character_range_in_dom_node.start > shared_selection.character_range.end ||
+            fragment.character_range_in_dom_node.end < shared_selection.character_range.start
         {
             return;
         }
@@ -1271,25 +1303,25 @@ impl Fragment {
         // layout will push an empty fragment in order to trigger painting of the cursor on an empty line.
         // This code ensure that it is only painted if the cursor is on the starting index of the empty
         // fragment.
-        if fragment.is_empty_for_text_cursor
-            && !offsets
-                .character_range
+        if fragment.is_empty_for_text_cursor &&
+            !fragment
+                .character_range_in_dom_node
                 .contains(&shared_selection.character_range.start)
         {
             return;
         }
 
-        let mut current_character_index = offsets.character_range.start;
+        let mut current_character_index = fragment.character_range_in_dom_node.start;
         let mut current_advance = Au::zero();
         let mut start_advance = None;
         let mut end_advance = None;
         for glyph_store in fragment.glyphs.iter() {
             let glyph_store_character_count = glyph_store.character_count();
-            if current_character_index + glyph_store_character_count
-                < shared_selection.character_range.start
+            if current_character_index + glyph_store_character_count <
+                shared_selection.character_range.start
             {
-                current_advance += glyph_store.total_advance()
-                    + (justification_adjustment * glyph_store.total_word_separators() as i32);
+                current_advance += glyph_store.total_advance() +
+                    (justification_adjustment * glyph_store.total_word_separators() as i32);
                 current_character_index += glyph_store_character_count;
                 continue;
             }
@@ -1318,18 +1350,17 @@ impl Fragment {
         let start_x = start_advance.unwrap_or(current_advance);
         let end_x = end_advance.unwrap_or(current_advance);
 
-        let parent_style = fragment.base.style();
+        let parent_style = fragment.style();
         if !shared_selection.character_range.is_empty() {
             let selection_rect = Rect::new(
-                containing_block_rect.origin
-                    + Vector2D::new(fragment_x_offset + start_x, Au::zero()),
+                containing_block_rect.origin +
+                    Vector2D::new(fragment_x_offset + start_x, Au::zero()),
                 Size2D::new(end_x - start_x, containing_block_rect.height()),
             )
             .to_webrender();
 
             if let Some(selection_color) = fragment
-                .selected_style
-                .borrow()
+                .selected_style()
                 .clone_background_color()
                 .as_absolute()
             {
@@ -1527,9 +1558,9 @@ impl<'a> BuilderForBoxFragment<'a> {
             .effective_overflow(self.fragment.base.flags);
         let scrolls_via_user_input =
             |overflow| matches!(overflow, ComputedOverflow::Scroll | ComputedOverflow::Auto);
-        if (scrolls_via_user_input(overflow.x) || scrolls_via_user_input(overflow.y))
-            && self.fragment.style().get_inherited_ui().pointer_events
-                != style::computed_values::pointer_events::T::None
+        if (scrolls_via_user_input(overflow.x) || scrolls_via_user_input(overflow.y)) &&
+            self.fragment.style().get_inherited_ui().pointer_events !=
+                style::computed_values::pointer_events::T::None
         {
             let mut inner_state = state.clone();
             inner_state.spatial_id = self
@@ -1620,8 +1651,8 @@ impl<'a> BuilderForBoxFragment<'a> {
             return;
         }
         // If the `<body>` background was inherited by the root element, don't paint it again here.
-        if !builder.paint_body_background
-            && flags.intersects(FragmentFlags::IS_BODY_ELEMENT_OF_HTML_ELEMENT_ROOT)
+        if !builder.paint_body_background &&
+            flags.intersects(FragmentFlags::IS_BODY_ELEMENT_OF_HTML_ELEMENT_ROOT)
         {
             return;
         }
@@ -1682,7 +1713,7 @@ impl<'a> BuilderForBoxFragment<'a> {
                 spatial_id,
                 PrimitiveFlags::empty(),
                 None,
-                webrender_api::TransformStyle::Flat,
+                TransformStyle::Flat,
                 blend_mode.to_webrender(),
                 &[],
                 &[],
@@ -2483,10 +2514,10 @@ impl BoxFragment {
     fn border_radius(&self) -> BorderRadius {
         let style = self.style();
         let border = style.get_border();
-        if border.border_top_left_radius.0.is_zero()
-            && border.border_top_right_radius.0.is_zero()
-            && border.border_bottom_right_radius.0.is_zero()
-            && border.border_bottom_left_radius.0.is_zero()
+        if border.border_top_left_radius.0.is_zero() &&
+            border.border_top_right_radius.0.is_zero() &&
+            border.border_bottom_right_radius.0.is_zero() &&
+            border.border_bottom_left_radius.0.is_zero()
         {
             return BorderRadius::zero();
         }

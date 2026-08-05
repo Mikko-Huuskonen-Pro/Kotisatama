@@ -90,6 +90,35 @@ impl GStreamerBackend {
             });
         }
 
+        #[cfg(target_os = "linux")]
+        {
+            // Remove the va plugins that have some issues on certain platforms.
+            // When the driver is fixed we will remove this.
+            let registry = gstreamer::Registry::get();
+            if let Some(plugin) = registry.find_plugin("va") {
+                registry.remove_plugin(&plugin);
+            }
+            if let Some(plugin) = registry.find_plugin("vaapi") {
+                registry.remove_plugin(&plugin);
+            }
+        }
+
+        // This is a workaround for a race condition in GStreamer. Real fix is
+        // in
+        // https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/12194
+        // . This will hold a connection to the server but it won't create
+        // streams. This happens during READY -> PAUSED.
+        #[cfg(target_os = "linux")]
+        {
+            static PULSESINK_KEEPALIVE: std::sync::OnceLock<Option<gstreamer::Element>> =
+                std::sync::OnceLock::new();
+            PULSESINK_KEEPALIVE.get_or_init(|| {
+                let sink = gstreamer::ElementFactory::make("pulsesink").build().ok()?;
+                sink.set_state(gstreamer::State::Ready).ok()?;
+                Some(sink)
+            });
+        }
+
         let mut errors = vec![];
         for plugin in plugins {
             let mut path = plugin_dir.clone();

@@ -108,6 +108,12 @@ pub struct LoadData {
     pub headers: HeaderMap,
     /// The data that will be used as the body of the request.
     pub data: Option<RequestBody>,
+    /// <https://fetch.spec.whatwg.org/#concept-request-reload-navigation-flag>
+    /// A request has an associated reload-navigation flag. Unless stated otherwise, it is unset.
+    pub reload_navigation: bool,
+    /// <https://fetch.spec.whatwg.org/#concept-request-history-navigation-flag>
+    /// A request has an associated history-navigation flag. Unless stated otherwise, it is unset.
+    pub history_navigation: bool,
     /// The result of evaluating a javascript scheme url.
     pub js_eval_result: Option<String>,
     /// The referrer.
@@ -135,6 +141,9 @@ pub struct LoadData {
     /// If this is a load operation for an `<iframe>` whose origin is same-origin with its
     /// container documents origin then this is the encoding of the container document.
     pub container_document_encoding: Option<&'static Encoding>,
+
+    /// If this request is for the initial about:blank document.
+    pub is_initial_about_blank: bool,
 }
 
 impl LoadData {
@@ -160,6 +169,8 @@ impl LoadData {
             method: Method::GET,
             headers: HeaderMap::new(),
             data: None,
+            reload_navigation: false,
+            history_navigation: false,
             js_eval_result: None,
             referrer,
             referrer_policy,
@@ -172,6 +183,7 @@ impl LoadData {
             destination: Destination::Document,
             creation_sandboxing_flag_set,
             container_document_encoding: None,
+            is_initial_about_blank: false,
         }
     }
 

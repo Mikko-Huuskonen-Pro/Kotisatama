@@ -1,0 +1,454 @@
+KATSELIN_ROOT=/mnt/c/Users/gigli/Kotisatama/Katselin
+ENGINE_ROOT=/mnt/c/Users/gigli/Kotisatama/Kotisatama
+Warning: Ignoring Windows Android SDK for WSL mach build.
+ANDROID_NDK_ROOT=/home/gigli/Android/Sdk/ndk/28.2.13676358
+ANDROID_SDK_ROOT=/home/gigli/Android/Sdk
+
+==> Whitelist sync
+whitelist ok: 2378 domains, 25 cookieAutomation
+Engine apk path OK: /mnt/c/Users/gigli/Kotisatama/Kotisatama/support/android/apk
+
+==> mach build --target x86_64-linux-android --profile checked-release
+Targeting 'x86_64-linux-android' for cross-compilation
+   Compiling webrender v0.70.0
+   Compiling mozjs_sys v140.13.0-0
+   Compiling mozangle v0.6.0
+   Compiling servoshell v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/ports/servoshell)
+   Compiling mozjs v0.21.0
+   Compiling servo-malloc-size-of v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/malloc_size_of)
+   Compiling servo-base v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/base)
+   Compiling servo-url v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/url)
+   Compiling servo-geometry v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/geometry)
+   Compiling servo-media-streams v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/media/streams)
+   Compiling servo-media-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/media/traits)
+   Compiling servo-timers v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/timers)
+   Compiling servo-xpath v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/xpath)
+   Compiling servo-pixels v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/pixels)
+   Compiling servo-profile-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/profile)
+   Compiling servo-media-player v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/media/player)
+   Compiling servo-media-webrtc v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/media/webrtc)
+   Compiling servo-background-hang-monitor-api v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/background_hang_monitor)
+   Compiling servo-embedder-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/embedder)
+   Compiling servo-fonts-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/fonts)
+   Compiling servo-webgpu-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/webgpu)
+   Compiling servo-media-audio v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/media/audio)
+   Compiling servo-storage-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/storage)
+   Compiling servo-background-hang-monitor v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/background_hang_monitor)
+   Compiling servo-media v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/media/servo-media)
+   Compiling servo-profile v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/profile)
+warning: this lint expectation is unfulfilled
+ --> components/profile/lib.rs:8:47
+  |
+8 | ...ct(unsafe_code))]
+  |       ^^^^^^^^^^^
+  |
+  = note: `#[warn(unfulfilled_lint_expectations)]` on by default
+
+   Compiling servo-paint-api v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/paint)
+   Compiling servo-webxr-api v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/webxr)
+   Compiling servo-bluetooth-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/bluetooth)
+   Compiling servo-wakelock v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/wakelock)
+   Compiling servo-default-resources v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/default-resources)
+   Compiling servo-media-dummy v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/media/backends/dummy)
+   Compiling servo-webdriver-server v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/webdriver_server)
+   Compiling servo-bluetooth v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/bluetooth)
+warning: `servo-profile` (lib) generated 1 warning
+   Compiling servo-net-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/net)
+   Compiling servo-media-thread v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/media/media-thread)
+   Compiling servo-webgpu v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/webgpu)
+   Compiling servo-canvas-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/canvas)
+   Compiling servo-script-bindings v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/script_bindings)
+   Compiling servo-webxr v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/webxr)
+   Compiling servo-devtools-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/devtools)
+   Compiling servo-fonts v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/fonts)
+   Compiling servo-storage v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/storage)
+   Compiling servo-webgl v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/webgl)
+   Compiling servo-constellation-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/constellation)
+   Compiling servo-net v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/net)
+   Compiling servo-canvas v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/canvas)
+   Compiling servo-script-traits v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/script)
+   Compiling servo-paint v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/paint)
+   Compiling servo-layout-api v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/shared/layout)
+   Compiling servo-metrics v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/metrics)
+   Compiling servo-devtools v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/devtools)
+   Compiling servo-constellation v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/constellation)
+   Compiling servo-script-webgpu v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/script_webgpu)
+   Compiling servo-script v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/script)
+warning: unused import: `script_bindings::reflector::reflect_dom_object`
+  --> components/script/dom/geolocation/geolocationpositionerror.rs:15:5
+   |
+15 | use ...dom_object;
+   |     ...^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling servo-layout v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/layout)
+   Compiling servo v0.5.0 (/mnt/c/Users/gigli/Kotisatama/Kotisatama/components/servo)
+warning: `servo-script` (lib) generated 1 warning (run `cargo fix --lib -p servo-script` to apply 1 suggestion)
+warning: unused variable: `env`
+   --> ports/servoshell/egl/android/kotisatama.rs:101:19
+    |
+101 | ...v(|env| -...
+    |       ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `UrlInfoProtocolHander` is never constructed
+  --> ports/servoshell/protocols/urlinfo.rs:15:12
+   |
+15 | ...ct UrlIn...ander {}
+   |       ^^^^^...^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `site_protection_disabled` is never used
+   --> ports/servoshell/kotisatama.rs:260:8
+    |
+260 | ...fn ...n_disabled(ur...
+    |       ...^^^^^^^^^^
+
+warning: function `allow_site_protection_exception` is never used
+   --> ports/servoshell/kotisatama.rs:265:8
+    |
+265 | ...fn ..._exception(pa...
+    |       ...^^^^^^^^^^
+
+warning: function `remove_site_protection_exception` is never used
+   --> ports/servoshell/kotisatama.rs:272:8
+    |
+272 | ...fn ..._exception(pa...
+    |       ...^^^^^^^^^^
+
+warning: function `domain_from_url_str` is never used
+   --> ports/servoshell/kotisatama.rs:278:4
+    |
+278 | fn...rom_url_str(pa...
+    |   ...^^^^^^^^^^^
+
+warning: function `default_report_form` is never used
+   --> ports/servoshell/kotisatama.rs:319:8
+    |
+319 | ...fn ...eport_form(cu...
+    |       ...^^^^^^^^^^
+
+warning: function `pulloposti_gateway_url` is never used
+   --> ports/servoshell/kotisatama.rs:358:8
+    |
+358 | ...fn ...ateway_url() ...
+    |       ...^^^^^^^^^^
+
+warning: function `pulloposti_available` is never used
+   --> ports/servoshell/kotisatama.rs:363:8
+    |
+363 | ...fn ..._available() ...
+    |       ...^^^^^^^^^^
+
+warning: function `avomeri_search_url` is never used
+   --> ports/servoshell/kotisatama.rs:371:8
+    |
+371 | ...fn ...search_url(qu...
+    |       ...^^^^^^^^^^
+
+warning: function `set_avomeri_searchpage` is never used
+   --> ports/servoshell/kotisatama.rs:380:8
+    |
+380 | ...fn ...searchpage(se...
+    |       ...^^^^^^^^^^
+
+warning: function `open_pulloposti` is never used
+   --> ports/servoshell/kotisatama.rs:466:8
+    |
+466 | ...fn ...pulloposti(we...
+    |       ...^^^^^^^^^^
+
+warning: function `open_varustamo` is never used
+   --> ports/servoshell/kotisatama.rs:472:8
+    |
+472 | ...fn ..._varustamo(we...
+    |       ...^^^^^^^^^^
+
+warning: function `open_varustamo_app` is never used
+   --> ports/servoshell/kotisatama.rs:481:8
+    |
+481 | ...fn ...ustamo_app(we...
+    |       ...^^^^^^^^^^
+
+warning: function `varustamo_registry` is never used
+   --> ports/servoshell/kotisatama.rs:500:8
+    |
+500 | ...fn ...o_registry() ...
+    |       ...^^^^^^^^^^
+
+warning: function `open_missa_olen` is never used
+   --> ports/servoshell/kotisatama.rs:517:8
+    |
+517 | ...fn ...missa_olen(we...
+    |       ...^^^^^^^^^^
+
+warning: function `missa_olen_available` is never used
+   --> ports/servoshell/kotisatama.rs:523:8
+    |
+523 | ...fn ..._available() ...
+    |       ...^^^^^^^^^^
+
+warning: enum `KotisatamaTheme` is never used
+   --> ports/servoshell/kotisatama.rs:680:10
+    |
+680 | ...um Ko...amaTheme {
+    |       ^^...^^^^^^^^
+
+warning: function `current_theme` is never used
+   --> ports/servoshell/kotisatama.rs:687:8
+    |
+687 | ...fn ...rent_theme(lo...
+    |       ...^^^^^^^^^^
+
+warning: function `theme_png_bytes` is never used
+   --> ports/servoshell/kotisatama.rs:700:4
+    |
+700 | fn...e_png_bytes(th...
+    |   ...^^^^^^^^^^^
+
+warning: `servoshell` (lib) generated 20 warnings (run `cargo fix --lib -p servoshell` to apply 1 suggestion)
+      Timing report saved to /mnt/c/Users/gigli/Kotisatama/Kotisatama/target/cargo-timings/cargo-timing-20260806T114109915Z-5ad0c81ed7fdbd02.html
+    Finished `checked-release` profile [optimized] target(s) in 14m 50s
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.5.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+
+> Configure project :servoapp
+WARNING: The option setting 'android.newDsl=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+WARNING: API 'applicationVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling applicationVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+
+> Configure project :servoview
+WARNING: API 'libraryVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling libraryVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+WARNING: API 'variantOutput.getPackageLibrary()' is obsolete and has been replaced with 'variant.getPackageLibraryProvider()'.
+It will be removed in version 9.0 of the Android Gradle plugin.
+For more information, see https://d.android.com/r/tools/task-configuration-avoidance.
+
+To determine what is calling variantOutput.getPackageLibrary(), use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+copyKotisatamaAssets: whitelist /mnt/c/Users/gigli/Kotisatama/Kotisatama/index-data/cache/whitelist.json (2378 domains)
+WARNING: The following problems were found when resolving the SDK location:
+Where: sdk.dir property in local.properties file. Problem: Directory does not exist
+
+
+> Task :servoapp:copyKotisatamaAssets
+> Task :servoapp:preBuild
+> Task :servoapp:preX64ReleaseBuild
+> Task :servoapp:mergeX64ReleaseJniLibFolders UP-TO-DATE
+
+> Task :servoview:ndkbuildmergeX64ReleaseJniLibFolders
+HOST_OS=linux
+HOST_ARCH=x86_64
+HOST_TAG=linux-x86_64
+GNUMAKE=/home/gigli/Android/Sdk/ndk/28.2.13676358/build/../prebuilt/linux-x86_64/bin/make (NDK prebuilt)
+Android NDK: NDK installation path auto-detected: '/home/gigli/Android/Sdk/ndk/28.2.13676358'
+Android NDK: GNU Make version 4.3 detected
+Android NDK: Host OS was auto-detected: linux
+Android NDK:  Host operating system detected: linux
+Android NDK: HOST_TAG set to linux-x86
+Android NDK: Host tools prebuilt directory: /home/gigli/Android/Sdk/ndk/28.2.13676358/prebuilt/linux-x86_64/bin
+Android NDK: Host 'echo' tool: echo
+Android NDK: Host 'echo -n' tool: printf %s
+Android NDK: Host 'cmp' tool: cmp
+Android NDK: Found max platform level: 35
+Android NDK:  This NDK supports the following target architectures and ABIS:
+Android NDK:    arm: armeabi-v7a
+Android NDK:    arm64: arm64-v8a
+Android NDK:    riscv64: riscv64
+Android NDK:    x86: x86
+Android NDK:    x86_64: x86_64
+Android NDK:  This NDK supports the following toolchains and target ABIs:
+Android NDK:    aarch64-linux-android-clang:  arm64-v8a
+Android NDK:    arm-linux-androideabi-clang:  armeabi-v7a
+Android NDK:    riscv64-linux-android-clang:  riscv64
+Android NDK:    x86-clang:  x86
+Android NDK:    x86_64-clang:  x86_64
+Android NDK: Looking for jni/Android.mk in /mnt/c/Users/gigli/Kotisatama/Katselin/android/apk/servoview
+Android NDK: Looking for jni/Android.mk in /mnt/c/Users/gigli/Kotisatama/Katselin/android/apk
+Android NDK:     Found it !
+Android NDK: Found project path: /mnt/c/Users/gigli/Kotisatama/Katselin/android/apk
+Android NDK: Ouput path for intermediate files: /mnt/c/Users/gigli/Kotisatama/Katselin/android/apk/obj
+Android NDK: Ouput path for generated library files: /mnt/c/Users/gigli/Kotisatama/Kotisatama/target/x86_64-linux-android/checked-release/jniLibs
+Android NDK: Parsing ../jni/Application.mk
+Android NDK:   Using build script ../jni/Android.mk
+Android NDK: Application 'local' forced *not* debuggable through NDK_DEBUG
+Android NDK: Selecting release optimization mode (app is not debuggable)
+Android NDK: Adding import directory: /home/gigli/Android/Sdk/ndk/28.2.13676358/sources
+Android NDK: Building application 'local' for ABI 'x86_64'
+Android NDK: Using target toolchain 'x86_64-clang' for 'x86_64' ABI
+Android NDK: [x86_64] Modules to build: servojni
+make: Warning: File '/mnt/c/Users/gigli/Kotisatama/Kotisatama/target/x86_64-linux-android/checked-release/jniLibs/x86_64' has modification time 0.21 s in the future
+[x86_64] Install /mnt/c/Users/gigli/Kotisatama/Kotisatama/target/x86_64-linux-android/checked-release/jniLibs/x86_64/libc++_shared.so:
+[x86_64] Prebuilt       : libservoshell.so <= /mnt/c/Users/gigli/Kotisatama/Kotisatama/target/x86_64-linux-android/checked-release/
+[x86_64] Install        : libservoshell.so => /mnt/c/Users/gigli/Kotisatama/Kotisatama/target/x86_64-linux-android/checked-release/jniLibs/x86_64/libservoshell.so
+make: warning:  Clock skew detected.  Your build may be incomplete.
+
+> Task :servoview:preBuild UP-TO-DATE
+> Task :servoview:preX64ReleaseBuild UP-TO-DATE
+> Task :servoview:mergeX64ReleaseJniLibFolders
+> Task :servoview:generateX64ReleaseResources UP-TO-DATE
+> Task :servoview:packageX64ReleaseResources UP-TO-DATE
+> Task :servoview:processX64ReleaseNavigationResources UP-TO-DATE
+> Task :servoview:parseX64ReleaseLocalResources UP-TO-DATE
+> Task :servoview:generateX64ReleaseRFile UP-TO-DATE
+> Task :servoview:compileX64ReleaseKotlin UP-TO-DATE
+> Task :servoview:javaPreCompileX64Release UP-TO-DATE
+> Task :servoview:compileX64ReleaseJavaWithJavac NO-SOURCE
+> Task :servoview:bundleLibRuntimeToDirX64Release UP-TO-DATE
+> Task :servoapp:checkX64ReleaseDuplicateClasses UP-TO-DATE
+> Task :servoapp:generateX64ReleaseResources
+> Task :servoapp:packageX64ReleaseResources
+> Task :servoapp:processX64ReleaseNavigationResources
+> Task :servoview:bundleLibCompileToJarX64Release UP-TO-DATE
+> Task :servoapp:javaPreCompileX64Release UP-TO-DATE
+> Task :servoview:writeX64ReleaseAarMetadata UP-TO-DATE
+> Task :servoapp:checkX64ReleaseAarMetadata UP-TO-DATE
+> Task :servoapp:mapX64ReleaseSourceSetPaths
+> Task :servoapp:compileX64ReleaseNavigationResources UP-TO-DATE
+> Task :servoapp:parseX64ReleaseLocalResources
+> Task :servoapp:createX64ReleaseCompatibleScreenManifests UP-TO-DATE
+> Task :servoapp:extractDeepLinksX64Release UP-TO-DATE
+> Task :servoview:extractDeepLinksX64Release UP-TO-DATE
+> Task :servoview:processX64ReleaseManifest UP-TO-DATE
+> Task :servoapp:generateX64ReleaseRFile
+> Task :servoapp:mergeX64ReleaseResources
+> Task :servoview:mergeX64ReleaseNativeLibs
+> Task :servoapp:processX64ReleaseMainManifest UP-TO-DATE
+> Task :servoapp:processX64ReleaseManifest UP-TO-DATE
+> Task :servoapp:processX64ReleaseManifestForPackage UP-TO-DATE
+> Task :servoview:mapX64ReleaseSourceSetPaths UP-TO-DATE
+> Task :servoview:compileX64ReleaseLibraryResources UP-TO-DATE
+> Task :servoview:copyX64ReleaseJniLibsProjectOnly
+> Task :servoapp:desugarX64ReleaseFileDependencies UP-TO-DATE
+> Task :servoapp:mergeX64ReleaseStartupProfile UP-TO-DATE
+> Task :servoapp:mergeExtDexX64Release UP-TO-DATE
+> Task :servoview:prepareX64ReleaseArtProfile UP-TO-DATE
+> Task :servoapp:mergeX64ReleaseArtProfile UP-TO-DATE
+> Task :servoview:bundleLibRuntimeToJarX64Release UP-TO-DATE
+> Task :servoapp:generateX64ReleaseAssets UP-TO-DATE
+> Task :servoview:generateX64ReleaseAssets UP-TO-DATE
+> Task :servoview:mergeX64ReleaseAssets UP-TO-DATE
+> Task :servoapp:mergeX64ReleaseAssets UP-TO-DATE
+> Task :servoapp:compressX64ReleaseAssets UP-TO-DATE
+> Task :servoapp:extractX64ReleaseVersionControlInfo UP-TO-DATE
+> Task :servoapp:extractProguardFiles UP-TO-DATE
+> Task :servoview:processX64ReleaseJavaRes UP-TO-DATE
+> Task :servoview:createFullJarX64Release UP-TO-DATE
+> Task :servoview:extractProguardFiles UP-TO-DATE
+> Task :servoview:generateX64ReleaseLintModel
+> Task :servoview:prepareLintJarForPublish UP-TO-DATE
+> Task :servoview:checkX64ReleaseAarMetadata UP-TO-DATE
+> Task :servoview:extractDeepLinksForAarX64Release UP-TO-DATE
+> Task :servoview:extractX64ReleaseAnnotations
+> Task :servoview:mergeX64ReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :servoview:mergeX64ReleaseConsumerProguardFiles UP-TO-DATE
+> Task :servoview:mergeX64ReleaseJavaResource UP-TO-DATE
+> Task :servoview:syncX64ReleaseLibJars UP-TO-DATE
+> Task :servoview:writeX64ReleaseLintModelMetadata UP-TO-DATE
+> Task :servoview:generateX64ReleaseLintVitalModel
+> Task :servoapp:collectX64ReleaseDependencies UP-TO-DATE
+> Task :servoapp:sdkX64ReleaseDependencyData UP-TO-DATE
+> Task :servoapp:validateSigningX64Release UP-TO-DATE
+> Task :servoapp:writeX64ReleaseAppMetadata UP-TO-DATE
+> Task :servoapp:writeX64ReleaseSigningConfigVersions UP-TO-DATE
+> Task :servoview:mergeX64ReleaseResources UP-TO-DATE
+> Task :servoview:verifyX64ReleaseResources UP-TO-DATE
+> Task :servoapp:processX64ReleaseResources
+> Task :servoapp:optimizeX64ReleaseResources
+> Task :servoapp:compileX64ReleaseKotlin
+> Task :servoview:stripX64ReleaseDebugSymbols
+> Task :servoview:lintVitalAnalyzeX64Release
+
+> Task :servoapp:compileX64ReleaseKotlin
+w: file:///mnt/c/Users/gigli/Kotisatama/Katselin/android/apk/servoapp/src/main/java/org/servo/servoshell/MainActivity.kt:377:9 'fun startActivityForResult(intent: Intent, requestCode: Int): Unit' is deprecated. This method has been deprecated in favor of using the Activity Result API
+      which brings increased type safety via an {@link ActivityResultContract} and the prebuilt
+      contracts for common intents available in
+      {@link androidx.activity.result.contract.ActivityResultContracts}, provides hooks for
+      testing, and allow receiving results in separate, testable classes independent from your
+      activity. Use
+      {@link #registerForActivityResult(ActivityResultContract, ActivityResultCallback)}
+      passing in a {@link StartActivityForResult} object for the {@link ActivityResultContract}.
+w: file:///mnt/c/Users/gigli/Kotisatama/Katselin/android/apk/servoapp/src/main/java/org/servo/servoshell/MainActivity.kt:463:93 'static field SHOW_IMPLICIT: Int' is deprecated. Deprecated in Java.
+w: file:///mnt/c/Users/gigli/Kotisatama/Katselin/android/apk/servoapp/src/main/java/org/servo/servoshell/MainActivity.kt:467:115 'static field SHOW_IMPLICIT: Int' is deprecated. Deprecated in Java.
+w: file:///mnt/c/Users/gigli/Kotisatama/Katselin/android/apk/servoapp/src/main/java/org/servo/servoshell/MainActivity.kt:663:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///mnt/c/Users/gigli/Kotisatama/Katselin/android/apk/servoapp/src/main/java/org/servo/servoshell/MainActivity.kt:664:15 'fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Unit' is deprecated. This method has been deprecated in favor of using the Activity Result API
+      which brings increased type safety via an {@link ActivityResultContract} and the prebuilt
+      contracts for common intents available in
+      {@link androidx.activity.result.contract.ActivityResultContracts}, provides hooks for
+      testing, and allow receiving results in separate, testable classes independent from your
+      activity. Use
+      {@link #registerForActivityResult(ActivityResultContract, ActivityResultCallback)}
+      with the appropriate {@link ActivityResultContract} and handling the result in the
+      {@link ActivityResultCallback#onActivityResult(Object) callback}.
+
+> Task :servoapp:mergeX64ReleaseNativeLibs
+> Task :servoview:copyX64ReleaseJniLibsProjectAndLocalJars
+> Task :servoview:bundleX64ReleaseLocalLintAar
+
+> Task :servoapp:compileX64ReleaseJavaWithJavac
+Java compiler version 21 has deprecated support for compiling with source/target version 8.
+Try one of the following options:
+    1. [Recommended] Use Java toolchain with a lower language version
+    2. Set a higher source/target version
+    3. Use a lower version of the JDK running the build (if you're not using Java toolchain)
+For more details on how to configure these settings, see https://developer.android.com/build/jdks.
+To suppress this warning, set android.javaCompile.suppressSourceTargetDeprecationWarning=true in gradle.properties.
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+
+> Task :servoapp:stripX64ReleaseDebugSymbols
+> Task :servoapp:extractX64ReleaseNativeSymbolTables
+> Task :servoapp:dexBuilderX64Release
+> Task :servoapp:mergeX64ReleaseNativeDebugMetadata UP-TO-DATE
+> Task :servoapp:mergeX64ReleaseGlobalSynthetics UP-TO-DATE
+> Task :servoapp:generateX64ReleaseLintVitalReportModel
+> Task :servoapp:processX64ReleaseJavaRes UP-TO-DATE
+> Task :servoapp:mergeX64ReleaseJavaResource UP-TO-DATE
+> Task :servoapp:mergeDexX64Release
+> Task :servoview:bundleX64ReleaseAar
+> Task :servoview:assembleX64Release
+> Task :servoapp:compileX64ReleaseArtProfile
+> Task :servoapp:lintVitalAnalyzeX64Release
+> Task :servoview:copyAndRenameX64ReleaseAAR
+> Task :servoapp:lintVitalReportX64Release
+> Task :servoapp:lintVitalX64Release
+> Task :servoapp:packageX64Release
+> Task :servoapp:createX64ReleaseApkListingFileRedirect UP-TO-DATE
+> Task :servoapp:assembleX64Release
+> Task :servoapp:copyAndRenameX64ReleaseAPK
+
+[Incubating] Problems report is available at: file:///mnt/c/Users/gigli/Kotisatama/Katselin/android/apk/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 13m 37s
+98 actionable tasks: 37 executed, 61 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.1/userguide/configuration_cache_enabling.html
+Building `checked-release` build with crown disabled (no JS garbage collection linting).
+Succeeded in 0:28:22
+
+Android build ready: /mnt/c/Users/gigli/Kotisatama/Kotisatama/target/x86_64-linux-android/checked-release/servoapp.apk

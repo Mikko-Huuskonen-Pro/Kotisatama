@@ -184,6 +184,9 @@ impl WebViewCollection {
                 webview.hide();
                 webview.blur();
             }
+            // KOTISATAMA-PATCH: throttlaa taustavälilehdet Android-muistin säästämiseksi — 节流后台标签页以节省Android内存。
+            #[cfg(feature = "kotisatama")]
+            webview.set_throttled(id_to_activate != webview_id);
         }
     }
 

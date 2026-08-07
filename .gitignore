@@ -94,3 +94,7 @@ justfile
 
 # Android APK source lives in Katselin; local junction/symlink only (see scripts/link-android-apk.*)
 /support/android/apk/
+
+# Local build logs
+build-x64.log
+

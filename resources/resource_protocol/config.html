@@ -5,23 +5,65 @@
     <meta data-i18n-title="title" />
     <link rel="stylesheet" href="resource:///config.css">
     <script src="resource:///kotisatama-i18n.js"></script>
+    <script src="resource:///config-emoji-icons.js"></script>
 </head>
 <body>
-    <section class="language-section">
-        <h2 data-i18n="languageSection"></h2>
-        <label for="languageSelect" data-i18n="languageLabel"></label>
-        <select id="languageSelect" onchange="KotisatamaI18n.setLocaleChoice(this.value)">
-            <option value="auto" data-i18n="languageAuto"></option>
-            <option value="fi" data-i18n="languageFi"></option>
-            <option value="sv" data-i18n="languageSv"></option>
-        </select>
-    </section>
-    <section class="language-section">
-        <h2 data-i18n="mySitesSection"></h2>
-        <p><a href="servo:whitelist" data-i18n="mySitesLink"></a></p>
-    </section>
-    <input class="search" type="text" data-i18n-placeholder="searchPlaceholder" data-i18n-aria-label="searchAriaLabel" oninput="populate(this.value)">
-    <table></table>
+    <div id="configUnlockOverlay" class="config-unlock-overlay hidden" aria-hidden="true">
+        <div class="config-unlock-panel">
+            <h2 data-i18n="configUnlockTitle">Asetukset lukittu</h2>
+            <p class="profile-hint" data-i18n="configUnlockHint">Syötä kolme emojia avataksesi asetukset.</p>
+            <div class="emoji-picker" id="unlockEmojiPicker" aria-label="Emoji-valitsin"></div>
+            <input id="unlockEmojiInput" type="hidden" />
+            <p class="profile-hint" id="unlockEmojiSelected" aria-live="polite"></p>
+            <p id="unlockStatus" class="profile-status" aria-live="polite"></p>
+            <button type="button" id="unlockBtn" data-i18n="configUnlockBtn">Avaa</button>
+        </div>
+    </div>
+
+    <div id="configContent">
+        <section class="language-section">
+            <h2 data-i18n="languageSection"></h2>
+            <label for="languageSelect" data-i18n="languageLabel"></label>
+            <select id="languageSelect" onchange="KotisatamaI18n.setLocaleChoice(this.value)">
+                <option value="auto" data-i18n="languageAuto"></option>
+                <option value="fi" data-i18n="languageFi"></option>
+                <option value="sv" data-i18n="languageSv"></option>
+            </select>
+        </section>
+        <section class="language-section" id="profileSection">
+            <h2 data-i18n="profileSection">Käyttäjäprofiili</h2>
+            <p class="profile-hint" data-i18n="profileHint">Normi on oletus ilman rajoituksia. Hopeakettu ja Lapsi lukitaan kolmella emojilla.</p>
+            <fieldset class="profile-choices" id="profileChoices">
+                <label><input type="radio" name="profile" value="normi" /> <span data-i18n="profileNormi">Normi</span></label>
+                <label><input type="radio" name="profile" value="hopeakettu" /> <span data-i18n="profileHopeakettu">Hopeakettu</span></label>
+                <label><input type="radio" name="profile" value="lapsi" /> <span data-i18n="profileLapsi">Lapsi</span></label>
+            </fieldset>
+            <div id="emojiBlock" class="emoji-block hidden">
+                <label for="emojiInput" data-i18n="emojiLabel">Kolme emojia (salasana)</label>
+                <p class="profile-hint hidden" id="emojiNormiHint" data-i18n="emojiNormiHint"></p>
+                <div class="emoji-picker" id="emojiPicker" aria-label="Emoji-valitsin"></div>
+                <input id="emojiInput" type="hidden" />
+                <p class="profile-hint" id="emojiSelected" aria-live="polite"></p>
+            </div>
+            <div id="avomeriBlock" class="avomeri-block hidden">
+                <label>
+                    <input type="checkbox" id="avomeriToggle" />
+                    <span data-i18n="avomeriLabel">Avomeri käytössä</span>
+                </label>
+            </div>
+            <p id="profileStatus" class="profile-status" aria-live="polite"></p>
+            <button type="button" id="saveProfileBtn" data-i18n="profileSave">Tallenna profiili</button>
+        </section>
+        <section class="language-section">
+            <h2 data-i18n="licensesSection">Lisenssit</h2>
+            <p><a href="servo:license" data-i18n="licensesLink">Avoimen lähdekoodin lisenssit</a></p>
+        </section>
+        <section class="language-section">
+            <h2 data-i18n="mySitesSection"></h2>
+            <p><a href="servo:whitelist" data-i18n="mySitesLink"></a></p>
+        </section>
+    </div>
+
     <script>
         const kotisatamaLocale = KotisatamaI18n.applyDocument("config");
         const languageSelect = document.getElementById("languageSelect");
@@ -36,244 +78,227 @@
             }
         }
 
-        // Helper to create a TD with class and optional text
-        function td(cls, text) {
-            const cell = document.createElement("td");
-            if (cls !== undefined) {
-                cell.className = cls;
+        // KOTISATAMA-PATCH: lukitusoverlay + profiilivalinta + emoji + avomeri — 锁定层+配置文件+表情密码。
+        (function initConfigUi() {
+            const configContent = document.getElementById("configContent");
+            const unlockOverlay = document.getElementById("configUnlockOverlay");
+            const unlockStatus = document.getElementById("unlockStatus");
+            const unlockInput = document.getElementById("unlockEmojiInput");
+            const unlockSelected = document.getElementById("unlockEmojiSelected");
+            const emojiInput = document.getElementById("emojiInput");
+            const emojiBlock = document.getElementById("emojiBlock");
+            const emojiNormiHint = document.getElementById("emojiNormiHint");
+            const avomeriBlock = document.getElementById("avomeriBlock");
+            const avomeriToggle = document.getElementById("avomeriToggle");
+            const statusEl = document.getElementById("profileStatus");
+            const emojiSelected = document.getElementById("emojiSelected");
+
+            let savedProfile = "normi";
+            let hasEmoji = false;
+            let configUnlocked = false;
+            let profilePicker = null;
+            let unlockPicker = null;
+
+            function selectedProfile() {
+                const checked = document.querySelector('input[name="profile"]:checked');
+                return checked ? checked.value : "normi";
             }
-            if (text !== undefined) {
-                cell.textContent = text;
+
+            function isRestrictedProfile(profile) {
+                return profile === "hopeakettu" || profile === "lapsi";
             }
-            return cell;
-        }
 
-        class PrefBoolRow extends HTMLTableRowElement {
-            connectedCallback() {
-                // Attributes are provided via data-*
-                const pref = this.dataset.pref;
-                const defaultValue = this.dataset.default === "true";
-                let value = this.dataset.value === "true";
-
-                const nameCell = td("pref-name", pref);
-                const valueCell = td("value", String(value));
-                valueCell.id = `value-${pref}`;
-                if (value !== defaultValue) valueCell.classList.add("default");
-
-                const switcher = td("switcher");
-                const btn = document.createElement("button");
-                btn.className = "switch-button";
-                btn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                    </svg>`;
-                btn.onclick = () => {
-                    value = !value;
-                    valueCell.classList.toggle("default", value !== defaultValue)
-                    navigator.servo.setBoolPreference(pref, value);
-                    valueCell.textContent = String(value);
-                };
-                switcher.appendChild(btn);
-
-                this.appendChild(nameCell);
-                this.appendChild(valueCell);
-                this.appendChild(switcher);
+            function switchingToNormiFromRestricted() {
+                return (
+                    selectedProfile() === "normi" &&
+                    isRestrictedProfile(savedProfile) &&
+                    hasEmoji
+                );
             }
-        }
 
-        // Unified row for int and string preferences
-        class PrefValueRow extends HTMLTableRowElement {
-            connectedCallback() {
-                const pref = this.dataset.pref;
-                const ty = this.dataset.type; // "i64" or "String"
+            function needsEmojiForSave() {
+                const target = selectedProfile();
+                if (isRestrictedProfile(target)) {
+                    return true;
+                }
+                return switchingToNormiFromRestricted();
+            }
 
-                const nameCell = td("pref-name", pref);
+            function setEmojiInput(chars) {
+                emojiInput.value = chars.join("");
+                emojiSelected.textContent = chars.join(" ");
+            }
 
-                const valueCell = document.createElement("td");
-                valueCell.className = "value";
-                const valueSpan = document.createElement("span");
-                valueSpan.className = "value-entry";
-                valueSpan.id = `value-${pref}`;
-                const input = document.createElement("input");
-                input.className = "value-editor hidden";
-                input.id = `input-${pref}`;
+            function setUnlockInput(chars) {
+                unlockInput.value = chars.join("");
+                unlockSelected.textContent = chars.join(" ");
+            }
 
-                // Per-type state and behavior
-                let defaultValue;
-                let value;
-                let saveFn;
+            function showUnlockOverlay(show) {
+                unlockOverlay.classList.toggle("hidden", !show);
+                unlockOverlay.setAttribute("aria-hidden", show ? "false" : "true");
+                configContent.classList.toggle("config-content-locked", show);
+            }
 
-                if (ty === "i64") {
-                    defaultValue = parseInt(this.dataset.default);
-                    value = parseInt(this.dataset.value);
-                    valueSpan.textContent = value;
-                    input.type = "number";
-                    input.step = "1";
-                    saveFn = () => {
-                        const parsed = parseInt(input.value);
-                        if (Number.isNaN(parsed)) {
-                            input.setCustomValidity(KotisatamaI18n.t("config", "invalidInteger", kotisatamaLocale));
-                            input.reportValidity();
-                            return false;
+            function updateVisibility() {
+                const profile = selectedProfile();
+                const showEmoji = isRestrictedProfile(profile) || switchingToNormiFromRestricted();
+                emojiBlock.classList.toggle("hidden", !showEmoji);
+                emojiNormiHint.classList.toggle("hidden", !switchingToNormiFromRestricted());
+                avomeriBlock.classList.toggle("hidden", profile !== "hopeakettu");
+                if (profile === "normi") {
+                    avomeriToggle.checked = true;
+                    avomeriToggle.disabled = true;
+                } else if (profile === "lapsi") {
+                    avomeriToggle.checked = false;
+                    avomeriToggle.disabled = true;
+                } else {
+                    avomeriToggle.disabled = false;
+                }
+            }
+
+            function maybeShowLock(data) {
+                const shouldLock = !!data.restrictions_active && !!data.has_emoji && !configUnlocked;
+                showUnlockOverlay(shouldLock);
+                if (shouldLock && unlockPicker) {
+                    unlockPicker.reset();
+                    unlockStatus.textContent = data.locked_out
+                        ? KotisatamaI18n.t("config", "profileLocked", kotisatamaLocale)
+                        : "";
+                }
+            }
+
+            profilePicker = KotisatamaEmojiIcons.renderPicker(
+                document.getElementById("emojiPicker"),
+                {
+                    locale: kotisatamaLocale,
+                    selectedDisplay: emojiSelected,
+                    onChange: setEmojiInput,
+                },
+            );
+
+            unlockPicker = KotisatamaEmojiIcons.renderPicker(
+                document.getElementById("unlockEmojiPicker"),
+                {
+                    locale: kotisatamaLocale,
+                    selectedDisplay: unlockSelected,
+                    onChange: setUnlockInput,
+                },
+            );
+
+            document.querySelectorAll('input[name="profile"]').forEach(function (input) {
+                input.addEventListener("change", function () {
+                    profilePicker.reset();
+                    updateVisibility();
+                });
+            });
+
+            document.getElementById("unlockBtn").addEventListener("click", function () {
+                const chars = Array.from(unlockInput.value || "");
+                if (chars.length !== 3) {
+                    unlockStatus.textContent = KotisatamaI18n.t(
+                        "config",
+                        "emojiNeedThree",
+                        kotisatamaLocale,
+                    );
+                    return;
+                }
+                unlockStatus.textContent = KotisatamaI18n.t("config", "profileSaving", kotisatamaLocale);
+                fetch("servo:profile/verify?emoji=" + encodeURIComponent(chars.join("")))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.status === "ok") {
+                            configUnlocked = true;
+                            showUnlockOverlay(false);
+                            unlockStatus.textContent = "";
+                            return loadProfile();
                         }
-                        navigator.servo.setIntPreference(pref, parsed);
-                        value = parsed;
-                        valueSpan.textContent = value;
-                        valueCell.classList.toggle("default", value !== defaultValue)
-                        return true;
-                    };
-                } else {
-                    // string, no validation needed
-                    defaultValue = this.dataset.default ?? "";
-                    value = this.dataset.value ?? "";
-                    valueSpan.textContent = value;
-                    input.type = "text";
-                    saveFn = () => {
-                        const newValue = input.value;
-                        navigator.servo.setStringPreference(pref, newValue);
-                        value = newValue;
-                        valueSpan.textContent = value;
-                        valueCell.classList.toggle("default", value !== defaultValue)
-                        return true;
-                    };
-                }
+                        unlockStatus.textContent =
+                            data.message ||
+                            KotisatamaI18n.t("config", "configUnlockWrong", kotisatamaLocale);
+                    })
+                    .catch(function () {
+                        unlockStatus.textContent = KotisatamaI18n.t(
+                            "config",
+                            "profileError",
+                            kotisatamaLocale,
+                        );
+                    });
+            });
 
-                valueSpan.classList.toggle("default", value !== defaultValue)
-
-                valueCell.appendChild(valueSpan);
-                valueCell.appendChild(input);
-
-                const switcher = td("switcher");
-                const editBtn = document.createElement("button");
-                editBtn.className = "switch-button";
-                editBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-                    </svg>`;
-                const saveBtn = document.createElement("button");
-                saveBtn.className = "switch-button hidden";
-                saveBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                    </svg>`;
-
-                const cancelEdit = () => {
-                    // Revert input view and value without saving
-                    input.classList.add("hidden");
-                    valueSpan.classList.remove("hidden");
-                    input.value = String(value);
-                    editBtn.classList.remove("hidden");
-                    saveBtn.classList.add("hidden");
-                    input.setCustomValidity("");
-                };
-
-                editBtn.onclick = () => {
-                    valueSpan.classList.add("hidden");
-                    input.classList.remove("hidden");
-                    input.value = String(value);
-                    editBtn.classList.add("hidden");
-                    saveBtn.classList.remove("hidden");
-                    input.focus();
-                    input.setSelectionRange(0, input.value.length);
-                };
-
-                saveBtn.onclick = () => {
-                    const ok = saveFn();
-                    if (!ok) return; // keep editing on validation failure
-                    valueSpan.classList.remove("hidden");
-                    input.classList.add("hidden");
-                    editBtn.classList.remove("hidden");
-                    saveBtn.classList.add("hidden");
-                };
-
-                // Enter to save, Escape to cancel
-                input.addEventListener("keydown", (e) => {
-                    if (e.key === "Enter") {
-                        e.preventDefault();
-                        saveBtn.click();
-                    } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        cancelEdit();
+            document.getElementById("saveProfileBtn").addEventListener("click", function () {
+                const profile = selectedProfile();
+                const chars = Array.from(emojiInput.value || "");
+                let url = "servo:profile/set?profile=" + encodeURIComponent(profile);
+                if (needsEmojiForSave()) {
+                    if (chars.length !== 3) {
+                        statusEl.textContent = KotisatamaI18n.t(
+                            "config",
+                            "emojiNeedThree",
+                            kotisatamaLocale,
+                        );
+                        return;
                     }
-                });
-
-                switcher.appendChild(editBtn);
-                switcher.appendChild(saveBtn);
-
-                this.appendChild(nameCell);
-                this.appendChild(valueCell);
-                this.appendChild(switcher);
-            }
-        }
-
-        class PrefUnknownRow extends HTMLTableRowElement {
-            connectedCallback() {
-                const pref = this.dataset.pref;
-                const value = this.dataset.value ?? "";
-
-                this.appendChild(td("pref-name", pref));
-                this.appendChild(td("value", value));
-            }
-        }
-
-        customElements.define("pref-bool-row", PrefBoolRow, { extends: "tr" });
-        customElements.define("pref-value-row", PrefValueRow, { extends: "tr" });
-        customElements.define("pref-unknown-row", PrefUnknownRow, { extends: "tr" });
-
-        let all = navigator.servo.preferenceList();
-        all.sort();
-        const ALL = all;
-
-        function populate(filter) {
-            const table = document.querySelector("table");
-            table.innerHTML = "";
-            let prefs = [];
-            if (filter === "" || filter === null || filter === undefined) {
-                prefs = ALL;
-            } else {
-                // TODO: improve filtering
-                prefs = ALL.filter(pref => {
-                    let stripped_pref = pref.replaceAll("_", "");
-                    let stripped_filter = filter.replaceAll("_", "").replaceAll(" ", "").toLowerCase();
-                    if (stripped_pref.includes(stripped_filter)) {
-                        prefs.push(pref);
-                    }
-                });
-            }
-            for (let pref of prefs) {
-                let ty = navigator.servo.preferenceType(pref);
-                let value = navigator.servo.getPreference(pref);
-                let defaultValue = navigator.servo.defaultPreferenceValue(pref);
-
-                if (ty === "bool") {
-                    const row = document.createElement("tr", { is: "pref-bool-row" });
-                    row.setAttribute("data-pref", pref);
-                    row.setAttribute("data-value", String(value));
-                    row.setAttribute("data-default", String(defaultValue));
-                    table.appendChild(row);
-                } else if (ty === "i64") {
-                    const row = document.createElement("tr", { is: "pref-value-row" });
-                    row.setAttribute("data-pref", pref);
-                    row.setAttribute("data-type", "i64");
-                    row.setAttribute("data-value", String(value));
-                    row.setAttribute("data-default", String(defaultValue));
-                    table.appendChild(row);
-                } else if (ty === "String") {
-                    const row = document.createElement("tr", { is: "pref-value-row" });
-                    row.setAttribute("data-pref", pref);
-                    row.setAttribute("data-type", "String");
-                    row.setAttribute("data-value", String(value));
-                    row.setAttribute("data-default", String(defaultValue));
-                    table.appendChild(row);
-                } else {
-                    const row = document.createElement("tr", { is: "pref-unknown-row" });
-                    row.setAttribute("data-pref", pref);
-                    row.setAttribute("data-value", String(value));
-                    table.appendChild(row);
+                    url += "&emoji=" + encodeURIComponent(chars.join(""));
                 }
+                if (profile === "hopeakettu") {
+                    url += "&avomeri=" + (avomeriToggle.checked ? "1" : "0");
+                }
+                statusEl.textContent = KotisatamaI18n.t("config", "profileSaving", kotisatamaLocale);
+                fetch(url)
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        statusEl.textContent = data.message || data.status;
+                        if (data.status === "ok") {
+                            profilePicker.reset();
+                        }
+                        return loadProfile();
+                    })
+                    .catch(function () {
+                        statusEl.textContent = KotisatamaI18n.t(
+                            "config",
+                            "profileError",
+                            kotisatamaLocale,
+                        );
+                    });
+            });
+
+            function loadProfile() {
+                return fetch("servo:profile/data")
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        savedProfile = data.profile || "normi";
+                        hasEmoji = !!data.has_emoji;
+                        const radio = document.querySelector(
+                            'input[name="profile"][value="' + savedProfile + '"]',
+                        );
+                        if (radio) {
+                            radio.checked = true;
+                        }
+                        avomeriToggle.checked = !!data.avomeri_enabled;
+                        if (!isRestrictedProfile(savedProfile)) {
+                            configUnlocked = true;
+                        }
+                        updateVisibility();
+                        maybeShowLock(data);
+                        if (data.locked_out) {
+                            statusEl.textContent = KotisatamaI18n.t(
+                                "config",
+                                "profileLocked",
+                                kotisatamaLocale,
+                            );
+                        }
+                    })
+                    .catch(function () {
+                        savedProfile = "normi";
+                        hasEmoji = false;
+                        document.querySelector('input[name="profile"][value="normi"]').checked = true;
+                        updateVisibility();
+                    });
             }
-        }
-        populate();
+
+            loadProfile();
+        })();
     </script>
 </body>
 </html>

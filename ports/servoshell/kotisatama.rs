@@ -70,6 +70,14 @@ pub struct KotisatamaReportForm {
 
 /// Load whitelist and start local search (Meilisearch subprocess if needed).
 pub fn init() {
+    // KOTISATAMA-PATCH: profiilitiedosto config-hakemistoon — 将配置文件放到config目录。
+    if let Some(mut dir) = crate::prefs::default_config_dir() {
+        dir.pop(); // .../servo/default → .../servo
+        dir.push("kotisatama");
+        dir.push("profile.json");
+        kotisatama_whitelist::set_profile_path(dir);
+    }
+
     if let Ok(cdn_base) = std::env::var("KOTISATAMA_CDN_BASE") {
         match kotisatama_search::sync_from_cdn(&cdn_base) {
             Ok(report) if report.whitelist_updated || report.index_dump_updated => {
@@ -633,6 +641,8 @@ struct SearchResultsData {
     hits: Vec<EnrichedSearchHit>,
     categories: Vec<CategoryMeta>,
     types: Vec<TypeMeta>,
+    /// Active profile (`normi` / `hopeakettu` / `lapsi`) for UI open-button policy.
+    profile: String,
 }
 
 /// JSON payload for `servo:haku/data?q=...`.
@@ -662,6 +672,7 @@ pub fn search_results_json(query: &str) -> String {
         hits,
         categories,
         types,
+        profile: kotisatama_whitelist::current_profile().as_str().to_string(),
     })
     .unwrap_or_else(|_| {
         r#"{"status":"error","message":"JSON serialisointi epäonnistui"}"#.to_owned()
@@ -669,10 +680,102 @@ pub fn search_results_json(query: &str) -> String {
 }
 
 /// Load a search hit URL in the webview (whitelist-checked).
+///
+/// KOTISATAMA-PATCH: Lapsi → aina offline-snapshot; Normi/Hopeakettu → online —
+/// 儿童配置→始终离线快照；Normi/Hopeakettu→在线。
 pub fn open_search_hit(webview: &WebView, hit: &SearchHit) {
+    if hit.is_wikipedia()
+        && matches!(
+            kotisatama_whitelist::current_profile(),
+            kotisatama_whitelist::Profile::Lapsi
+        )
+    {
+        if let Some(slug) = hit.slug.as_deref().filter(|s| !s.is_empty()) {
+            load_url_or_blocked(webview, wiki_snapshot_url(slug));
+        } else {
+            warn!("Kotisatama: wiki hit without slug under Lapsi profile — blocked");
+        }
+        return;
+    }
     if let Ok(url) = Url::parse(&hit.url) {
         load_url_or_blocked(webview, url);
     }
+}
+
+/// Offline Wikipedia snapshot URL (`servo:wiki?slug=...`).
+pub fn wiki_snapshot_url(slug: &str) -> Url {
+    let encoded = url::form_urlencoded::byte_serialize(slug.as_bytes()).collect::<String>();
+    Url::parse(&format!("servo:wiki?slug={encoded}")).expect("wiki snapshot URL must be valid")
+}
+
+/// Load local snapshot HTML for `slug` (profile-aware directory).
+///
+/// KOTISATAMA-PATCH: Lapsi → snapshots-lapsi; muut → snapshots-full — 儿童→snapshots-lapsi；其他→snapshots-full。
+pub fn wiki_snapshot_html(slug: &str) -> String {
+    let slug = slug.trim();
+    if slug.is_empty() || slug.contains("..") || slug.contains('/') || slug.contains('\\') {
+        return wiki_snapshot_error_page("Puuttuva tai virheellinen artikkelitunnus.");
+    }
+    let dir_name = match kotisatama_whitelist::current_profile() {
+        kotisatama_whitelist::Profile::Lapsi => "snapshots-lapsi",
+        _ => "snapshots-full",
+    };
+    let data = PathBuf::from(
+        std::env::var("KOTISATAMA_DATA_DIR").unwrap_or_else(|_| "index-data".into()),
+    );
+    let candidates = [
+        data.join(dir_name).join("articles").join(format!("{slug}.html")),
+        data.join("wiki").join(dir_name).join("articles").join(format!("{slug}.html")),
+        PathBuf::from("index-data")
+            .join(dir_name)
+            .join("articles")
+            .join(format!("{slug}.html")),
+    ];
+    for path in &candidates {
+        if let Ok(html) = std::fs::read_to_string(path) {
+            return wrap_wiki_snapshot(&html, slug);
+        }
+    }
+    wiki_snapshot_error_page(&format!(
+        "Artikkelia “{slug}” ei löytynyt offline-välimuistista."
+    ))
+}
+
+fn wrap_wiki_snapshot(article_html: &str, slug: &str) -> String {
+    format!(
+        r#"<!DOCTYPE html>
+<html lang="fi"><head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{slug} — Wikipedia (offline)</title>
+<style>
+body{{font-family:system-ui,sans-serif;max-width:42rem;margin:1.5rem auto;padding:0 1rem;line-height:1.5}}
+.banner{{background:#e8f0fe;border:1px solid #c5d4f0;padding:.6rem .8rem;margin-bottom:1rem;border-radius:6px;font-size:.9rem}}
+a[href^="http"]{{pointer-events:none;color:inherit;text-decoration:none;border-bottom:1px dotted #999}}
+</style>
+</head><body>
+<p class="banner">Offline-Wikipedia · ulkoiset linkit on poistettu käytöstä tässä näkymässä.</p>
+{article_html}
+</body></html>"#,
+        slug = html_escape_minimal(slug),
+        article_html = article_html
+    )
+}
+
+fn wiki_snapshot_error_page(message: &str) -> String {
+    format!(
+        r#"<!DOCTYPE html><html lang="fi"><head><meta charset="UTF-8"/><title>Wikipedia offline</title></head>
+<body><p>{}</p><p><a href="servo:haku">Takaisin hakuun</a></p></body></html>"#,
+        html_escape_minimal(message)
+    )
+}
+
+fn html_escape_minimal(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 // KOTISATAMA: UI-taustateema nykyisen selaustilan mukaan (ks. suljetun repon Docs/VAIHE7-TEEMAT.md).

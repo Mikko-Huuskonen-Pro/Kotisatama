@@ -451,6 +451,10 @@ impl HeadedWindow {
     fn show_ime(&self, control_id: EmbedderControlId, input_method: InputMethodControl) {
         self.visible_input_method.set(Some(control_id));
 
+        // KOTISATAMA-PATCH: sivun kenttä sai fokuksen → älä pidä Enteriä chrome/osoitekentässä — 页面输入框获得焦点时不要把Enter留在地址栏。
+        #[cfg(feature = "kotisatama")]
+        self.gui.borrow().surrender_focus();
+
         let position = input_method.position();
         self.winit_window.set_ime_allowed(true);
         self.winit_window.set_ime_cursor_area(

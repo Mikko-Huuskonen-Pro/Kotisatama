@@ -7,6 +7,7 @@
 mod document;
 mod domain;
 mod product_profile;
+mod profile;
 mod resolve;
 mod state;
 mod user;
@@ -16,10 +17,19 @@ pub use document::{
 };
 pub use domain::{host_matches_domain, normalize_domain};
 pub use product_profile::{ProductProfile, effective_whitelist_profile};
-pub use resolve::{curated_whitelist_candidates, init_with_fallback};
+pub use profile::{
+    EmojiAuthResult, Profile, ProfileState, avomeri_effectively_enabled, current_profile,
+    current_state as current_profile_state, default_profile_path, hash_emoji_password,
+    mark_first_run_completed, profile_restrictions_active, save_state as save_profile_state,
+    set_avomeri_enabled, set_emoji_password, set_profile, set_profile_path, verify_emoji_password,
+};
+pub use resolve::{
+    curated_whitelist_candidates, curated_whitelist_candidates_for_profile, init_with_fallback,
+};
 pub use state::{
     EffectiveWhitelist, add_user_domain, curated_document, init, init_empty,
-    is_navigation_allowed, lookup_curated_entry, remove_user_domain, user_entries,
+    is_navigation_allowed, lookup_curated_entry, reload_for_profile, remove_user_domain,
+    user_entries,
 };
 pub use user::{UserWhitelist, UserWhitelistEntry, user_whitelist_path};
 

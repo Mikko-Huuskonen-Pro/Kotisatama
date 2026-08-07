@@ -5035,9 +5035,11 @@ name = "kotisatama-whitelist"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "dirs",
  "log",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "url",
 ]
 

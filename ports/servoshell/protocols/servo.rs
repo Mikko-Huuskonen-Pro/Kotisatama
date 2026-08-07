@@ -121,6 +121,14 @@ impl ProtocolHandler for ServoProtocolHandler {
                 return json_response(request, body);
             },
 
+            // KOTISATAMA-PATCH: Wikipedia-offline-snapshot (slug → paikallinen HTML) — Wikipedia离线快照。
+            #[cfg(feature = "kotisatama")]
+            "wiki" => {
+                let slug = query_param(url.as_url(), "slug").unwrap_or_default();
+                let body = crate::kotisatama::wiki_snapshot_html(&slug);
+                return html_response(request, body);
+            },
+
             "pulloposti" => ResourceProtocolHandler::response_for_path(
                 request,
                 done_chan,
@@ -291,6 +299,116 @@ impl ProtocolHandler for ServoProtocolHandler {
                 let entries = kotisatama_whitelist::user_entries();
                 let body = serde_json::to_string(&entries).unwrap_or_else(|_| "[]".to_owned());
                 json_response(request, body)
+            },
+
+            // KOTISATAMA-PATCH: profiilitila JSON-muodossa config.html:lle — 向config.html提供配置文件JSON状态。
+            #[cfg(feature = "kotisatama")]
+            "profile/data" => {
+                use kotisatama_whitelist::{current_profile_state, profile_restrictions_active};
+                let state = current_profile_state();
+                let body = serde_json::json!({
+                    "profile": state.profile.as_str(),
+                    "avomeri_enabled": state.avomeri_enabled,
+                    "first_run_completed": state.first_run_completed,
+                    "has_emoji": state.emoji_hash.is_some(),
+                    "restrictions_active": profile_restrictions_active(state.profile),
+                    "locked_out": state.is_locked_out(),
+                    "lockout_remaining_secs": state.lockout_remaining_secs(),
+                    "failed_attempts": state.failed_attempts,
+                });
+                json_response(request, body.to_string())
+            },
+
+            // KOTISATAMA-PATCH: tarkista emoji-salasana ilman profiilinvaihtoa — 验证表情密码（不切换配置文件）。
+            #[cfg(feature = "kotisatama")]
+            "profile/verify" => {
+                use kotisatama_whitelist::{EmojiAuthResult, verify_emoji_password};
+
+                let emoji_param = query_param(url.as_url(), "emoji");
+                let emojis: Option<Vec<char>> = emoji_param.map(|s| s.chars().collect());
+                let auth = match emojis.as_deref() {
+                    Some(e) => verify_emoji_password(e).unwrap_or(EmojiAuthResult::Wrong),
+                    None => EmojiAuthResult::Wrong,
+                };
+                let (status, message) = match auth {
+                    EmojiAuthResult::Ok => ("ok", "Salasana oikein."),
+                    EmojiAuthResult::NotRequired => ("ok", "Lukkoa ei tarvita."),
+                    EmojiAuthResult::Wrong => ("wrong", "Emoji-salasana väärin tai puuttuu."),
+                    EmojiAuthResult::LockedOut => {
+                        ("locked", "Liian monta yritystä. Odota 5 minuuttia.")
+                    },
+                };
+                let body = serde_json::json!({ "status": status, "message": message });
+                json_response(request, body.to_string())
+            },
+
+            // KOTISATAMA-PATCH: aseta profiili / avomeri / emoji (query: profile, avomeri, emoji) — 设置配置文件/Avomeri/表情密码。
+            #[cfg(feature = "kotisatama")]
+            "profile/set" => {
+                use kotisatama_whitelist::{
+                    EmojiAuthResult, Profile, set_avomeri_enabled, set_profile,
+                };
+
+                let profile_param = query_param(url.as_url(), "profile");
+                let avomeri_param = query_param(url.as_url(), "avomeri");
+                let emoji_param = query_param(url.as_url(), "emoji");
+                let emojis: Option<Vec<char>> = emoji_param.map(|s| s.chars().collect());
+                let emoji_slice = emojis.as_deref();
+                let profile_changed = profile_param.is_some();
+
+                let result = (|| {
+                    if let Some(name) = profile_param {
+                        let profile = Profile::parse(&name).ok_or(EmojiAuthResult::Wrong)?;
+                        let profile_result =
+                            set_profile(profile, emoji_slice).map_err(|_| EmojiAuthResult::Wrong)?;
+                        if !matches!(
+                            profile_result,
+                            EmojiAuthResult::Ok | EmojiAuthResult::NotRequired
+                        ) {
+                            return Ok(profile_result);
+                        }
+                        if let Some(avomeri) = avomeri_param {
+                            let enabled = matches!(
+                                avomeri.trim().to_ascii_lowercase().as_str(),
+                                "1" | "true" | "yes" | "on"
+                            );
+                            return set_avomeri_enabled(enabled, emoji_slice)
+                                .map_err(|_| EmojiAuthResult::Wrong);
+                        }
+                        return Ok(profile_result);
+                    }
+                    if let Some(avomeri) = avomeri_param {
+                        let enabled = matches!(
+                            avomeri.trim().to_ascii_lowercase().as_str(),
+                            "1" | "true" | "yes" | "on"
+                        );
+                        return set_avomeri_enabled(enabled, emoji_slice)
+                            .map_err(|_| EmojiAuthResult::Wrong);
+                    }
+                    Ok(EmojiAuthResult::Wrong)
+                })();
+
+                let auth = result.unwrap_or(EmojiAuthResult::Wrong);
+                let (status, message) = match auth {
+                    EmojiAuthResult::Ok => ("ok", "Profiili päivitetty."),
+                    EmojiAuthResult::NotRequired => ("ok", "Tallennettu."),
+                    EmojiAuthResult::Wrong => ("wrong", "Emoji-salasana väärin tai puuttuu."),
+                    EmojiAuthResult::LockedOut => {
+                        ("locked", "Liian monta yritystä. Odota 5 minuuttia.")
+                    },
+                };
+                // KOTISATAMA-PATCH: whitelist hot-reload profiilinvaihdon jälkeen — 切换配置文件后热重载白名单。
+                if status == "ok" && profile_changed {
+                    let profile = kotisatama_whitelist::effective_whitelist_profile();
+                    let cache = kotisatama_search::cached_whitelist_path();
+                    if let Err(error) =
+                        kotisatama_whitelist::reload_for_profile(cache, profile)
+                    {
+                        log::warn!("Kotisatama: whitelist reload after profile switch failed: {error}");
+                    }
+                }
+                let body = serde_json::json!({ "status": status, "message": message });
+                json_response(request, body.to_string())
             },
 
             #[cfg(feature = "kotisatama")]

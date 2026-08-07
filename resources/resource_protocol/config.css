@@ -39,40 +39,106 @@ input {
     padding: 4px;
 }
 
-table {
-    border-collapse: collapse;
+.profile-hint {
+    font-size: 0.9rem;
+    color: #555;
+    margin: 0 0 8px 0;
 }
 
-table, th, td {
-    border: 0;
+.profile-choices {
+    border: none;
+    margin: 0 0 8px 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
-tr:nth-child(2n) {
-    background-color: #f0f0f0;
+.emoji-block,
+.avomeri-block {
+    margin: 8px 0;
 }
 
-.value-editor {
-    margin: 2px;
+.emoji-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0;
+}
+
+.emoji-btn {
+    font-size: 1.4rem;
+    min-width: 2.2rem;
+    min-height: 2.2rem;
     padding: 2px;
+    cursor: pointer;
 }
 
-.switch-button {
-    margin: 2px;
-    padding: 2px;
+.emoji-svg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    background: #f5f5f5;
+    border: 1px solid #ccc;
     border-radius: 4px;
-    background: #cfcfcf;
-    border: 0;
 }
 
-.icon {
-    width: 24px;
-    height: 24px;
+.emoji-svg-btn svg {
+    width: 1.4rem;
+    height: 1.4rem;
+}
+
+.config-unlock-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 16px;
+}
+
+.config-unlock-panel {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
+.config-unlock-panel h2 {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+}
+
+.config-content-locked {
+    visibility: hidden;
+}
+
+#unlockBtn {
+    margin-top: 8px;
+    padding: 6px 12px;
+}
+
+.profile-status {
+    min-height: 1.2em;
+    margin: 8px 0;
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
-.default {
-    font-weight: bold;
+#emojiInput {
+    width: 100%;
+    max-width: 320px;
+    padding: 4px;
+}
+
+#saveProfileBtn {
+    margin-top: 4px;
+    padding: 6px 12px;
 }

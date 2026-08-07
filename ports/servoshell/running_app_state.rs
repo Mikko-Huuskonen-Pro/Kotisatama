@@ -80,8 +80,8 @@ pub struct WebViewCollection {
 }
 
 /// Soft cap on open top-level webviews (desktop tabs / Android window.open).
-// KOTISATAMA-PATCH: enintään 20 välilehteä — 最多20个标签页。
-pub(crate) const MAX_WEBVIEWS: usize = 20;
+// KOTISATAMA-PATCH: enintään 5 välilehteä (muisti) — 最多5个标签页（内存）。
+pub(crate) const MAX_WEBVIEWS: usize = 5;
 
 impl WebViewCollection {
     pub fn add(&mut self, webview: WebView) {

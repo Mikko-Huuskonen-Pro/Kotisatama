@@ -62,6 +62,17 @@ pub fn get_default_url(
     let pref_url = parse_url_or_filename(cwd.as_ref(), &preferences.homepage).ok();
     let blank_url = ServoUrl::parse("about:blank").ok();
 
+    // KOTISATAMA-PATCH: ensimmäinen käynnistys → config.html (profiilivalinta) — 首次启动→config.html（配置文件选择）。
+    #[cfg(feature = "kotisatama")]
+    if new_url.is_none() && url_opt.is_none() {
+        let state = kotisatama_whitelist::current_profile_state();
+        if !state.first_run_completed {
+            if let Ok(config_url) = ServoUrl::parse("servo:config") {
+                return config_url;
+            }
+        }
+    }
+
     new_url.or(pref_url).or(blank_url).unwrap()
 }
 

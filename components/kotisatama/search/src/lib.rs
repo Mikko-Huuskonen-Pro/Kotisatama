@@ -10,7 +10,7 @@ mod enrich;
 
 use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -33,11 +33,22 @@ pub use enrich::{
 
 const DEFAULT_BASE_URL: &str = "http://127.0.0.1:7700";
 const INDEX_UID: &str = "documents";
+const WIKI_INDEX_FULL: &str = "wiki_fi_full";
+const WIKI_INDEX_LAPSI: &str = "wiki_fi_lapsi";
 const HEALTH_CONFIG: HealthCheckConfig = HealthCheckConfig {
     health_path: "/health",
     poll_ms: 100,
     timeout_secs: 30,
 };
+
+/// Meilisearch wiki index for the active product profile.
+pub fn wiki_index_for_current_profile() -> &'static str {
+    use kotisatama_whitelist::{Profile, current_profile};
+    match current_profile() {
+        Profile::Lapsi => WIKI_INDEX_LAPSI,
+        Profile::Normi | Profile::Hopeakettu => WIKI_INDEX_FULL,
+    }
+}
 
 fn data_dir() -> PathBuf {
     std::env::var("KOTISATAMA_DATA_DIR")
@@ -52,12 +63,45 @@ fn packaged_path(relative: &str) -> Option<PathBuf> {
     Some(exe_dir.join(relative))
 }
 
-/// A single search hit from the local index.
-#[derive(Debug, Clone, Deserialize)]
+/// A single search hit from the local index (sites or Wikipedia).
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SearchHit {
-    pub id: u64,
+    /// Meilisearch primary key (numeric for sites, string for wiki paragraphs).
+    #[serde(deserialize_with = "deserialize_flexible_id")]
+    pub id: String,
     pub url: String,
     pub title: String,
+    /// `"wikipedia"` for wiki hits; absent/other for Satama sites.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// Snippet text (wiki paragraph).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// Article slug for offline snapshot (`kotisatama://wiki/{slug}`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paragraph: Option<u32>,
+}
+
+impl SearchHit {
+    pub fn is_wikipedia(&self) -> bool {
+        self.source
+            .as_deref()
+            .is_some_and(|s| s.eq_ignore_ascii_case("wikipedia"))
+    }
+}
+
+fn deserialize_flexible_id<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::String(s) => Ok(s),
+        serde_json::Value::Number(n) => Ok(n.to_string()),
+        other => Ok(other.to_string()),
+    }
 }
 
 /// Outcome of a Kotisatama search query.
@@ -143,7 +187,7 @@ impl SearchClient {
         ];
         if import_dump {
             args.push("--import-dump".to_string());
-            args.push(dump_path);
+            args.push(dump_path.clone());
             args.push("--ignore-missing-dump".to_string());
         }
 
@@ -162,49 +206,82 @@ impl SearchClient {
             process: ManagedSubprocess::from_child(child),
         };
         client.ensure_index()?;
+        if import_dump {
+            record_imported_dump(&dump_path, &db_path);
+        } else if PathBuf::from(&dump_path).is_file() && !wiki_indexes_ready(&client.base_url) {
+            log::warn!(
+                "Kotisatama search: wiki indexes missing; clear app data or reinstall to reimport dump"
+            );
+        }
         Ok(client)
     }
 
-    /// Search the local index.
+    /// Search sites + Wikipedia indexes (wiki hits first).
     pub fn search(&self, query: &str) -> SearchOutcome {
         let query = query.trim();
         if query.is_empty() {
             return SearchOutcome::NoResults;
         }
 
-        let url = format!("{}/indexes/{}/search", self.base_url, INDEX_UID);
+        let wiki_index = wiki_index_for_current_profile();
+        let mut wiki_hits = self.search_index(wiki_index, query, 12);
+        let site_hits = self.search_index(INDEX_UID, query, 25);
+
+        // Mark wiki source if Meilisearch omitted it.
+        for hit in &mut wiki_hits {
+            if hit.source.is_none() {
+                hit.source = Some("wikipedia".into());
+            }
+        }
+
+        let mut seen = HashSet::new();
+        let mut merged = Vec::with_capacity(wiki_hits.len() + site_hits.len());
+        for hit in wiki_hits.into_iter().chain(site_hits) {
+            let key = hit.url.to_ascii_lowercase();
+            if seen.insert(key) {
+                merged.push(hit);
+            }
+        }
+
+        if merged.is_empty() {
+            SearchOutcome::NoResults
+        } else {
+            SearchOutcome::Hits(merged)
+        }
+    }
+
+    fn search_index(&self, index: &str, query: &str, limit: usize) -> Vec<SearchHit> {
+        let url = format!("{}/indexes/{index}/search", self.base_url);
         let response = ureq::post(&url)
             .set("Content-Type", "application/json")
-            .send_json(json!({ "q": query, "limit": 25 }));
+            .send_json(json!({ "q": query, "limit": limit }));
 
         match response {
             Ok(resp) => {
                 let body: SearchResponse = match resp.into_json() {
                     Ok(body) => body,
                     Err(error) => {
-                        return SearchOutcome::Error(format!("invalid search response: {error}"));
+                        log::warn!("Kotisatama search: invalid response from {index}: {error}");
+                        return Vec::new();
                     },
                 };
-                if body.hits.is_empty() {
-                    SearchOutcome::NoResults
-                } else {
-                    SearchOutcome::Hits(body.hits)
-                }
+                body.hits
             },
-            Err(ureq::Error::Status(code, resp)) => SearchOutcome::Error(format!(
-                "search failed (HTTP {code}): {}",
-                resp.into_string().unwrap_or_default()
-            )),
-            Err(error) => SearchOutcome::Error(format!("search request failed: {error}")),
+            Err(error) => {
+                // Wiki indexes may be absent until import — treat as empty.
+                log::warn!("Kotisatama search: index {index} unavailable: {error}");
+                Vec::new()
+            },
         }
     }
 
+    /// KOTISATAMA-PATCH: dump-tuonnin jälkeen lataa seed-dokumentit tyhjästä (korvaa vanhat otsikot) — dump导入后重新加载种子文档以替换旧标题。
     fn ensure_index(&self) -> Result<(), SearchError> {
         let stats_url = format!("{}/indexes/{}/stats", self.base_url, INDEX_UID);
         if let Ok(resp) = ureq::get(&stats_url).call()
             && resp.status() == 200
         {
-            return self.load_seed_documents();
+            return self.load_seed_documents_fresh();
         }
 
         let create_url = format!("{}/indexes", self.base_url);
@@ -219,17 +296,35 @@ impl SearchClient {
             log::warn!("Kotisatama search: create index: {error}");
         }
 
-        self.load_seed_documents()?;
+        self.load_seed_documents_fresh()?;
         Ok(())
     }
 
     fn load_seed_documents(&self) -> Result<(), SearchError> {
+        self.load_seed_documents_with_clear(false)
+    }
+
+    /// Clear the index and reload documents from scratch.
+    ///
+    /// KOTISATAMA-PATCH: upsert ei korvaa vanhoja otsikoita (esim. yle.fi) — 旧标题不会被upsert覆盖。
+    fn load_seed_documents_fresh(&self) -> Result<(), SearchError> {
+        self.load_seed_documents_with_clear(true)
+    }
+
+    fn load_seed_documents_with_clear(&self, clear_first: bool) -> Result<(), SearchError> {
         let documents = seed_documents()?;
         if documents.is_empty() {
             return Ok(());
         }
 
         let url = format!("{}/indexes/{}/documents", self.base_url, INDEX_UID);
+        if clear_first {
+            if let Ok(resp) = ureq::delete(&url).call() {
+                if let Ok(task) = resp.into_json::<MeiliTask>() {
+                    let _ = self.wait_for_task(task.task_uid);
+                }
+            }
+        }
         let task: MeiliTask = ureq::post(&url)
             .set("Content-Type", "application/json")
             .send_json(&documents)
@@ -346,9 +441,13 @@ pub fn seed_search(query: &str) -> SearchOutcome {
             Some((
                 score,
                 SearchHit {
-                    id: doc.id,
+                    id: doc.id.to_string(),
                     url: doc.url.clone(),
                     title: doc.title.clone(),
+                    source: None,
+                    text: None,
+                    slug: None,
+                    paragraph: None,
                 },
             ))
         })
@@ -525,6 +624,40 @@ fn map_subprocess_error(error: SubprocessError) -> SearchError {
     }
 }
 
+fn imported_dump_marker_path(db_path: &str) -> PathBuf {
+    PathBuf::from(db_path).join(".imported_dump_sha256")
+}
+
+fn record_imported_dump(dump_path: &str, db_path: &str) {
+    if let Ok(hash) = sha256_file(Path::new(dump_path)) {
+        let _ = fs::write(imported_dump_marker_path(db_path), hash);
+    }
+}
+
+fn wiki_indexes_ready(base_url: &str) -> bool {
+    for index in [WIKI_INDEX_FULL, WIKI_INDEX_LAPSI] {
+        let url = format!("{base_url}/indexes/{index}/stats");
+        let Ok(resp) = ureq::get(&url).call() else {
+            return false;
+        };
+        if resp.status() != 200 {
+            return false;
+        }
+        let Ok(body) = resp.into_json::<serde_json::Value>() else {
+            return false;
+        };
+        if body
+            .get("numberOfDocuments")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0)
+            == 0
+        {
+            return false;
+        }
+    }
+    true
+}
+
 fn should_import_dump(dump_path: &str, db_path: &str) -> bool {
     let dump = PathBuf::from(dump_path);
     if !dump.is_file() {
@@ -534,10 +667,14 @@ fn should_import_dump(dump_path: &str, db_path: &str) -> bool {
     if !db.exists() {
         return true;
     }
-    let dump_modified = fs::metadata(&dump).and_then(|m| m.modified()).ok();
-    let db_modified = fs::metadata(&db).and_then(|m| m.modified()).ok();
-    match (dump_modified, db_modified) {
-        (Some(d), Some(b)) => d > b,
+    let current_hash = sha256_file(&dump).ok();
+    let marker = imported_dump_marker_path(db_path);
+    if !marker.is_file() {
+        return true;
+    }
+    let stored = fs::read_to_string(marker).ok();
+    match (current_hash, stored) {
+        (Some(current), Some(stored)) => current.trim() != stored.trim(),
         _ => true,
     }
 }

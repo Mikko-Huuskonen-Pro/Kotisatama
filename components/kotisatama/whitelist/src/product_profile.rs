@@ -5,14 +5,15 @@
 //! Product profiles: Avomeri access, user whitelist edits, and whitelist tag selection.
 
 use crate::document::WhitelistProfile;
+use crate::profile::{self, Profile};
 
 /// Kotisatama product profile (who is using the browser).
 ///
 /// Distinct from [`WhitelistProfile`], which filters curated `domains[]` by tag.
-/// Resolved from `KOTISATAMA_PRODUCT_PROFILE`; defaults to [`Normaali`] (adult v1).
+/// Resolved from persisted [`Profile`] / `KOTISATAMA_PRODUCT_PROFILE`; defaults to [`Normaali`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProductProfile {
-    /// Adult / free — Avomeri on, user may extend whitelist locally.
+    /// Adult / free — Avomeri on, user may extend whitelist locally. (Normi)
     Normaali,
     /// Hopeakettu subscription — tagged curated list, otherwise like Normaali.
     Hopeakettu,
@@ -23,32 +24,50 @@ pub enum ProductProfile {
 }
 
 impl ProductProfile {
-    /// Resolve from `KOTISATAMA_PRODUCT_PROFILE` (default: `normaali`).
-    pub fn current() -> Self {
-        match std::env::var("KOTISATAMA_PRODUCT_PROFILE")
-            .ok()
-            .map(|value| value.trim().to_ascii_lowercase())
-            .filter(|value| !value.is_empty())
-            .as_deref()
-        {
-            Some("lapsi") | Some("junior") => Self::Lapsi,
-            Some("seniori") | Some("senior") => Self::Seniori,
-            Some("hopeakettu") => Self::Hopeakettu,
-            Some("normaali") | Some("free") | Some("adult") => Self::Normaali,
-            None => Self::Normaali,
-            Some(other) => {
-                log::warn!(
-                    "Kotisatama: tuntematon KOTISATAMA_PRODUCT_PROFILE={other:?}, käytetään normaali"
-                );
-                Self::Normaali
-            },
+    pub fn from_profile(profile: Profile) -> Self {
+        match profile {
+            Profile::Normi => Self::Normaali,
+            Profile::Hopeakettu => Self::Hopeakettu,
+            Profile::Lapsi => Self::Lapsi,
         }
+    }
+
+    pub fn to_profile(self) -> Option<Profile> {
+        match self {
+            Self::Normaali => Some(Profile::Normi),
+            Self::Hopeakettu => Some(Profile::Hopeakettu),
+            Self::Lapsi => Some(Profile::Lapsi),
+            Self::Seniori => None,
+        }
+    }
+
+    /// Resolve from env override, else persisted profile.json (default: Normi/normaali).
+    pub fn current() -> Self {
+        if let Ok(value) = std::env::var("KOTISATAMA_PRODUCT_PROFILE") {
+            let value = value.trim().to_ascii_lowercase();
+            if !value.is_empty() {
+                return match value.as_str() {
+                    "lapsi" | "junior" => Self::Lapsi,
+                    "seniori" | "senior" => Self::Seniori,
+                    "hopeakettu" => Self::Hopeakettu,
+                    "normaali" | "normi" | "free" | "adult" => Self::Normaali,
+                    other => {
+                        log::warn!(
+                            "Kotisatama: tuntematon KOTISATAMA_PRODUCT_PROFILE={other:?}, käytetään normaali"
+                        );
+                        Self::Normaali
+                    },
+                };
+            }
+        }
+        Self::from_profile(profile::current_state().profile)
     }
 
     /// Whether the user may open Avomeri (open web via explicit confirmation).
     pub fn can_enter_avomeri(self) -> bool {
         match self {
-            Self::Normaali | Self::Hopeakettu => true,
+            Self::Normaali => true,
+            Self::Hopeakettu => profile::avomeri_effectively_enabled(),
             Self::Seniori => seniori_avomeri_enabled(),
             Self::Lapsi => false,
         }

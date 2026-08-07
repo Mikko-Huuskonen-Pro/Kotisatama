@@ -131,6 +131,7 @@
         fi: "Haku epäonnistui. Yritä uudelleen.",
         sv: "Sökningen misslyckades. Försök igen.",
       },
+      openArticle: { fi: "Avaa artikkeli", sv: "Öppna artikel" },
     },
     varustamo: {
       title: { fi: "Varustamo", sv: "Varustamo" },
@@ -208,6 +209,50 @@
       mySitesLink: {
         fi: "Hallitse omia sataman sivuja",
         sv: "Hantera egna sidor i hamnen",
+      },
+      profileSection: { fi: "Käyttäjäprofiili", sv: "Användarprofil" },
+      profileHint: {
+        fi: "Normi on oletus ilman rajoituksia. Hopeakettu ja Lapsi lukitaan kolmella emojilla.",
+        sv: "Normi är standard utan begränsningar. Hopeakettu och Lapsi låses med tre emojis.",
+      },
+      profileNormi: { fi: "Normi", sv: "Normi" },
+      profileHopeakettu: { fi: "Hopeakettu", sv: "Hopeakettu" },
+      profileLapsi: { fi: "Lapsi", sv: "Barn" },
+      emojiLabel: { fi: "Kolme emojia (salasana)", sv: "Tre emojis (lösenord)" },
+      emojiPlaceholder: { fi: "Valitse kolme…", sv: "Välj tre…" },
+      avomeriLabel: { fi: "Avomeri käytössä", sv: "Öppet hav aktiverat" },
+      profileSave: { fi: "Tallenna profiili", sv: "Spara profil" },
+      emojiNeedThree: {
+        fi: "Valitse tasan kolme emojia.",
+        sv: "Välj exakt tre emojis.",
+      },
+      profileSaving: { fi: "Tallennetaan…", sv: "Sparar…" },
+      profileError: { fi: "Tallennus epäonnistui.", sv: "Det gick inte att spara." },
+      profileLocked: {
+        fi: "Liian monta yritystä. Odota 5 minuuttia.",
+        sv: "För många försök. Vänta 5 minuter.",
+      },
+      emojiNormiHint: {
+        fi: "Syötä salasana vaihtaaksesi takaisin Normi-profiiliin.",
+        sv: "Ange lösenordet för att byta tillbaka till Normi-profilen.",
+      },
+      configUnlockTitle: {
+        fi: "Asetukset lukittu",
+        sv: "Inställningarna är låsta",
+      },
+      configUnlockHint: {
+        fi: "Syötä kolme emojia avataksesi asetukset.",
+        sv: "Ange tre emojis för att öppna inställningarna.",
+      },
+      configUnlockBtn: { fi: "Avaa", sv: "Öppna" },
+      configUnlockWrong: {
+        fi: "Väärä salasana.",
+        sv: "Fel lösenord.",
+      },
+      licensesSection: { fi: "Lisenssit", sv: "Licenser" },
+      licensesLink: {
+        fi: "Avoimen lähdekoodin lisenssit",
+        sv: "Licenser för öppen källkod",
       },
     },
     license: {

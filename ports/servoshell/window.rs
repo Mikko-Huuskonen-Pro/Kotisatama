@@ -81,6 +81,9 @@ pub(crate) struct ServoShellWindow {
     pending_favicon_loads: RefCell<Vec<WebViewId>>,
     /// Pending [`UserInterfaceCommand`] that have yet to be processed by the main loop.
     pending_commands: RefCell<Vec<UserInterfaceCommand>>,
+    /// KOTISATAMA-PATCH: LRU-eviktion ilmoitus UI:lle — LRU驱逐通知给UI。
+    #[cfg(feature = "kotisatama")]
+    tab_eviction_notice: Cell<bool>,
 }
 
 impl ServoShellWindow {
@@ -93,6 +96,8 @@ impl ServoShellWindow {
             needs_repaint: Default::default(),
             pending_favicon_loads: Default::default(),
             pending_commands: Default::default(),
+            #[cfg(feature = "kotisatama")]
+            tab_eviction_notice: Cell::new(false),
         }
     }
 
@@ -206,11 +211,21 @@ impl ServoShellWindow {
             // KOTISATAMA-PATCH: sulje LRU-välilehti jos yli MAX_WEBVIEWS — 超过上限时关闭LRU标签。
             collection.ids_to_evict(crate::running_app_state::MAX_WEBVIEWS)
         };
+        #[cfg(feature = "kotisatama")]
+        if !to_close.is_empty() {
+            self.tab_eviction_notice.set(true);
+        }
         for id in to_close {
             self.close_webview(id);
         }
         self.set_needs_update();
         self.set_needs_repaint();
+    }
+
+    /// KOTISATAMA-PATCH: lue ja nollaa LRU-eviktioilmoitus — 读取并清除LRU驱逐通知。
+    #[cfg(feature = "kotisatama")]
+    pub(crate) fn take_tab_eviction_notice(&self) -> bool {
+        self.tab_eviction_notice.replace(false)
     }
 
     pub(crate) fn webview_ids(&self) -> Vec<WebViewId> {

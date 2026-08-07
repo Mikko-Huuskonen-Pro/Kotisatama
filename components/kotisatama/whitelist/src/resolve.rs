@@ -13,6 +13,14 @@ use log::{info, warn};
 
 /// Candidate paths for the curated base whitelist, highest priority first.
 pub fn curated_whitelist_candidates(cdn_cache: Option<PathBuf>) -> Vec<PathBuf> {
+    curated_whitelist_candidates_for_profile(cdn_cache, &WhitelistProfile::Free)
+}
+
+/// Profile-aware candidates: Hopeakettu/Lapsi prefer export files when present.
+pub fn curated_whitelist_candidates_for_profile(
+    cdn_cache: Option<PathBuf>,
+    profile: &WhitelistProfile,
+) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     let mut seen = Vec::new();
 
@@ -26,6 +34,22 @@ pub fn curated_whitelist_candidates(cdn_cache: Option<PathBuf>) -> Vec<PathBuf> 
         seen.push(path.clone());
         candidates.push(path);
     };
+
+    // KOTISATAMA-PATCH: profiilikohtaiset exportit ennen unified-listaa — 在统一列表之前优先使用按配置文件导出的白名单。
+    if let WhitelistProfile::Tagged(tag) = profile {
+        let file = format!("{tag}-whitelist.json");
+        if let Ok(data_dir) = std::env::var("KOTISATAMA_DATA_DIR") {
+            push(PathBuf::from(data_dir).join(&file));
+        }
+        if let Some(cache) = cdn_cache.as_ref().and_then(|p| p.parent()) {
+            push(cache.join(&file));
+        }
+        push(PathBuf::from("index-data/cache").join(&file));
+        push(PathBuf::from("config").join(&file));
+        if let Some(path) = packaged_relative(&format!("config/{file}")) {
+            push(path);
+        }
+    }
 
     if let Some(path) = cdn_cache {
         push(path);
@@ -52,7 +76,7 @@ pub fn init_with_fallback(
     cdn_cache: Option<PathBuf>,
     profile: WhitelistProfile,
 ) -> Result<PathBuf, WhitelistError> {
-    for path in curated_whitelist_candidates(cdn_cache) {
+    for path in curated_whitelist_candidates_for_profile(cdn_cache, &profile) {
         if !path.is_file() {
             continue;
         }

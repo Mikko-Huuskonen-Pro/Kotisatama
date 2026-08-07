@@ -4,7 +4,7 @@
 
 //! Runtime effective whitelist (curated base ∪ user overlay).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 use url::Url;
@@ -88,14 +88,49 @@ impl EffectiveWhitelist {
 
 static EFFECTIVE: OnceLock<Mutex<EffectiveWhitelist>> = OnceLock::new();
 
-/// Initialize runtime whitelist from curated base path and local user overlay.
-pub fn init(base_path: &Path, profile: WhitelistProfile) -> Result<(), WhitelistError> {
-    let base = WhitelistDocument::load_from_path(base_path)?;
-    let user = UserWhitelist::load_from_path(&user_whitelist_path())?;
-    let effective = EffectiveWhitelist::new(base, user, profile);
-    let _ = EFFECTIVE.set(Mutex::new(effective));
-    Ok(())
-}
+    /// Initialize runtime whitelist from curated base path and local user overlay.
+    pub fn init(base_path: &Path, profile: WhitelistProfile) -> Result<(), WhitelistError> {
+        let base = WhitelistDocument::load_from_path(base_path)?;
+        let user = UserWhitelist::load_from_path(&user_whitelist_path())?;
+        let effective = EffectiveWhitelist::new(base, user, profile);
+        let _ = EFFECTIVE.set(Mutex::new(effective));
+        Ok(())
+    }
+
+    /// Reinitialize whitelist for a new profile (called after profile switch).
+    ///
+    /// Reads profile-aware candidates again and swaps the effective whitelist so
+    /// navigation checks reflect the new profile without app restart.
+    pub fn reload_for_profile(
+        cdn_cache: Option<PathBuf>,
+        profile: WhitelistProfile,
+    ) -> Result<(), WhitelistError> {
+        // Do not call init_with_fallback here: EFFECTIVE is already set (OnceLock).
+        let base_path = crate::resolve::curated_whitelist_candidates_for_profile(
+            cdn_cache,
+            &profile,
+        )
+        .into_iter()
+        .find(|path| path.is_file())
+        .ok_or(WhitelistError::NoBaseListFound)?;
+
+        let base = WhitelistDocument::load_from_path(&base_path)?;
+        let user = UserWhitelist::load_from_path(&user_whitelist_path())?;
+        let effective = EffectiveWhitelist::new(base, user, profile);
+        if let Some(guard) = EFFECTIVE.get() {
+            if let Ok(mut existing) = guard.lock() {
+                *existing = effective;
+                log::info!(
+                    "Kotisatama: whitelist reloaded from {} ({} domains)",
+                    base_path.display(),
+                    existing.base_domain_count()
+                );
+                return Ok(());
+            }
+        }
+        let _ = EFFECTIVE.set(Mutex::new(effective));
+        Ok(())
+    }
 
 /// Install an empty effective whitelist (fallback when base file is missing).
 pub fn init_empty(profile: WhitelistProfile) -> Result<(), WhitelistError> {
@@ -134,7 +169,21 @@ pub fn is_navigation_allowed(url: &Url) -> bool {
         Some(host) => host,
         None => return false,
     };
+    // KOTISATAMA-PATCH: Lapsi ei koskaan pääse online-Wikipediaan — 儿童配置文件永不允许在线Wikipedia。
+    if matches!(crate::profile::current_profile(), crate::profile::Profile::Lapsi)
+        && is_wikipedia_host(host)
+    {
+        return false;
+    }
     with_effective(|effective| effective.is_host_allowed(host)).unwrap_or(false)
+}
+
+fn is_wikipedia_host(host: &str) -> bool {
+    let host = host.to_ascii_lowercase();
+    host == "wikipedia.org"
+        || host.ends_with(".wikipedia.org")
+        || host == "wikimedia.org"
+        || host.ends_with(".wikimedia.org")
 }
 
 /// User-added whitelist entries for UI.

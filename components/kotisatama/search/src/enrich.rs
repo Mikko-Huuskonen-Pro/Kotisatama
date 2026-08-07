@@ -21,10 +21,34 @@ pub struct EnrichedSearchHit {
     #[serde(rename = "type")]
     pub entry_type: Option<String>,
     pub tags: Vec<String>,
+    /// `"wikipedia"` when the hit is from the wiki index.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// Snippet / paragraph text for wiki cards.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<String>,
+    /// Offline snapshot slug (`articles/{slug}.html`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
 }
 
 /// Rikastaa yksi Meilisearch-osuma whitelist-lookupilla.
 pub fn enrich_hit(hit: &SearchHit) -> EnrichedSearchHit {
+    if hit.is_wikipedia() {
+        return EnrichedSearchHit {
+            url: hit.url.clone(),
+            title: hit.title.clone(),
+            label: Some(hit.title.clone()),
+            domain: Some("fi.wikipedia.org".into()),
+            category: Some("wikipedia".into()),
+            entry_type: Some("wiki".into()),
+            tags: vec!["Wikipedia".into()],
+            source: Some("wikipedia".into()),
+            snippet: hit.text.clone(),
+            slug: hit.slug.clone(),
+        };
+    }
+
     let host = Url::parse(&hit.url)
         .ok()
         .and_then(|url| url.host_str().map(str::to_ascii_lowercase));
@@ -38,6 +62,9 @@ pub fn enrich_hit(hit: &SearchHit) -> EnrichedSearchHit {
         category: curated.as_ref().and_then(|entry| entry.category.clone()),
         entry_type: curated.as_ref().and_then(|entry| entry.entry_type.clone()),
         tags: curated.map(|entry| entry.tags).unwrap_or_default(),
+        source: hit.source.clone(),
+        snippet: hit.text.clone(),
+        slug: hit.slug.clone(),
     }
 }
 
@@ -71,9 +98,13 @@ mod tests {
     #[test]
     fn enrich_hit_without_whitelist_uses_title_and_url() {
         let hit = SearchHit {
-            id: 1,
+            id: "1".into(),
             url: "https://www.example.com/elake".into(),
             title: "Eläke".into(),
+            source: None,
+            text: None,
+            slug: None,
+            paragraph: None,
         };
         let enriched = enrich_hit(&hit);
         assert_eq!(enriched.title, "Eläke");
@@ -96,9 +127,13 @@ mod tests {
         kotisatama_whitelist::init(&temp, WhitelistProfile::Free).unwrap();
 
         let hit = SearchHit {
-            id: 1,
+            id: "1".into(),
             url: "https://www.kela.fi/elake".into(),
             title: "Eläke - Kela".into(),
+            source: None,
+            text: None,
+            slug: None,
+            paragraph: None,
         };
         let enriched = enrich_hit(&hit);
         assert_eq!(enriched.label.as_deref(), Some("Kela"));
@@ -106,5 +141,22 @@ mod tests {
         assert_eq!(enriched.entry_type.as_deref(), Some("white"));
         assert_eq!(enriched.tags, vec!["eläke"]);
         let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn enrich_wikipedia_hit_marks_source() {
+        let hit = SearchHit {
+            id: "fiwiki_Helsinki_p1".into(),
+            url: "https://fi.wikipedia.org/wiki/Helsinki".into(),
+            title: "Helsinki".into(),
+            source: Some("wikipedia".into()),
+            text: Some("Helsinki on Suomen pääkaupunki.".into()),
+            slug: Some("Helsinki".into()),
+            paragraph: Some(1),
+        };
+        let enriched = enrich_hit(&hit);
+        assert_eq!(enriched.source.as_deref(), Some("wikipedia"));
+        assert_eq!(enriched.slug.as_deref(), Some("Helsinki"));
+        assert!(enriched.snippet.as_deref().unwrap().contains("pääkaupunki"));
     }
 }

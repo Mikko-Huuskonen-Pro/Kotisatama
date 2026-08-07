@@ -19,6 +19,7 @@ param(
     [switch]$SkipTests,
     [switch]$SkipMeilisearch,
     [switch]$SkipWhitelistSync,
+    [switch]$SkipWikiSync,
     [switch]$InstallNdk,
     [switch]$Install,
     [switch]$Usb,
@@ -76,6 +77,19 @@ if (-not $SkipTests) {
 if (-not $SkipWhitelistSync) {
     Write-Step "Whitelist APK-asseteihin"
     Sync-Whitelist -RepoRoot $RepoRoot
+}
+
+if (-not $SkipWikiSync) {
+    $wikiSync = Join-Path $RepoRoot "scripts\sync-android-wiki-test-data.ps1"
+    if (Test-Path $wikiSync) {
+        Write-Step "Wiki-testidata APK:hen (Meilisearch dump + snapshots)"
+        try {
+            & $wikiSync
+        } catch {
+            Write-Warning "Wiki sync skipped: $($_.Exception.Message)"
+            Write-Warning "Offline Wikipedia search will be limited until you run: .\scripts\sync-android-wiki-test-data.ps1"
+        }
+    }
 }
 
 $cachedWhitelist = Join-Path $RepoRoot "index-data\cache\whitelist.json"

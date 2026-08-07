@@ -87,6 +87,10 @@ pub struct Gui {
     #[cfg(feature = "kotisatama")]
     report_pending: Option<Receiver<Result<(), String>>>,
 
+    /// KOTISATAMA-PATCH: tilapäinen chrome-ilmoitus (esim. välilehti-eviktio) — 临时chrome通知（如标签页驱逐）。
+    #[cfg(feature = "kotisatama")]
+    chrome_notice: Option<(String, std::time::Instant)>,
+
     /// Cached Kotisatama theme background textures (desktop chrome).
     #[cfg(feature = "kotisatama")]
     theme_textures: HashMap<crate::kotisatama::KotisatamaTheme, egui::TextureHandle>,
@@ -261,6 +265,8 @@ impl Gui {
             report_status: None,
             #[cfg(feature = "kotisatama")]
             report_pending: None,
+            #[cfg(feature = "kotisatama")]
+            chrome_notice: None,
             #[cfg(feature = "kotisatama")]
             theme_textures: HashMap::new(),
         }
@@ -611,6 +617,10 @@ impl Gui {
                                     }
 
                                     let location_id = egui::Id::new("location_input");
+                                    // KOTISATAMA-PATCH: Enter vain jos osoitekentällä oli fokus ennen Enteriä (älä sieppaa webview-Enteriä) — 仅当地址栏原先有焦点时处理Enter（不拦截webview）。
+                                    #[cfg(feature = "kotisatama")]
+                                    let address_bar_had_focus =
+                                        ui.ctx().memory(|m| m.focused() == Some(location_id));
                                     let location_field = ui.add_sized(
                                         ui.available_size(),
                                         egui::TextEdit::singleline(location)
@@ -646,9 +656,14 @@ impl Gui {
                                         state.store(ui.ctx(), location_id);
                                     }
                                     // Navigate to address when enter is pressed in the address bar.
-                                    if location_field.lost_focus()
-                                        && ui.input(|i| i.key_pressed(Key::Enter))
-                                    {
+                                    // KOTISATAMA-PATCH: vaadi että fokus oli osoitekentässä (ei webviewissä) — 要求焦点曾在地址栏（而非webview）。
+                                    #[cfg(feature = "kotisatama")]
+                                    let address_enter = address_bar_had_focus
+                                        && ui.input(|i| i.key_pressed(Key::Enter));
+                                    #[cfg(not(feature = "kotisatama"))]
+                                    let address_enter = location_field.lost_focus()
+                                        && ui.input(|i| i.key_pressed(Key::Enter));
+                                    if address_enter {
                                         *location_dirty = false;
                                         window.queue_user_interface_command(
                                             UserInterfaceCommand::Go(location.clone()),
@@ -763,6 +778,33 @@ impl Gui {
                     pos2(0.0, available_rect.max.y),
                 )
                 .show(|ui| ui.add(Label::new(status_text.clone()).extend()));
+            }
+
+            // KOTISATAMA-PATCH: LRU-välilehti-eviktion ilmoitus — LRU标签页驱逐通知。
+            #[cfg(feature = "kotisatama")]
+            {
+                if window.take_tab_eviction_notice() {
+                    self.chrome_notice = Some((
+                        "Vanhin välilehti suljettiin, jotta muisti säilyy.".to_string(),
+                        std::time::Instant::now(),
+                    ));
+                    window.set_needs_repaint();
+                }
+                if let Some((notice, since)) = &self.chrome_notice {
+                    if since.elapsed() > std::time::Duration::from_secs(4) {
+                        self.chrome_notice = None;
+                    } else {
+                        egui::Area::new(Id::new("kotisatama_chrome_notice"))
+                            .anchor(egui::Align2::CENTER_BOTTOM, [0.0, -24.0])
+                            .order(Order::Foreground)
+                            .show(ctx, |ui| {
+                                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                    ui.label(notice.as_str());
+                                });
+                            });
+                        window.set_needs_repaint();
+                    }
+                }
             }
 
             // KOTISATAMA-PATCH: raporttien vastausten kuuntelu — 监听报告响应。

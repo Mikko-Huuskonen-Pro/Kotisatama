@@ -129,26 +129,68 @@
 
           data.hits.forEach(function (hit) {
             const li = document.createElement("li");
-            const link = document.createElement("a");
-            link.className = "result-card";
-            link.href = hit.url;
-            link.innerHTML =
-              '<div class="result-top">' +
-              HakuIcons.typeDot(hit.type) +
-              HakuIcons.categoryIcon(hit.category, data.categories) +
-              '<h2 class="result-title">' +
-              escapeHtml(hit.label || hit.title || hit.domain || hit.url) +
-              "</h2></div>" +
-              '<p class="result-domain">' +
-              escapeHtml(hit.domain || hit.url) +
-              "</p>" +
-              (hit.title
-                ? '<p class="result-snippet">' + escapeHtml(hit.title) + "</p>"
-                : "") +
-              '<div class="tags">' +
-              renderTags(hit.tags || [], hit.category, data.categories || []) +
-              "</div>";
-            li.appendChild(link);
+            const isWiki = hit.source === "wikipedia";
+            if (isWiki) {
+              const card = document.createElement("div");
+              card.className = "result-card wiki-card";
+              const title = escapeHtml(hit.label || hit.title || "Wikipedia");
+              const snippet = hit.snippet
+                ? '<p class="result-snippet">' + escapeHtml(hit.snippet) + "</p>"
+                : "";
+              card.innerHTML =
+                '<div class="result-top">' +
+                '<span class="wiki-badge" aria-hidden="true">W</span>' +
+                '<h2 class="result-title">' +
+                title +
+                "</h2></div>" +
+                '<p class="result-domain">Wikipedia</p>' +
+                snippet +
+                '<div class="wiki-actions"></div>';
+              const actions = card.querySelector(".wiki-actions");
+              const openBtn = document.createElement("a");
+              openBtn.className = "primary wiki-open";
+              openBtn.textContent = KotisatamaI18n.t("haku", "openArticle") || "Avaa artikkeli";
+              const isLapsi = data.profile === "lapsi";
+              if (isLapsi && hit.slug) {
+                openBtn.href = "servo:wiki?slug=" + encodeURIComponent(hit.slug);
+              } else if (!isLapsi) {
+                openBtn.href = hit.url;
+              } else {
+                openBtn.href = hit.slug
+                  ? "servo:wiki?slug=" + encodeURIComponent(hit.slug)
+                  : "#";
+              }
+              actions.appendChild(openBtn);
+              if (!isLapsi && hit.slug) {
+                const offline = document.createElement("a");
+                offline.className = "wiki-offline muted";
+                offline.href = "servo:wiki?slug=" + encodeURIComponent(hit.slug);
+                offline.textContent = "Offline";
+                actions.appendChild(offline);
+              }
+              li.appendChild(card);
+            } else {
+              const link = document.createElement("a");
+              link.className = "result-card";
+              link.href = hit.url;
+              link.innerHTML =
+                '<div class="result-top">' +
+                HakuIcons.typeDot(hit.type) +
+                HakuIcons.categoryIcon(hit.category, data.categories) +
+                '<h2 class="result-title">' +
+                escapeHtml(hit.label || hit.title || hit.domain || hit.url) +
+                "</h2></div>" +
+                '<p class="result-domain">' +
+                escapeHtml(hit.domain || hit.url) +
+                "</p>" +
+                (hit.title
+                  ? '<p class="result-snippet">' + escapeHtml(hit.title) + "</p>"
+                  : "") +
+                '<div class="tags">' +
+                renderTags(hit.tags || [], hit.category, data.categories || []) +
+                "</div>";
+              li.appendChild(link);
+            }
             resultsEl.appendChild(li);
           });
         }

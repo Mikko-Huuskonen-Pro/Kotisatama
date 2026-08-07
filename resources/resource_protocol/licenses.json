@@ -1,0 +1,27 @@
+{
+  "updated": "2026-08-07",
+  "projects": [
+    {
+      "name": "Kotisatama / Katselin",
+      "description": "Selain ja Kotisatama-komponentit",
+      "license": "MPL-2.0",
+      "url": "https://github.com/servo/servo",
+      "license_url": "https://www.mozilla.org/en-US/MPL/2.0/",
+      "group": "Selain ja ydin"
+    },
+    {
+      "name": "Meilisearch",
+      "description": "Paikallinen haku",
+      "license": "MIT",
+      "url": "https://github.com/meilisearch/meilisearch",
+      "group": "Haku"
+    },
+    {
+      "name": "Consent-O-Matic",
+      "description": "Evästeasetusten automatisointi",
+      "license": "MIT",
+      "url": "https://github.com/cavi-au/Consent-O-Matic",
+      "group": "Evästeet"
+    }
+  ]
+}

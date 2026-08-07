@@ -206,6 +206,28 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
             error!("Failed to determine Android config directory: {error:?}");
         }
 
+        // KOTISATAMA-PATCH: profiilipolku + ensimmäinen käynnistys → servo:config
+        // 设置配置文件路径；首次启动打开 servo:config。
+        #[cfg(feature = "kotisatama")]
+        let url = {
+            if let Some(mut dir) = crate::prefs::default_config_dir() {
+                dir.pop();
+                dir.push("kotisatama");
+                dir.push("profile.json");
+                kotisatama_whitelist::set_profile_path(dir);
+            }
+            if url.is_none() {
+                let state = kotisatama_whitelist::current_profile_state();
+                if !state.first_run_completed {
+                    Some("servo:config".to_owned())
+                } else {
+                    url
+                }
+            } else {
+                url
+            }
+        };
+
         let (opts, mut preferences, servoshell_preferences) =
             match parse_command_line_arguments(args.as_slice()) {
                 ArgumentParsingResult::ContentProcess(..) => {
@@ -507,10 +529,15 @@ impl From<KeyCode> for Key {
 }
 
 fn key_from_unicode_keycode(unicode: u32, keycode: i32) -> Option<Key> {
+    // KOTISATAMA-PATCH: pehmonäppäimistön Enter lähettää keycode=66 + unicode '\n';
+    // Servo tarvitsee NamedKey::Enter lomakkeen lähetykseen (text_input.rs handle_return).
+    // 软键盘 Enter 同时发送 keycode=66 和 unicode '\n'；Servo 需要 NamedKey::Enter 才能提交表单。
+    if let Ok(code) = KeyCode::try_from(keycode) {
+        return Some(Key::from(code));
+    }
     char::from_u32(unicode)
         .filter(|c| *c != '\0')
         .map(|c| Key::Character(String::from(c)))
-        .or_else(|| KeyCode::try_from(keycode).ok().map(Key::from))
 }
 
 #[unsafe(no_mangle)]

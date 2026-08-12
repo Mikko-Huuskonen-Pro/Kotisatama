@@ -2,7 +2,7 @@
 
 ## Tavoiteet
 
-- 1.Freenet-sovellukset ja varustamo näkyviin
+- 1.Freenet-sovellukset ja varustamo näkyviin. https://github.com/Mikko-Huuskonen-Pro/Varustamo readme.md
 
 - 2.Consent-o-matic rustiksi ja perustumaan vain valkoisiin sivuihin
 

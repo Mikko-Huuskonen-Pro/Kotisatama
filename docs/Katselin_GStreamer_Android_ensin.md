@@ -1,8 +1,12 @@
 # Katselin – GStreamer-media Android ensin
 
-## Tavoite
+## Tavoiteet
 
-Katselimeen rakennetaan GStreamer-pohjainen media-backend siten, että **Android on ensimmäinen kohdealusta**.
+- 1.Freenet-sovellukset ja varustamo näkyviin
+
+- 2.Consent-o-matic rustiksi ja perustumaan vain valkoisiin sivuihin
+
+- 3. Katselimeen rakennetaan GStreamer-pohjainen media-backend siten, että **Android on ensimmäinen kohdealusta**.
 
 Tavoitteena ei ole korvata Servoa GStreamerilla. Servo hoitaa edelleen selaimen ja web-sisällön. GStreamer hoitaa median toiston siellä, missä se on Katselimen kannalta järkevää.
 

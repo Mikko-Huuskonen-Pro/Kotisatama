@@ -10,6 +10,8 @@ mod kotisatama;
 // KOTISATAMA-PATCH: leikepöytä + select/context-menu -promptit — 剪贴板与select/右键菜单提示。
 pub mod clipboard;
 mod embedder_prompts;
+// KOTISATAMA-PATCH: GL-kiihdytetty HTML5-video — GL加速HTML5视频
+mod media;
 
 use std::cell::RefCell;
 use std::os::raw::{c_char, c_int, c_void};

@@ -649,6 +649,12 @@ fn update_preferences_from_command_line_arguments(
         preferences.media_glvideo_enabled = false;
     }
 
+    // KOTISATAMA-PATCH: GL-texture -video Androidilla — Android上使用GL纹理视频
+    #[cfg(all(feature = "kotisatama", target_os = "android"))]
+    if !cmd_args.headless {
+        preferences.set_value("media_glvideo_enabled", PrefValue::Bool(true));
+    }
+
     if let Some(user_agent) = cmd_args.user_agent.clone() {
         preferences.user_agent = user_agent;
     }

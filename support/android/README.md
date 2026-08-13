@@ -47,3 +47,47 @@ Täydet ohjeet: `../Katselin/android/README.md`
 Vanhat integraatiosuunnitelmat ja testiraportit tästä hakemistosta on siirretty:
 `../Kotisataman-suljetut-osat/Docs/legacy/` (ajantasaiset testit: `../Katselin/android/Testit/`).
 
+## GStreamer / HTML5-video (Android)
+
+Katselimen `<video>`/`<audio>` käyttää Servon GStreamer-pinon koodia (`components/media/`).
+Android-build vaatii GStreamerin mukaan — **älä käytä dummy-media-stackia**.
+
+### Build
+
+Katselin-orkestroija välittää GStreamerin automaattisesti:
+
+```bash
+cd ../Katselin
+./scripts/build-android.sh --skip-bootstrap --target aarch64-linux-android
+```
+
+Tai suoraan moottorirepossa:
+
+```bash
+./mach build --target aarch64-linux-android --profile checked-release --media-stack=gstreamer
+```
+
+### GStreamer Android SDK
+
+Cross-käännös tarvitsee GStreamer 1.18+ Android NDK -sysrootin (`pkg-config` löytää
+`gstreamer-1.0`). Asenna GStreamer Android -paketti ja varmista, että `PKG_CONFIG_PATH`
+osoittaa Android-ABI:n mukaiseen `.pc`-hakemistoon ennen `mach build` -ajoa.
+
+Tarvittavat pluginit (minimi): `core`, `base`, `good`, `bad`, `ugly`, `libav` —
+erityisesti `glsinkbin` videon GL-texture -polulle.
+
+Paketoidaan APK:n `lib/` / `jniLibs/` mukaan build-vaiheessa (Gradle + mach package).
+
+### GL-video
+
+Embedder rekisteröi EGL-kontekstin GStreamerille:
+`ports/servoshell/egl/android/media.rs` → `Servo::initialize_gl_accelerated_media()`.
+
+Pref `media_glvideo_enabled` on päällä Kotisatama-Android-buildissa oletuksena.
+
+### Rajoitteet
+
+- MSE/EME (YouTube upotettuna, Netflix) **ei tueta** — odotetaan Servo-upstreamia
+- Natiivi HLS: `<video src="*.m3u8">` (M5, GStreamer URI)
+- Suunnitelma: [docs/Katselin_GStreamer_Android_ensin.md](../docs/Katselin_GStreamer_Android_ensin.md)
+

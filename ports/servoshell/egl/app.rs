@@ -408,6 +408,12 @@ impl App {
             )
             .expect("Could not create RenderingContext"),
         );
+        // KOTISATAMA-PATCH: rekisteröi EGL GStreamer-videolle — 为GStreamer视频注册EGL
+        #[cfg(target_os = "android")]
+        {
+            let details = rendering_context.surfman_details();
+            crate::egl::android::media::setup_gl_accelerated_media(details.0, details.1);
+        }
         let id = window_id.unwrap_or(ServoShellWindowId::next());
         let platform_window = Rc::new(EmbeddedPlatformWindow {
             id,

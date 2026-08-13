@@ -727,6 +727,9 @@ class CommandBase(object):
                 assert media_stack
             elif not self.target.is_cross_build():
                 media_stack = "gstreamer"
+            elif isinstance(self.target, AndroidTarget):
+                # KOTISATAMA-PATCH: Android cross-build käyttää GStreameria — Android交叉编译使用GStreamer
+                media_stack = "gstreamer"
             else:
                 media_stack = "dummy"
 
@@ -759,9 +762,11 @@ class CommandBase(object):
         # environment variables are set via `self.build_env()`.
         platform = servo.platform.get()
         if self.enable_media and not platform.is_gstreamer_installed(self.target):
-            raise FileNotFoundError(
-                "GStreamer libraries not found (>= version 1.18).Please see installation instructions in README.md"
-            )
+            # Android GStreamer comes from the NDK/sysroot pkg-config, not the host install check.
+            if not isinstance(self.target, AndroidTarget):
+                raise FileNotFoundError(
+                    "GStreamer libraries not found (>= version 1.18).Please see installation instructions in README.md"
+                )
 
         args = []
         if "--manifest-path" not in cargo_args:

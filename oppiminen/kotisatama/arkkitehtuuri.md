@@ -1,6 +1,9 @@
 # Kotisatama-arkkitehtuuri
 
-Katselin rakentuu Servo-moottorin päälle oman kerroksen, joka hallitsee **mitä sivuja saa avata**, **miten haku toimii** ja **miten sisäiset sivut renderöidään**. Tämä kerros ei muuta HTML:n jäsentämistä, CSS-asettelua tai HTTP-stackia.
+Moottorin tuotekerros hallitsee **mitä sivuja saa avata**, **miten haku toimii**,
+**content-blockingin** ja **miten sisäiset sivut renderöidään**. Tämä kerros ei
+muuta HTML:n jäsentämistä, CSS-asettelua tai HTTP-stackia. Tuoteshellit
+(Katselin / Avomeri) elävät sisarusrepoissa — ks. [EKOSYSTEEMI.md](../../docs/EKOSYSTEEMI.md).
 
 ## Kerrokset
 
@@ -20,12 +23,17 @@ flowchart TB
     subgraph cratet [components/kotisatama]
         WL[whitelist]
         SR[search]
+        CB[content-blocking]
         RP[report]
         VS[varustamo]
         PP[pulloposti]
         MO[missa-olen]
         I18[i18n]
         SP[subprocess-app]
+    end
+
+    subgraph sisarus [Sisarusrepost]
+        AD[adblock-Katselin]
     end
 
     subgraph ulkoiset [Ulkopuoliset prosessit]
@@ -46,8 +54,10 @@ flowchart TB
     RAS --> KS
     KS --> WL
     KS --> SR
+    KS --> CB
     KS --> RP
     KS --> VS
+    CB --> AD
     SR --> SP
     SR --> MS
     PP --> SP
@@ -57,8 +67,11 @@ flowchart TB
     KS --> SRV
     SRV -->|servo:haku blocked …| UI
     KS -->|load_url_or_blocked| CONST
+    RAS -->|resource block| CB
     CONST --> NET --> SCRIPT --> LAYOUT
 ```
+
+Koko ekosysteemi (tuotteet, suljetut osat, Varustamo): [docs/EKOSYSTEEMI.md](../../docs/EKOSYSTEEMI.md).
 
 ## Kolme integraatiotapaa
 

@@ -10,12 +10,15 @@ Kaikki Kotisatama-spesifinen Rust-koodi on `components/kotisatama/`-hakemistossa
 |-------|------------|---------|
 | `whitelist/` | `kotisatama-whitelist` | Whitelist JSON 2.1, navigointitarkistus, käyttäjän overlay |
 | `search/` | `kotisatama-search` | Meilisearch-subprocess, CDN-synkronointi, hakutulosten rikastus |
+| `content-blocking/` | `kotisatama-content-blocking` | Adapteri `adblock-Katselin`-forkin ympärillä |
 | `report/` | `kotisatama-report` | Lokikirja-ilmoitukset (GitHub Issues / worker) |
 | `varustamo/` | `kotisatama-varustamo` | Luotettujen sovellusten rekisteri |
 | `pulloposti/` | `kotisatama-pulloposti` | Pulloposti-daemonin HTTP-client |
 | `missa-olen/` | `kotisatama-missa-olen` | Missä olen -daemonin HTTP-client |
 | `subprocess-app/` | `kotisatama-subprocess-app` | Yhteinen subprocess-kehytys |
 | `i18n/` | `kotisatama-i18n` | Suomi/ruotsi UI-tekstit |
+
+Sisarusrepost (ei crateja tässä workspaceessa): ks. [docs/EKOSYSTEEMI.md](../../docs/EKOSYSTEEMI.md).
 
 ## `kotisatama-whitelist`
 
@@ -100,6 +103,29 @@ Paikallinen haku Meilisearch-instanssia vasten. Crate **ei sisällä** Meilisear
 | `KOTISATAMA_CDN_SKIP_INTEGRITY` | Ohita allekirjoitus (vain kehitys) |
 | `KOTISATAMA_DATA_DIR` | Välimuistin hakemisto |
 | `KOTISATAMA_SEARCH_DOCUMENTS` | Testidokumenttien JSON (kehitys) |
+
+---
+
+## `kotisatama-content-blocking`
+
+**Polku:** `components/kotisatama/content-blocking/`
+
+Adapteri Brave-pohjaisen **adblock-Katselin**-forkin ympärillä. Muut kerrokset
+näkevät vain `RequestBlocker` / `ContentBlockingService`-rajapinnan;
+`adblock`-tyypit elävät `adblock_adapter`-moduulissa.
+
+| Moduuli | Tehtävä |
+|---------|---------|
+| `service.rs` | Ajonaikainen palvelu, tila (`Active` / inactive) |
+| `adblock_adapter.rs` | Ainoa paikka jossa `adblock`-crate näkyy |
+| `filter_store.rs` | Bundlatut filterit (`assets/filters.txt`) |
+| `exceptions.rs` | Sivukohtaiset poikkeukset |
+| `statistics.rs` | Estolaskuri (UI / JNI) |
+
+**Path-riippuvuus:** `../../../../adblock-Katselin` (sisaruscheckout).
+Käytössä sekä Katselimessa että Avomerissa moottorin kautta.
+
+Hook: `ports/servoshell/kotisatama.rs` (`content_blocking()`, resource-check).
 
 ---
 
@@ -190,12 +216,13 @@ Sisäinen sivu: `servo:locale?set=fi|sv|auto`
 
 ```
 ports/servoshell/kotisatama.rs
-    ├── kotisatama_whitelist  → init, is_navigation_allowed, blocked_page_url
-    ├── kotisatama_search     → SearchClient, sync_from_cdn, enrich_outcome
-    ├── kotisatama_report     → submit, note_blocked_url, log_fallback_search
-    ├── kotisatama_varustamo  → load_registry, gateway_url
-    ├── kotisatama_pulloposti → PullopostiClient (lazy start)
-    └── kotisatama_missa_olen → MissaOlenClient (lazy start)
+    ├── kotisatama_whitelist         → init, is_navigation_allowed, blocked_page_url
+    ├── kotisatama_search            → SearchClient, sync_from_cdn, enrich_outcome
+    ├── kotisatama_content_blocking  → ContentBlockingService, estotilastot
+    ├── kotisatama_report            → submit, note_blocked_url, log_fallback_search
+    ├── kotisatama_varustamo         → load_registry, gateway_url
+    ├── kotisatama_pulloposti        → PullopostiClient (lazy start)
+    └── kotisatama_missa_olen        → MissaOlenClient (lazy start)
 ```
 
 Tauri-hallintapaneeli (`tauri/src-tauri/`) käyttää vain `kotisatama-whitelist`-cratetta — ei Servon sisäisiä cratejä.

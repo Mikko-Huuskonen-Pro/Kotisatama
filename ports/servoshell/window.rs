@@ -147,6 +147,17 @@ impl ServoShellWindow {
             webview_builder = webview_builder.gamepad_delegate(gamepad_delegate);
         }
 
+        // KOTISATAMA-PATCH: Android-järjestelmäleikepöytä ClipboardManagerilla — Android系统剪贴板经ClipboardManager。
+        #[cfg(target_os = "android")]
+        {
+            use std::rc::Rc;
+
+            use crate::egl::android::clipboard::AndroidClipboardDelegate;
+
+            webview_builder =
+                webview_builder.clipboard_delegate(Rc::new(AndroidClipboardDelegate));
+        }
+
         let webview = webview_builder.build();
         webview.notify_theme_change(self.platform_window.theme());
         self.add_webview(webview.clone());

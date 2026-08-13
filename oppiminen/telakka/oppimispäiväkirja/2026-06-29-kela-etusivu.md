@@ -6,7 +6,7 @@
 
 ## Lähtötila
 
-[docs/NYKYTILA-2026-06-24.md](../../../docs/NYKYTILA-2026-06-24.md) kirjaa:
+[`../Kotisataman-suljetut-osat/Docs/legacy/NYKYTILA-2026-06-24.md`](../../../../Kotisataman-suljetut-osat/Docs/legacy/NYKYTILA-2026-06-24.md) kirjaa:
 
 - `kela` ja `kela.fi` osoitekentässä avaavat oikean Kela-sivun.
 - Aiempi ongelma "Kela ei auennut oikein" ei ollut enää aktiivinen tuona päivänä.

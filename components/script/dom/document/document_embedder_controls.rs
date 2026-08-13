@@ -16,8 +16,10 @@ use net_traits::filemanager_thread::FileManagerThreadMsg;
 use rustc_hash::FxHashMap;
 use script_bindings::cell::DomRefCell;
 use script_bindings::codegen::GenericBindings::HTMLAnchorElementBinding::HTMLAnchorElementMethods;
+use script_bindings::codegen::GenericBindings::HTMLElementBinding::HTMLElementMethods;
 use script_bindings::codegen::GenericBindings::HTMLImageElementBinding::HTMLImageElementMethods;
 use script_bindings::codegen::GenericBindings::HistoryBinding::HistoryMethods;
+use script_bindings::codegen::GenericBindings::SelectionBinding::SelectionMethods;
 use script_bindings::codegen::GenericBindings::WindowBinding::WindowMethods;
 use script_bindings::inheritance::Castable;
 use script_bindings::root::{Dom, DomRoot};
@@ -536,7 +538,12 @@ impl ContextMenuNodes {
             },
             ContextMenuAction::SelectAll => {
                 if let Some(text_input_element) = &self.text_input_element {
-                    text_input_element.select_all();
+                    // KOTISATAMA-PATCH: contenteditable SelectAll → Selection API — contenteditable全选走Selection。
+                    if text_input_element.is_contenteditable_host() {
+                        text_input_element.select_all_contenteditable(cx);
+                    } else {
+                        text_input_element.select_all();
+                    }
                 }
             },
         }
@@ -544,6 +551,7 @@ impl ContextMenuNodes {
 }
 
 impl Node {
+    // KOTISATAMA-PATCH: contenteditable myös "tekstikentäksi" context menuun — contenteditable也视为文本输入以显示剪切/复制/粘贴。
     fn as_text_input(&self) -> Option<DomRoot<Element>> {
         if let Some(input_element) = self
             .downcast::<HTMLInputElement>()
@@ -551,29 +559,54 @@ impl Node {
         {
             return Some(DomRoot::from_ref(input_element.upcast::<Element>()));
         }
-        self.downcast::<HTMLTextAreaElement>()
-            .map(Castable::upcast)
-            .map(DomRoot::from_ref)
+        if let Some(textarea) = self.downcast::<HTMLTextAreaElement>() {
+            return Some(DomRoot::from_ref(textarea.upcast::<Element>()));
+        }
+        self.downcast::<HTMLElement>()
+            .filter(|element| element.IsContentEditable())
+            .map(|element| DomRoot::from_ref(element.upcast::<Element>()))
     }
 }
 
 impl Element {
+    fn is_contenteditable_host(&self) -> bool {
+        self.downcast::<HTMLElement>()
+            .is_some_and(|element| element.IsContentEditable())
+    }
+
     fn has_uncollapsed_selection(&self) -> bool {
-        self.downcast::<HTMLTextAreaElement>()
+        if let Some(has) = self
+            .downcast::<HTMLTextAreaElement>()
             .map(TextControlElement::has_uncollapsed_selection)
             .or(self
                 .downcast::<HTMLInputElement>()
                 .map(TextControlElement::has_uncollapsed_selection))
-            .unwrap_or_default()
+        {
+            return has;
+        }
+        // KOTISATAMA-PATCH: contenteditable-valinta document.selection() kautta — 通过document.selection()判断contenteditable选区。
+        if self.is_contenteditable_host() {
+            return self
+                .upcast::<Node>()
+                .owner_doc()
+                .selection()
+                .is_some_and(|selection| !selection.IsCollapsed());
+        }
+        false
     }
 
     fn has_selectable_text(&self) -> bool {
-        self.downcast::<HTMLTextAreaElement>()
+        if let Some(has) = self
+            .downcast::<HTMLTextAreaElement>()
             .map(TextControlElement::has_selectable_text)
             .or(self
                 .downcast::<HTMLInputElement>()
                 .map(TextControlElement::has_selectable_text))
-            .unwrap_or_default()
+        {
+            return has;
+        }
+        // KOTISATAMA-PATCH: contenteditable oletetaan valittavaksi — contenteditable默认可选。
+        self.is_contenteditable_host()
     }
 
     fn select_all(&self) {
@@ -583,5 +616,17 @@ impl Element {
                 .downcast::<HTMLInputElement>()
                 .map(TextControlElement::select_all))
             .unwrap_or_default()
+    }
+
+    // KOTISATAMA-PATCH: contenteditable Select All Selection API:lla — contenteditable全选走Selection API。
+    fn select_all_contenteditable(&self, cx: &mut JSContext) {
+        if !self.is_contenteditable_host() {
+            return;
+        }
+        let node = self.upcast::<Node>();
+        let Some(selection) = node.owner_doc().selection() else {
+            return;
+        };
+        let _ = selection.SelectAllChildren(cx, node);
     }
 }

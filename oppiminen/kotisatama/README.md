@@ -33,7 +33,8 @@ Tämä hakemisto selittää **Katselinin tuotekerroksen**: whitelist, haku, sis�
 
 ## Liittyvät dokumentit
 
-- [README.md](../../README.md) — tuotekuvaus ja arkkitehtuuri
+- [docs/EKOSYSTEEMI.md](../../docs/EKOSYSTEEMI.md) — mitä on missäkin (moottori vs tuotteet vs sivuosat)
+- [README.md](../../README.md) — moottorin kuvaus ja arkkitehtuuri
 - [docs/FILOSOFIA.md](../../docs/FILOSOFIA.md) — miksi whitelist ja Telakka
 - [AGENT.md](../../AGENT.md) — kehityssäännöt (älä koske upstreamia)
 - [kotisatama-vs-servo.md](../kotisatama-vs-servo.md) — fork-erot yhdellä sivulla

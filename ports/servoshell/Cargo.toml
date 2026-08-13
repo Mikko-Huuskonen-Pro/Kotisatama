@@ -63,7 +63,7 @@ webgl_backtrace = ["servo/webgl_backtrace"]
 webgpu = ["servo/webgpu"]
 webxr = ["servo/webxr"]
 # KOTISATAMA-PATCH: feature flag Kotisatama-cratesille — Kotisatama crate的feature flag。
-kotisatama = ["dep:kotisatama-whitelist", "dep:kotisatama-search", "dep:kotisatama-report", "dep:kotisatama-pulloposti", "dep:kotisatama-varustamo", "dep:kotisatama-missa-olen", "dep:kotisatama-i18n", "dep:kotisatama-content-blocking"]
+kotisatama = ["dep:kotisatama-whitelist", "dep:kotisatama-search", "dep:kotisatama-report", "dep:kotisatama-pulloposti", "dep:kotisatama-varustamo", "dep:kotisatama-missa-olen", "dep:kotisatama-i18n", "dep:kotisatama-content-blocking", "dep:katselin-consent"]
 
 [dependencies]
 accesskit = { workspace = true }
@@ -86,6 +86,8 @@ kotisatama-varustamo = { workspace = true, optional = true }
 kotisatama-missa-olen = { workspace = true, optional = true }
 kotisatama-i18n = { workspace = true, optional = true }
 kotisatama-content-blocking = { workspace = true, optional = true }
+# KOTISATAMA-PATCH: evästeautomaatio (Katselin-Consent-O-Matic) — Cookie 自动化
+katselin-consent = { workspace = true, optional = true }
 libc = { workspace = true }
 log = { workspace = true }
 mime_guess = { workspace = true }
@@ -126,6 +128,8 @@ ohos-window-manager-sys = { workspace = true, features = ["api-14"] }
 xcomponent-sys = { workspace = true, features = ["api-14", "keyboard-types"] }
 
 [target.'cfg(any(target_os = "android", target_env = "ohos"))'.dependencies]
+# KOTISATAMA-PATCH: ContextMenuAction / SelectElementOption JSON-serialisointiin — 用于菜单与select选项的JSON序列化。
+embedder_traits = { workspace = true }
 nix = { workspace = true, features = ["fs"] }
 serde_json = { workspace = true }
 servo-base = { workspace = true }

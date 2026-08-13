@@ -321,6 +321,8 @@ kotisatama-missa-olen = { package = "kotisatama-missa-olen", version = "0.1.0", 
 kotisatama-subprocess-app = { package = "kotisatama-subprocess-app", version = "0.1.0", path = "components/kotisatama/subprocess-app" }
 kotisatama-i18n = { package = "kotisatama-i18n", version = "0.1.0", path = "components/kotisatama/i18n" }
 kotisatama-content-blocking = { package = "kotisatama-content-blocking", version = "0.1.0", path = "components/kotisatama/content-blocking" }
+# KOTISATAMA-PATCH: evästeautomaatio sibling-reposta — 从 sibling 仓库引入 Cookie 自动化
+katselin-consent = { package = "katselin-consent", version = "2.0.0", path = "../Katselin-Consent-O-Matic/katselin-consent" }
 layout = { package = "servo-layout", version = "=0.5.0", path = "components/layout" }
 layout_api = { package = "servo-layout-api", version = "=0.5.0", path = "components/shared/layout" }
 malloc_size_of = { package = "servo-malloc-size-of", version = "=0.5.0", path = "components/malloc_size_of" }

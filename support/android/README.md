@@ -43,3 +43,7 @@ cd ../Katselin
 ```
 
 Täydet ohjeet: `../Katselin/android/README.md`
+
+Vanhat integraatiosuunnitelmat ja testiraportit tästä hakemistosta on siirretty:
+`../Kotisataman-suljetut-osat/Docs/legacy/` (ajantasaiset testit: `../Katselin/android/Testit/`).
+

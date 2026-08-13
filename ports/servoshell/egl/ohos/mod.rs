@@ -86,7 +86,7 @@ use raw_window_handle::{
     WindowHandle,
 };
 use servo::{
-    self, DevicePixel, EventLoopWaker, InputMethodControl, InputMethodType, LoadStatus,
+    self, ContextMenu, DevicePixel, EventLoopWaker, InputMethodControl, InputMethodType, LoadStatus,
     MediaSessionPlaybackState, PrefValue, SelectElement, WebViewId, Zero,
 };
 use xcomponent_sys::{
@@ -1291,6 +1291,9 @@ impl HostTrait for HostCallbacks {
     }
 
     fn on_show_select_element(&self, _webview_id: WebViewId, _prompt: SelectElement) {}
+
+    // KOTISATAMA-PATCH: OHOS-stub HostTrait-context menulle — OHOS上HostTrait右键菜单占位。
+    fn on_show_context_menu(&self, _webview_id: WebViewId, _menu: ContextMenu) {}
 
     fn on_panic(&self, reason: String, backtrace: Option<String>) {
         error!("Panic: {reason},");

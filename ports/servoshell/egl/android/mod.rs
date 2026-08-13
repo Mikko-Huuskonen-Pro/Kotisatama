@@ -7,6 +7,9 @@
 // KOTISATAMA-PATCH: JNI-sillat Android-hakuun ja raportointiin — Android搜索和报告的JNI桥接。
 #[cfg(feature = "kotisatama")]
 mod kotisatama;
+// KOTISATAMA-PATCH: leikepöytä + select/context-menu -promptit — 剪贴板与select/右键菜单提示。
+pub mod clipboard;
+mod embedder_prompts;
 
 use std::cell::RefCell;
 use std::os::raw::{c_char, c_int, c_void};
@@ -18,7 +21,7 @@ use std::sync::{Arc, OnceLock};
 use android_logger::{self, Config, FilterBuilder};
 use euclid::{Point2D, Rect, Scale, Size2D};
 use jni::errors::{Error, ThrowRuntimeExAndDefault};
-use jni::objects::{Global, JClass, JObject, JString, JValue, JValueOwned};
+use jni::objects::{Global, JClass, JIntArray, JObject, JString, JValue, JValueOwned};
 use jni::strings::JNIStr;
 use jni::sys::{jboolean, jfloat, jint, jobject};
 use jni::{Env, EnvUnowned, JavaVM, jni_sig, jni_str};
@@ -30,8 +33,8 @@ use raw_window_handle::{
 };
 pub use servo::MediaSessionPlaybackState;
 use servo::{
-    self, DevicePixel, EventLoopWaker, InputMethodControl, LoadStatus, MediaSessionActionType,
-    MouseButton, PrefValue, SelectElement, WebViewId,
+    self, ContextMenu, DevicePixel, EventLoopWaker, InputMethodControl, LoadStatus,
+    MediaSessionActionType, MouseButton, PrefValue, SelectElement, WebViewId,
 };
 
 use super::app::{App, AppInitOptions};
@@ -43,6 +46,8 @@ thread_local! {
 }
 
 static CALLBACK_OBJECT: OnceLock<Global<JObject<'static>>> = OnceLock::new();
+// KOTISATAMA-PATCH: jaettu JVM clipboard/prompt-JNI-kutsuille — 供剪贴板/提示JNI调用的共享JVM。
+static ANDROID_JVM: OnceLock<JavaVM> = OnceLock::new();
 
 fn callback_ref() -> &'static JObject<'static> {
     CALLBACK_OBJECT.get().expect("Servo init failed").as_ref()
@@ -73,6 +78,16 @@ where
         Some(app) => (f)(app),
         None => throw(env, jni_str!("Servo not available in this thread")),
     });
+}
+
+// KOTISATAMA-PATCH: liitä nykyinen säie JVM:ään clipboard/prompt-kutsuille — 将当前线程附加到JVM供剪贴板/提示调用。
+pub(crate) fn with_attached_env<ResultType>(
+    callback: impl FnOnce(&mut Env) -> Result<ResultType, Error>,
+) -> Result<ResultType, Error> {
+    ANDROID_JVM
+        .get()
+        .expect("Android JVM not initialized")
+        .attach_current_thread(callback)
 }
 
 #[unsafe(no_mangle)]
@@ -196,6 +211,8 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_init<'local>(
             error!("JNIServo_init: get_java_vm failed: {e:?}");
             e
         })?;
+        // KOTISATAMA-PATCH: tallenna JVM clipboard/prompt-moduuleille — 保存JVM供剪贴板/提示模块使用。
+        let _ = ANDROID_JVM.set(jvm.clone());
         let event_loop_waker = Box::new(WakeupCallback::new(jvm.clone()));
 
         let host = Rc::new(HostCallbacks::new(jvm));
@@ -767,6 +784,159 @@ pub extern "C" fn Java_org_servo_servoview_JNIServo_mediaSessionAction<'local>(
     .resolve::<ThrowRuntimeExAndDefault>()
 }
 
+// KOTISATAMA-PATCH: Android IME → Servo (insert/delete/enter/dismiss) — Android输入法到Servo。
+fn ime_delete_backward(app: &App, count: i32) {
+    for _ in 0..count.max(0) {
+        app.key_down(Key::Named(NamedKey::Backspace));
+        app.key_up(Key::Named(NamedKey::Backspace));
+    }
+}
+
+fn ime_delete_forward(app: &App, count: i32) {
+    for _ in 0..count.max(0) {
+        app.key_down(Key::Named(NamedKey::Delete));
+        app.key_up(Key::Named(NamedKey::Delete));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_imeInsertText<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    text: JString<'local>,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        let text = JString::cast_local(env, text)?.try_to_string(env)?;
+        call(env, |s| s.ime_insert_text(text));
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_imeDeleteBackward<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    length: jint,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        call(env, |s| ime_delete_backward(s, length));
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_imeDeleteForward<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    length: jint,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        call(env, |s| ime_delete_forward(s, length));
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_imeSendEnter<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        call(env, |s| {
+            s.key_down(Key::Named(NamedKey::Enter));
+            s.key_up(Key::Named(NamedKey::Enter));
+        });
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_imeDismissed<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        call(env, |s| s.ime_dismissed());
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+// KOTISATAMA-PATCH: <select>-valinnan submit/dismiss JNI — <select>提交/取消的JNI。
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_submitSelectElement<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    selected_ids: JIntArray<'local>,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        let length = selected_ids.len(env)?;
+        let mut ids = vec![0i32; length];
+        selected_ids.get_region(env, 0, &mut ids)?;
+        embedder_prompts::submit_select_element(ids.into_iter().map(|id| id as usize).collect());
+        call(env, |app| app.spin_event_loop());
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_dismissSelectElement<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        embedder_prompts::dismiss_select_element();
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+// KOTISATAMA-PATCH: context menu + pitkä painallus (oikea klikkaus) — 右键菜单与长按触发。
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_submitContextMenuAction<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    action: jint,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        embedder_prompts::submit_context_menu_action(action);
+        call(env, |app| app.spin_event_loop());
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_dismissContextMenu<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        embedder_prompts::dismiss_context_menu();
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_org_servo_servoview_JNIServo_showContextMenuAt<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    x: jfloat,
+    y: jfloat,
+) {
+    env.with_env(|env| -> jni::errors::Result<_> {
+        call(env, |app| app.show_context_menu_at(x, y));
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 pub struct WakeupCallback {
     jvm: Arc<JavaVM>,
 }
@@ -901,10 +1071,18 @@ impl HostTrait for HostCallbacks {
             .unwrap();
     }
 
-    fn on_ime_show(&self, _: InputMethodControl) {
+    // KOTISATAMA-PATCH: IME-show välittää multiline InputConnectionille — IME显示时把multiline传给InputConnection。
+    fn on_ime_show(&self, control: InputMethodControl) {
+        let multiline = control.multiline();
         self.jvm
             .attach_current_thread(|env| -> Result<(), Error> {
-                env.call_method(callback_ref(), jni_str!("onImeShow"), jni_sig!("()V"), &[])?;
+                let multiline = JValue::Bool(multiline as jboolean);
+                env.call_method(
+                    callback_ref(),
+                    jni_str!("onImeShow"),
+                    jni_sig!("(Z)V"),
+                    &[multiline],
+                )?;
                 Ok(())
             })
             .unwrap();
@@ -1021,7 +1199,15 @@ impl HostTrait for HostCallbacks {
             .unwrap();
     }
 
-    fn on_show_select_element(&self, _webview_id: WebViewId, _prompt: SelectElement) {}
+    // KOTISATAMA-PATCH: <select> → Kotlin AlertDialog — <select>交给Kotlin对话框。
+    fn on_show_select_element(&self, _webview_id: WebViewId, prompt: SelectElement) {
+        embedder_prompts::show_select_element(prompt);
+    }
+
+    // KOTISATAMA-PATCH: context menu → Kotlin AlertDialog — 右键菜单交给Kotlin对话框。
+    fn on_show_context_menu(&self, _webview_id: WebViewId, menu: ContextMenu) {
+        embedder_prompts::show_context_menu(menu);
+    }
 
     fn on_panic(&self, _reason: String, _backtrace: Option<String>) {}
 }

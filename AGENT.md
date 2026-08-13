@@ -1,6 +1,12 @@
 # AGENT.md — Kotisatama kehitysohjeet
 
-Tämä tiedosto ohjaa koodiagentin toimintaa Kotisatama-repossa. Lue ennen kuin teet muutoksia.
+Tämä tiedosto ohjaa koodiagentin toimintaa **moottorirepossa** (Servo-forkki).
+Lue ennen kuin teet muutoksia.
+
+**Ekosysteemi:** [docs/EKOSYSTEEMI.md](docs/EKOSYSTEEMI.md) — mitä on missäkin
+(Katselin, Avomeri, adblock, haku, suljetut osat, Varustamo).
+
+Tämä repo ≠ Katselin-tuote. Android-APK ja orkestrointi: `../Katselin` tai `../Avomeri`.
 
 ---
 
@@ -31,21 +37,36 @@ Suomi on aina ensimmäinen, kiina tulee ajatusviivan `—` jälkeen. Vanhat komm
 ## Hakemistorakenne
 
 ```
-kotisatama/
+kotisatama/                      ← tämä moottorirepo
 ├── components/
-│   ├── kotisatama/          ← KAIKKI omat Rust-muutokset tänne
-│   │   ├── whitelist/       ← Whitelist-logiikka
-│   │   ├── search/          ← Meilisearch-client (HTTP → paikallinen prosessi)
-│   │   └── pulloposti/      ← Pulloposti subprocess-client (HTTP → paikallinen daemon)
-│   │   └── lib.rs
-│   └── [servo-upstream]/    ← ÄLÄ KOSKE (paitsi minimaalinen KOTISATAMA-PATCH)
+│   ├── kotisatama/              ← KAIKKI omat Rust-muutokset tänne
+│   │   ├── whitelist/           ← Whitelist-logiikka
+│   │   ├── search/              ← Meilisearch-client (HTTP → paikallinen prosessi)
+│   │   ├── content-blocking/    ← adblock-Katselin adapter
+│   │   ├── pulloposti/          ← Pulloposti subprocess-client
+│   │   ├── missa-olen/          ← Missä olen subprocess-client
+│   │   ├── varustamo/           ← Sovellusrekisteri (UI)
+│   │   ├── report/              ← Ilmoitukset
+│   │   ├── subprocess-app/      ← Yhteinen subprocess-kehys
+│   │   └── i18n/                ← FI/SV
+│   └── [servo-upstream…]        ← ÄLÄ KOSKE (paitsi minimaalinen KOTISATAMA-PATCH)
 ├── ports/
-│   └── servoshell/          ← embedder-hook: request_navigation, hakukenttä
-├── tauri/                   ← Hallintapaneeli (ei selainmoottori)
-│   ├── src/                 ← TypeScript/JS UI
-│   └── src-tauri/           ← Tauri Rust-backend
-├── crawler/                 ← Node.js, täysin erillinen
-└── [servo-upstream-files]/  ← ÄLÄ KOSKE
+│   └── servoshell/              ← embedder-hook: navigointi, haku, content-blocking, JNI
+├── tauri/                       ← Hallintapaneeli (ei selainmoottori; ei aktiivinen)
+├── crawler/                     ← Node.js, täysin erillinen
+└── [servo-upstream-files…]      ← ÄLÄ KOSKE
+```
+
+Sisaruscheckout (oletuskehitys):
+
+```
+../adblock-Katselin/             ← path-dep content-blockingista
+../Katselin/                     ← suljettu tuote + Android APK
+../Avomeri/                      ← avoin tuote + Android APK
+../Katselin-haku/                ← Meilisearch Android
+../Katselin-Consent-O-Matic/     ← eväste-JS (Katselin bundlaa)
+../Kotisataman-suljetut-osat/    ← valkoiset sivut, daemonit, vanha Varustamo
+../Varustamo/                    ← uusi Varustamo — ei vielä integroitu
 ```
 
 ---
@@ -129,10 +150,13 @@ Suosi `ports/servoshell/` embedder-hookia whitelistille. Jos muutos on pakko teh
 
 Android-build käyttää Servon omaa polkua:
 
-- `ports/servoshell/egl/android/` — JNI + `ANativeWindow`
-- APK-paketointi: **Katselin-päärepo** (`../Katselin/android/apk`). Paikallinen junction: `./scripts/link-android-apk.ps1` / `.sh` → `support/android/apk` (ei gittiin).
+- `ports/servoshell/egl/android/` — JNI + `ANativeWindow` (**tässä repossa**)
+- APK-paketointi: **Katselin** (`../Katselin/android/apk`) tai **Avomeri** (`../Avomeri/android/apk`)
+- Paikallinen junction Katselin-APK:han: `./scripts/link-android-apk.ps1` / `.sh` → `support/android/apk` (ei gittiin)
 
 **Tauri ei kantaa Servo-moottoria Androidilla.** Tauri 2.0 käyttää Androidilla System WebViewia (Chromium). Älä yritä wrappaa Servoa Taurin sisään selaimen kantajana.
+
+Parimuutokset (JNI tässä + Kotlin shellissä): tee ensin moottori-PR, sitten UI-PR tuoteshellissä.
 
 ---
 
@@ -198,9 +222,10 @@ Kuratoitu lista (`whitelist-unified.json`) on versio **2.1**. Rakenne:
 
 Skeema: `config/whitelist.schema.json`. Esimerkki: `config/whitelist.example.json`.
 
-Hakutulossivun toteutus: `docs/HAKUTULOKSET-ROADMAP.md`.
-
 Turvallisuus ja profiilit: `docs/TURVALLISUUS-PROFIILIT.md`.
+
+Ekosysteemi: `docs/EKOSYSTEEMI.md`. Vanhat suunnitelmat:
+`../Kotisataman-suljetut-osat/Docs/legacy/` (mm. hakutulokset, adblock-suunnitelma, Puhdistukset).
 
 ---
 
@@ -248,9 +273,10 @@ cargo build  # Pitää myös toimia ilman featurea
 Upstream-synkronointi (`git merge upstream/main`) tehdään **Agentilla**,
 ei manuaalisesti, jotta ei tuhota kaikki puhdistuksessa muutettuja tiedostoja.
 
-### Ennen muutoksia: tarkista tämän repon Docs/Puhdistukset (1).md
+### Ennen muutoksia: tarkista suljetun repon Docs/legacy/Puhdistukset.md
 
-Repon `Docs/Puhdistukset.md` on rekisteri kaikista tehdyistä Servo-siivousmuutoksista.
+`../Kotisataman-suljetut-osat/Docs/legacy/Puhdistukset.md` on rekisteri tehdyistä
+Servo-siivousmuutoksista (siirretty moottorista legacyyn 2026-08).
 Ennen kuin muutat tiedostoa joka sisältää Servo-viittauksen, tarkista:
 onko tämä tiedosto jo käsitelty ja onko muutos tarkoituksellinen?
 
@@ -263,7 +289,7 @@ näyttäisi upstream:ista poikkeavalta — se on todennäköisesti tarkoituksell
 |---|---|---|
 | Kotisatama-omat | `components/kotisatama/`, `tauri/`, `crawler/` | Ei koskaan |
 | Patchattu upstream | `ports/servoshell/`, `resources/resource_protocol/newtab.html` | Voi — katso KOTISATAMA-PATCH-kommentit |
-| Puhdistettu upstream | ks. suljetun repon `Docs/Puhdistukset.md` | Voi — Cursor ratkaisee konfliktin |
+| Puhdistettu upstream | ks. suljetun repon `Docs/legacy/Puhdistukset.md` | Voi — Cursor ratkaisee konfliktin |
 | Koskematon upstream | `components/script/`, `tests/wpt/` | Kyllä, tarkoituksella |
 
 ---
@@ -307,4 +333,4 @@ näyttäisi upstream:ista poikkeavalta — se on todennäköisesti tarkoituksell
 
 ---
 
-*Päivitetty: heinäkuu 2026*
+*Päivitetty: elokuu 2026*

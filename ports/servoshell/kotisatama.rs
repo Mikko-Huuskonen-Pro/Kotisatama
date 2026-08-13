@@ -120,23 +120,25 @@ pub fn init() {
     let _ = CONTENT_BLOCKING.set(blocking);
 }
 
-/// Register Consent-O-Matic userscript (Android / optional desktop).
+// KOTISATAMA-PATCH: evästeautomaatio whitelist-säännöillä (katselin-consent crate) — 基于白名单的 Cookie 自动化（katselin-consent crate）
+/// Register Katselin consent userscript (Android / optional desktop).
 ///
 /// Env:
-/// - `KOTISATAMA_CONSENT_MODE`: `required` (default) | `all` | `off`
-/// - `KOTISATAMA_CONSENT_SCRIPT`: path to standalone `consent-katselin.js`
+/// - `KOTISATAMA_CONSENT_MODE`: `required` | `all` | `custom` | `off`
+/// - `KOTISATAMA_CONSENT_VALUES`: per-category JSON when mode is `custom`
+/// - `KOTISATAMA_CONSENT_SCRIPT`: path to `consent-katselin.js` runtime
+/// - `KOTISATAMA_WHITELIST_PATH`: curated whitelist with `cookieAutomation` rules
 ///
 /// Revisit: hot-reload without app restart.
 pub fn register_consent_script(user_content_manager: &servo::UserContentManager) {
-    let mode = std::env::var("KOTISATAMA_CONSENT_MODE")
-        .unwrap_or_else(|_| "required".to_string())
-        .to_ascii_lowercase();
-    if mode == "off" || mode == "0" || mode == "false" || mode == "no" {
-        info!("Kotisatama consent: pois käytöstä (KOTISATAMA_CONSENT_MODE={mode})");
+    let mode = katselin_consent::consent_mode_from_env();
+    if !mode.should_inject_script() {
+        info!(
+            "Kotisatama consent: pois käytöstä (KOTISATAMA_CONSENT_MODE={})",
+            mode.as_str()
+        );
         return;
     }
-
-    let mode_token = if mode == "all" { "all" } else { "required" };
 
     let script_path = match std::env::var("KOTISATAMA_CONSENT_SCRIPT") {
         Ok(path) if !path.is_empty() => PathBuf::from(path),
@@ -157,21 +159,57 @@ pub fn register_consent_script(user_content_manager: &servo::UserContentManager)
         },
     };
 
-    // Preamble so the JS shim can seed GDPRConfig consent categories.
-    let source = format!(
-        "window.__KATSELIN_CONSENT_MODE__={mode_js};\n{bundle}",
-        mode_js = serde_json::to_string(mode_token).unwrap_or_else(|_| "\"required\"".to_string()),
-        bundle = bundle
-    );
+    let rules = load_consent_rules_from_whitelist();
+    let preamble = katselin_consent::build_preamble(mode, &rules);
+    let source = format!("{preamble}\n{bundle}");
 
     user_content_manager.add_script(std::rc::Rc::new(servo::UserScript::new(
         source,
         Some(script_path.clone()),
     )));
     info!(
-        "Kotisatama consent: script registered (mode={mode_token}, {})",
+        "Kotisatama consent: script registered (mode={}, rules={}, {})",
+        mode.as_str(),
+        rules.len(),
         script_path.display()
     );
+}
+
+// KOTISATAMA-PATCH: cookieAutomation-säännöt whitelist.json:sta — 从 whitelist.json 提取 cookieAutomation 规则
+fn load_consent_rules_from_whitelist() -> katselin_consent::ConsentRules {
+    let path = kotisatama_search::cached_whitelist_path()
+        .or_else(|| {
+            std::env::var("KOTISATAMA_WHITELIST_PATH")
+                .ok()
+                .map(PathBuf::from)
+        })
+        .unwrap_or_else(|| PathBuf::from("config/whitelist.json"));
+
+    let json = match std::fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(error) => {
+            warn!(
+                "Kotisatama consent: whitelist not readable at {}: {error}",
+                path.display()
+            );
+            return katselin_consent::ConsentRules::new();
+        },
+    };
+
+    match katselin_consent::rules_from_whitelist_json(&json) {
+        Ok(rules) => {
+            info!(
+                "Kotisatama consent: loaded {} cookieAutomation rules from {}",
+                rules.len(),
+                path.display()
+            );
+            rules
+        },
+        Err(error) => {
+            warn!("Kotisatama consent: whitelist rule extraction failed: {error}");
+            katselin_consent::ConsentRules::new()
+        },
+    }
 }
 
 /// Whether navigation to `url` is allowed.

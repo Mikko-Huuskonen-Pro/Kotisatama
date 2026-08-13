@@ -1,83 +1,80 @@
-# Katselin 
+# Kotisatama — selainmoottori
 
-> Finnish-first browser built on Servo.
+> Servo-forkki. Tuotteet (Katselin, Avomeri) ja sivuosat elävät sisarusrepoissa.
 
-## What is Katselin?
+**Tämä repo on moottori**, ei tuotesovellus. Kartta kaikesta:
+**[docs/EKOSYSTEEMI.md](docs/EKOSYSTEEMI.md)**.
 
-Katselin is a Servo-based browser focused on a curated browsing experience.
-
-Instead of relying on a traditional search engine, Katselin uses a locally stored
-search index and a whitelist of trusted websites. The goal is to make everyday
-browsing simple, predictable and safe while remaining fully open source.
-
-The browser is developed in Finnish first. Community translations are welcome,
-but Finnish is considered the primary language of the project.
+| | |
+|---|---|
+| Moottori (tämä) | Servo + `components/kotisatama/` + servoshell-hookit |
+| Katselin | Suljettu tuoteselain → `../Katselin` |
+| Avomeri | Avoin tuoteselain → `../Avomeri` |
+| Adblock | `../adblock-Katselin` (integroitu tähän) |
+| Haku / consent / data | ks. ekosysteemidokumentti |
 
 ---
 
-## Why another Servo fork?
+## What is this engine?
 
-Katselin experiments with a different browser philosophy rather than a different
-rendering engine.
+Kotisatama is a [Servo](https://github.com/servo/servo) fork with a thin product
+layer: curated whitelist navigation, local Meilisearch client, Brave-based
+adblock adapter, and harbour-themed internal pages (`servo:`).
 
-Servo remains responsible for rendering the web.
+Product shells live elsewhere:
 
-Katselin builds user experience on top of Servo:
-- curated search
-- locally indexed content
-- harbour-based navigation model
-- Brave's ad-block
-- simple UI designed for all ages
+- **Katselin** — closed-source Android browser (whitelist, search, profiles)
+- **Avomeri** — open-source Android browser (open web + adblock)
 
-Whenever possible, fixes are intended to be contributed upstream to Servo.
+Finnish is the primary project language. Fixes that belong in Servo are meant
+to go upstream when ready.
 
 ---
 
 ## Project status
 
-- Adblock integration is on process
-- First win 11 test user aqruired
-- Android version is broken mess, try to find time to fix it to the working state (Fixed 30.7.2026).
-- First Androis version user aqruired
-Win11 version is working
+- Adblock: integrated via `kotisatama-content-blocking` → `adblock-Katselin`
+- Windows 11: working; test users acquired
+- Android: working (Katselin + Avomeri shells); engine JNI in this repo
 
-## Mikä on katselin (归港)? 
+## Mikä tämä on (归港)?
 
-Katselin on Servo-pohjainen selain whitelist-pohjaisella hakumallilla. Selain ja
-esiladattu hakuindeksi muodostavat suljetun ympäristön: käyttäjä löytää kaiken
-tarvitsemansa ilman että eksyy avomerelle.
+**Kotisatama** on Servo-pohjainen moottori. Tuotenimi **Katselin** tarkoittaa
+suljettua selainta, joka käyttää tätä moottoria. Avoin sisartuote on **Avomeri**.
 
-Kotisatama on projektin aiempi nimi ja säilyy toistaiseksi teknisissä poluissa,
-crate-nimissä, moduuleissa ja meriteemaisessa käyttöliittymäkielessä. Nimeä
-vaihdetaan asteittain Katseliniksi, jotta toimivaa koodia ja build-skriptejä ei
-rikota yhdellä isolla uudelleennimeämisellä.
+Tekniset polut, crate-nimet (`kotisatama-*`) ja `KOTISATAMA_*`-ympäristömuuttujat
+säilyvät — uudelleennimeämistä ei tehdä yhdellä iskulla.
 
-> Tämä repo on fork [servo/servo](https://github.com/servo/servo). Kotisatama-spesifiset muutokset on eriytetty omiin moduuleihinsa. Upstream-muutokset julkaistaan MPL 2.0:n mukaisesti. Koska servo ei ole valmis, edetään sivu kerrallaan kotisatamassa. Kun käyttäjä pysyy satamassa, ne sivut pitää toimia ja latautua oikein. Jos lähtee avomerelle, eli kiertää whitelistauksen, sivujen toimivuus on Servon kehityksen varassa. Tietenkin kun ratkotaan whitelistattujen sivujen ongelmia, samalla myöskin kotisatama paranee verrattuna Servoon. Kuitenkin siihen pisteeseen on matkaan, että päästäisiin antamaan Servolle takaisin contribuutiota. \\ MH 13.6.2026
+> Tämä repo on fork [servo/servo](https://github.com/servo/servo). Kotisatama-spesifiset muutokset on eriytetty omiin moduuleihinsa. Upstream-muutokset julkaistaan MPL 2.0:n mukaisesti. Koska Servo ei ole valmis, edetään sivu kerrallaan satamassa: whitelistattujen sivujen pitää toimia. Avomerellä (avoin verkko) toimivuus riippuu Servon kehityksestä. \\ MH 13.6.2026
 
 ---
 
-## Arkkitehtuuri
+## Arkkitehtuuri (moottori)
 
 ```
 [Kotisatama — Servo-fork]
-    ├── components/kotisatama/whitelist   ← whitelist-logiikka
-    ├── components/kotisatama/search      ← haku-API (Meilisearch-client)
-    └── ports/servoshell                  ← embedder-hook (navigointi, UI)
+    ├── components/kotisatama/whitelist          ← whitelist-logiikka
+    ├── components/kotisatama/search             ← Meilisearch-client
+    ├── components/kotisatama/content-blocking   ← adblock-Katselin adapter
+    └── ports/servoshell                         ← embedder-hook (navigointi, UI, JNI)
 
-[Android — servoshell EGL]
-    └── support/android/apk + JNI-host    ← ei Tauri; Servon oma Android-polku
+[Tuoteshellit — sisarusrepost]
+    ├── ../Katselin/android/apk                  ← suljettu Android-APK
+    └── ../Avomeri/android/apk                   ← avoin Android-APK
 
-[CDN — staattinen]
-    ├── /free/whitelist.json
-    └── /pro/whitelist.json  (API-avain vaaditaan)
+[Sisarusriippuvuudet]
+    ├── ../adblock-Katselin                      ← path-dep content-blockingista
+    ├── ../Katselin-haku                         ← Meilisearch Android (Katselin)
+    ├── ../Katselin-Consent-O-Matic              ← eväste-JS (Katselin)
+    └── ../Kotisataman-suljetut-osat             ← valkoiset sivut, daemonit
 
-[Crawler — CI-prosessi]
+[CDN / crawler]
     └── Playwright → Meilisearch-dump → CDN
 ```
 
 Ei omaa palvelinta. Ei VPN-infraa. Haku tapahtuu laitteelle esiladatusta indeksistä.
 
-**Meilisearch laitteella:** indeksi on Meilisearch-dump (CDN), mutta haku vaatii Meilisearch-prosessin laitteessa (bundlattu binääri, subprocess). Meilisearch ei onnistuneena upoteta kirjastotasolla mobiiliappiin — prosessi käynnistetään ja kyselyt tehdään HTTP:llä paikalliseen instanssiin.
+**Meilisearch laitteella:** indeksi on Meilisearch-dump (CDN), mutta haku vaatii Meilisearch-prosessin laitteessa (bundlattu binääri, subprocess). Meilisearch ei upoteta kirjastotasolla mobiiliappiin — prosessi käynnistetään ja kyselyt tehdään HTTP:llä paikalliseen instanssiin.
 
 ---
 
@@ -93,7 +90,7 @@ Käsite| Merkitys
 ⚓ Satama| Luotettujen (whitelist) verkkosivujen alue
 🌐 Avomeri| Avoin internet
 🌊 Myrsky| Ei verkkoyhteyttä tai palvelu ei vastaa
-🧰 Varustamo| Luotettu sovellusvarasto
+🧰 Varustamo| Luotettu freenet sovellukset
 📦 Ruuma| Asennetut sovellukset ja paikallinen sisältö
 🛟 Majakka| Ohjeet, opastus ja tuki
 📜 Lokikirja| Tapahtumat, ilmoitukset ja diagnostiikka
@@ -117,15 +114,16 @@ Yhtenäinen sanasto tekee tuotteesta helposti tunnistettavan ja tukee Katselimen
 tavoitetta tarjota turvallinen, helposti ymmärrettävä ja luotettava
 käyttökokemus kaikenikäisille käyttäjille.
 
+**Ekosysteemi (mitä on missäkin):** [docs/EKOSYSTEEMI.md](docs/EKOSYSTEEMI.md).
+
 Tuote- ja kehitysfilosofia (Servo, whitelist, Kela, Telakka): [docs/FILOSOFIA.md](docs/FILOSOFIA.md).
 
 Servo-moottorin opiskelu (suomeksi): [oppiminen/README.md](oppiminen/README.md).
 
-Nykytilakirjaus whitelistin onnistuneesta tilasta ja Avomeren avoimesta arkkitehtuuripäätöksestä: [docs/NYKYTILA-2026-06-24.md](docs/NYKYTILA-2026-06-24.md).
-
-Hakutulossivu (tuotespesifikaatio): [docs/Hakutulokset.md](docs/Hakutulokset.md). Toteutusroadmap: [docs/HAKUTULOKSET-ROADMAP.md](docs/HAKUTULOKSET-ROADMAP.md).
-
 Whitelist-skeema 2.1 (valkoiset + keltaiset sivut, kategoriat): [config/whitelist.schema.json](config/whitelist.schema.json).
+
+Vanhat / toteutuneet suunnitelmat (ei nykyrakennetta): sisarusrepo
+`../Kotisataman-suljetut-osat/Docs/legacy/` (ks. sen README).
 
 ---
 
@@ -159,21 +157,19 @@ git fetch upstream
 ./mach run
 ```
 
-### Rakennetaan Android (servoshell EGL)
+### Rakennetaan Android (servoshell EGL + tuoteshell)
 
-Android käyttää Servon omaa `servoshell`-embedderia (`ports/servoshell/egl/android/`), ei Tauria. Tauri käyttää Androidilla System WebViewia (Chromium) — se ei kantaa Servo-moottoria.
+Android käyttää Servon omaa `servoshell`-embedderia (`ports/servoshell/egl/android/`), ei Tauria. **APK-Gradle elää tuoteshelleissä**, ei tässä forkissa:
 
-Aseta Android-ympäristö (upstream NDK-versio):
+- Katselin: `../Katselin` → `./scripts/build-android.sh`
+- Avomeri: `../Avomeri` → ks. sen `docs/BUILD.md`
+
+Tässä repossa rakennetaan `libservoshell.so` (+ JNI). Paikallinen junction APK:han: `./scripts/link-android-apk.ps1` / `.sh`.
 
 ```bash
 export ANDROID_SDK_ROOT=~/android-sdk
 export ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/28.2.13676358
-```
-
-```bash
-# Esimerkki: arm64-APK
 ./mach build --target aarch64-linux-android --profile checked-release
-# APK: target/aarch64-linux-android/checked-release/servoapp.apk
 ```
 
 ### Hallintapaneeli (Tauri, valinnainen)
@@ -239,7 +235,7 @@ git checkout main
 git merge upstream/main
 ```
 
-Kotisatama-spesifiset hakemistot (`components/kotisatama/`, `tauri/`, `crawler/`) eivät tule upstream-merge-konflikteja — ne ovat vain tässä forkissa. Konfliktit syntyvät **KOTISATAMA-PATCH**-kohdissa upstream-tiedostoissa, tyypillisesti `ports/servoshell/`. Katso suljetun repon `Docs/Puhdistukset.md` aiemmista siivouskierroksista.
+Kotisatama-spesifiset hakemistot (`components/kotisatama/`, `tauri/`, `crawler/`) eivät tule upstream-merge-konflikteja — ne ovat vain tässä forkissa. Konfliktit syntyvät **KOTISATAMA-PATCH**-kohdissa upstream-tiedostoissa, tyypillisesti `ports/servoshell/`. Katso suljetun repon `Docs/legacy/Puhdistukset.md` aiemmista siivouskierroksista.
 
 ---
 

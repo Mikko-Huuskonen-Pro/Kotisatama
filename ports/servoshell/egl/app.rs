@@ -189,8 +189,13 @@ impl PlatformWindow for EmbeddedPlatformWindow {
                 self.visible_input_methods.borrow_mut().push(control_id);
                 self.host.on_ime_show(input_method_control);
             },
+            // KOTISATAMA-PATCH: älä pudota SelectElement-promptia (Android picker) — 不要丢弃SelectElement提示（Android选择器）。
             EmbedderControl::SelectElement(prompt) => {
                 self.host.on_show_select_element(webview_id, prompt);
+            },
+            // KOTISATAMA-PATCH: ContextMenu → HostTrait (Android dialogi) — ContextMenu转HostTrait（Android对话框）。
+            EmbedderControl::ContextMenu(menu) => {
+                self.host.on_show_context_menu(webview_id, menu);
             },
             EmbedderControl::SimpleDialog(SimpleDialog::Alert(alert_dialog)) => {
                 self.host.show_alert(alert_dialog.message().into());
@@ -661,6 +666,29 @@ impl App {
             )));
             self.spin_event_loop();
         }
+    }
+
+    // KOTISATAMA-PATCH: pitkä painallus → MouseMove + oikea klikkaus (hit-test ehtii) — 长按：先MouseMove再右键（确保命中测试）。
+    /// Simulate a right-click to open the context menu at the given point.
+    /// Matches official Servo tests: MouseMove first so paint hit-testing has a cursor point.
+    pub fn show_context_menu_at(&self, x: f32, y: f32) {
+        let Some(webview) = self.active_or_newest_webview() else {
+            return;
+        };
+        let point = DevicePoint::new(x, y).into();
+        webview.notify_input_event(InputEvent::MouseMove(MouseMoveEvent::new(point)));
+        webview.notify_input_event(InputEvent::MouseButton(MouseButtonEvent::new(
+            MouseButtonAction::Down,
+            MouseButton::Right,
+            point,
+        )));
+        self.spin_event_loop();
+        webview.notify_input_event(InputEvent::MouseButton(MouseButtonEvent::new(
+            MouseButtonAction::Up,
+            MouseButton::Right,
+            point,
+        )));
+        self.spin_event_loop();
     }
 
     /// Start pinchzoom.

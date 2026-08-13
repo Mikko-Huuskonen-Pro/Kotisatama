@@ -3,6 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 use servo::{InputMethodControl, LoadStatus, MediaSessionPlaybackState, SelectElement, WebViewId};
+use servo::ContextMenu;
 
 /// Callbacks implemented by embedder. Called by our RunningAppState, generally on behalf of Servo.
 pub trait HostTrait {
@@ -48,6 +49,9 @@ pub trait HostTrait {
     );
     /// Called when a `<select>` element is clicked.
     fn on_show_select_element(&self, webview_id: WebViewId, prompt: SelectElement);
+    // KOTISATAMA-PATCH: context menu HostTrait-callback (Android UI) — 右键菜单回调到Android UI。
+    /// Called when web content requests a context menu.
+    fn on_show_context_menu(&self, webview_id: WebViewId, menu: ContextMenu);
     /// Called when we get a panic message from constellation
     fn on_panic(&self, reason: String, backtrace: Option<String>);
 }

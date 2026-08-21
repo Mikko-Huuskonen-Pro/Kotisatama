@@ -69,10 +69,13 @@
 //!
 
 pub mod construct;
+mod full_width;
 pub mod inline_box;
 pub mod line;
 mod line_breaker;
+mod mathml_italics;
 mod shaping_queue;
+mod small_kana;
 pub mod text_run;
 pub mod text_transform;
 
@@ -100,6 +103,7 @@ use line::{
 use malloc_size_of_derive::MallocSizeOf;
 use script::layout_dom::ServoLayoutNode;
 use servo_arc::Arc as ServoArc;
+use servo_base::text::Utf32CodeUnits;
 use style::Zero;
 use style::computed_values::line_break::T as LineBreak;
 use style::computed_values::text_wrap_mode::T as TextWrapMode;
@@ -133,9 +137,7 @@ use crate::flow::{
     compute_inline_content_sizes_for_block_level_boxes, layout_block_level_child,
 };
 use crate::formatting_contexts::{Baselines, IndependentFormattingContext};
-use crate::fragment_tree::{
-    BaseFragmentInfo, CollapsedMargin, Fragment, FragmentFlags, PositioningFragment,
-};
+use crate::fragment_tree::{CollapsedMargin, Fragment, FragmentFlags, PositioningFragment};
 use crate::geom::{LogicalRect, LogicalSides1D, LogicalVec2, ToLogical};
 use crate::layout_box_base::LayoutBoxBase;
 use crate::positioned::{AbsolutelyPositionedBox, PositioningContext};
@@ -231,8 +233,7 @@ impl BlockLevelBox {
             self,
             layout.sequential_layout_state.as_deref_mut(),
             &mut layout.placement_state,
-            // Under discussion in <https://github.com/w3c/csswg-drafts/issues/13260>.
-            LogicalSides1D::new(false, false),
+            layout.ignore_block_margins_for_stretch,
             true, /* has_inline_parent */
         );
 
@@ -911,6 +912,10 @@ struct InlineFormattingContextLayout<'layout_data> {
     /// by the boundary between two characters, the text-wrap-mode property of their nearest
     /// common ancestor is used.
     text_wrap_mode: TextWrapMode,
+
+    /// Whether block-level boxes inside this inline formatting context should ignore their
+    /// margins for the purpose of stretching in the block axis.
+    ignore_block_margins_for_stretch: LogicalSides1D<bool>,
 }
 
 impl InlineFormattingContextLayout<'_> {
@@ -1632,7 +1637,7 @@ impl InlineFormattingContextLayout<'_> {
         glyph_store: Arc<ShapedTextSlice>,
         text_run: &TextRun,
         info: &FontAndScriptInfo,
-        character_range: Range<usize>,
+        character_range: Range<Utf32CodeUnits>,
     ) {
         let inline_advance = glyph_store.total_advance();
         let flags = if glyph_store.is_whitespace() {
@@ -1721,10 +1726,10 @@ impl InlineFormattingContextLayout<'_> {
             TextRunLineItem {
                 text: Default::default(),
                 text_fragment_run_data: caret_placeholder.run_data,
-                base_fragment_info: BaseFragmentInfo::anonymous(),
+                base_fragment_info: caret_placeholder.base_fragment_info,
                 info: FontAndScriptInfo::simple_for_font(font),
-                character_range_in_dom_node: caret_placeholder.character_index..
-                    caret_placeholder.character_index + 1,
+                character_range_in_dom_node: Utf32CodeUnits(caret_placeholder.character_index)..
+                    Utf32CodeUnits(caret_placeholder.character_index + 1),
                 is_empty_for_text_cursor: true,
             },
         ));
@@ -2061,6 +2066,7 @@ impl InlineFormattingContext {
         containing_block: &ContainingBlock,
         sequential_layout_state: Option<&mut SequentialLayoutState>,
         collapsible_with_parent_start_margin: CollapsibleWithParentStartMargin,
+        ignore_block_margins_for_stretch: LogicalSides1D<bool>,
     ) -> IndependentFormattingContextLayoutResult {
         // Clear any cached inline fragments from previous layouts.
         for inline_box in self.inline_boxes.iter() {
@@ -2109,6 +2115,7 @@ impl InlineFormattingContext {
             depends_on_block_constraints: false,
             white_space_collapse: style_text.white_space_collapse,
             text_wrap_mode: style_text.text_wrap_mode,
+            ignore_block_margins_for_stretch,
         };
 
         for item in self.inline_items.iter() {

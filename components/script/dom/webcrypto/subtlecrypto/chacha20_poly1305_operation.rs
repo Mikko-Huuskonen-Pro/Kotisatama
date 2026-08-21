@@ -14,11 +14,11 @@ use crate::dom::bindings::codegen::Bindings::SubtleCryptoBinding::{JsonWebKey, K
 use crate::dom::bindings::error::Error;
 use crate::dom::bindings::root::DomRoot;
 use crate::dom::bindings::str::DOMString;
-use crate::dom::cryptokey::{CryptoKey, Handle};
+use crate::dom::cryptokey::{CryptoKey, Handle, KeyUsageVecHelper};
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::subtlecrypto::{
-    CryptoAlgorithm, ExportedKey, JsonWebKeyExt, JwkStringField, KeyAlgorithmAndDerivatives,
-    SubtleAeadParams, SubtleKeyAlgorithm,
+    CryptoAlgorithm, ExportedKey, JsonWebKeyExt, JwkStringField, KeyAlgorithm,
+    KeyAlgorithmAndDerivatives, SubtleAeadParams,
 };
 
 /// <https://wicg.github.io/webcrypto-modern-algos/#chacha20-poly1305-operations-encrypt>
@@ -188,8 +188,8 @@ pub(crate) fn generate_key(
     // Step 7. Set the name attribute of algorithm to "ChaCha20-Poly1305".
     // Step 8. Set the [[algorithm]] internal slot of key to algorithm.
     // Step 9. Set the [[extractable]] internal slot of key to be extractable.
-    // Step 10. Set the [[usages]] internal slot of key to be usages.
-    let algorithm = SubtleKeyAlgorithm {
+    // Step 10. Set the [[usages]] internal slot of key to be the normalized value of usages.
+    let algorithm = KeyAlgorithm {
         name: CryptoAlgorithm::ChaCha20Poly1305,
     };
     let key = CryptoKey::new(
@@ -198,7 +198,7 @@ pub(crate) fn generate_key(
         KeyType::Secret,
         extractable,
         KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm),
-        usages,
+        usages.normalized_value(),
         Handle::ChaCha20Poly1305Key(chacha20poly1305_key),
     );
 
@@ -319,7 +319,7 @@ pub(crate) fn import_key(
             "ChaCha20-Poly1305 fails to create key from data".into(),
         ))
     })?);
-    let algorithm = SubtleKeyAlgorithm {
+    let algorithm = KeyAlgorithm {
         name: CryptoAlgorithm::ChaCha20Poly1305,
     };
     let key = CryptoKey::new(
@@ -328,7 +328,7 @@ pub(crate) fn import_key(
         KeyType::Secret,
         extractable,
         KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm),
-        usages,
+        usages.normalized_value(),
         handle,
     );
 
@@ -376,7 +376,7 @@ pub(crate) fn export_key(format: KeyFormat, key: &CryptoKey) -> Result<ExportedK
             jwk.alg = Some(DOMString::from("C20P"));
 
             // Step 2.5. Set the key_ops attribute of jwk to equal the usages attribute of key.
-            jwk.set_key_ops(&key.usages());
+            jwk.set_key_ops(key.usages());
 
             // Step 2.6. Set the ext attribute of jwk to equal the [[extractable]] internal slot of
             // key.

@@ -15,7 +15,7 @@ use layout_api::SharedSelection;
 use log::warn;
 use malloc_size_of_derive::MallocSizeOf;
 use servo_arc::Arc as ServoArc;
-use servo_base::text::is_bidi_control;
+use servo_base::text::{Utf32CodeUnits, is_bidi_control};
 use smallvec::SmallVec;
 use style::Zero;
 use style::computed_values::font_kerning::T as FontKerning;
@@ -35,6 +35,7 @@ use crate::ArcRefCell;
 use crate::context::LayoutContext;
 use crate::dom::WeakLayoutBox;
 use crate::flow::inline::shaping_queue::ShapingQueueEntry;
+use crate::flow::inline::text_transform::OffsetMap;
 use crate::flow::inline::{BidiLevels, LineBlockSizes, LineItem, SegmentContentFlags};
 use crate::fragment_tree::BaseFragmentInfo;
 
@@ -278,7 +279,8 @@ impl TextRunSegment {
                 run.clone(),
                 text_run,
                 &self.info,
-                character_range_start - run_start..new_character_range_end - run_start,
+                Utf32CodeUnits(character_range_start - run_start)..
+                    Utf32CodeUnits(new_character_range_end - run_start),
             );
 
             character_range_start = new_character_range_end;
@@ -295,6 +297,8 @@ pub(crate) struct CaretPlaceholder {
     /// The [`TextFragmentRunData`] of the [`TextRun`] that contains this caret placeholder.
     #[conditional_malloc_size_of]
     pub run_data: Arc<SharedTextRunData>,
+    /// The `BaseFragmentInfo` of the originating text node that this caret placeholder is in.
+    pub base_fragment_info: BaseFragmentInfo,
     /// Character index of the preserved newline in the IFC's transformed text, relative
     /// to the start of the DOM node.
     pub character_index: usize,
@@ -312,22 +316,54 @@ pub(crate) enum TextRunItem {
     TextSegment(Box<TextRunSegment>),
 }
 
-/// A data structure that holds per-[`TextRun`] data used on `TextFragment`s.
+/// A data structure that holds per-`TextRun` data used on `TextFragment`s.
 /// This ensures that the data is not duplicated between fragments.
 #[derive(Debug, MallocSizeOf)]
 pub(crate) struct SharedTextRunData {
-    /// The [`crate::SharedStyle`] from this [`TextRun`]'s parent element. This is
+    /// The [`crate::SharedStyle`] from this `TextRun`'s parent element. This is
     /// shared so that incremental layout can simply update the parent element and
     /// this [`TextRun`] will be updated automatically.
     pub inline_styles: SharedInlineStyles,
     /// The range of characters in this text in `InlineFormattingContext::text_content`
-    /// of the `InlineFormattingContext` that owns this [`TextRun`]. These are counting
+    /// of the `InlineFormattingContext` that owns this `TextRun`. These are counting
     /// `char`s, *not* UTF-8 offsets.
     pub character_range_in_ifc_text: Range<usize>,
-    /// The selected text in this [`TextRun`]. This may either be document selection or
-    /// form control selection.
+    /// The original offset of this `TextRun` in the `InlineFormattingContext`'s input
+    /// text (untransformed by white space collapse and `text-transform`).
+    pub original_offset: Utf32CodeUnits,
+    /// The selected text in this `TextRun`. This may either be document selection or form control
+    /// selection.
     #[conditional_malloc_size_of]
     pub selection: Option<SharedSelection>,
+    /// The [`OffsetMap`] used when creating this `TextRun`'s `InlineFormattingContext`. This
+    /// is used for mapping between DOM text offsets and layout text offsets (and vice-versa).
+    pub offset_map: ArcRefCell<OffsetMap>,
+}
+
+impl SharedTextRunData {
+    /// Map a range in the originating `TextRun`'s DOM node text into the range in the
+    /// `TextRun`'s layout transformed (by white space collapse and `text-transform`)
+    /// text.
+    pub(crate) fn map_dom_range_to_transformed_range(
+        &self,
+        range: Range<Utf32CodeUnits>,
+    ) -> Range<Utf32CodeUnits> {
+        let offset_map = self.offset_map.borrow();
+        let offset_in_ifc_text = Utf32CodeUnits(self.character_range_in_ifc_text.start);
+        offset_map.map(range.start + self.original_offset) - offset_in_ifc_text..
+            offset_map.map(range.end + self.original_offset) - offset_in_ifc_text
+    }
+
+    /// Map an offset in the originating `TextRun`s DOM node's transformed text (by white
+    /// space collapse and `text-transform`) to untransformed text for use by the DOM.
+    pub(crate) fn map_transformed_offset_to_dom_offset(
+        &self,
+        offset: Utf32CodeUnits,
+    ) -> Utf32CodeUnits {
+        let offset_map = self.offset_map.borrow();
+        let offset_in_ifc_text = Utf32CodeUnits(self.character_range_in_ifc_text.start);
+        offset_map.reverse_map(offset + offset_in_ifc_text) - self.original_offset
+    }
 }
 
 /// A single [`TextRun`] for the box tree. These are all descendants of
@@ -364,10 +400,8 @@ pub(crate) struct TextRun {
 impl TextRun {
     pub(crate) fn new(
         base_fragment_info: BaseFragmentInfo,
-        inline_styles: SharedInlineStyles,
+        run_data: Arc<SharedTextRunData>,
         text_range: Range<usize>,
-        character_range: Range<usize>,
-        selection: Option<SharedSelection>,
         old_text_run: Option<ArcRefCell<TextRun>>,
     ) -> Self {
         // If there was a previous box tree layout of this text run, try to preserve the old shaped text.
@@ -376,12 +410,7 @@ impl TextRun {
             .unwrap_or_default();
         Self {
             base_fragment_info,
-            run_data: SharedTextRunData {
-                inline_styles,
-                character_range_in_ifc_text: character_range,
-                selection,
-            }
-            .into(),
+            run_data,
             parent_box: None,
             text_range,
             items,
@@ -501,6 +530,7 @@ impl TextRun {
                 results.push(TextRunItem::LineBreak(
                     self.run_data.selection.is_some().then(|| CaretPlaceholder {
                         run_data: self.run_data.clone(),
+                        base_fragment_info: self.base_fragment_info,
                         // The placeholder that is placed after a newline is for the index after that newline.
                         // The newline itself is at the end of the previous line.
                         character_index: relative_character_index + 1,

@@ -17,12 +17,12 @@ use crate::dom::bindings::codegen::Bindings::SubtleCryptoBinding::{JsonWebKey, K
 use crate::dom::bindings::error::{Error, ErrorResult};
 use crate::dom::bindings::root::DomRoot;
 use crate::dom::bindings::str::DOMString;
-use crate::dom::cryptokey::{CryptoKey, Handle};
+use crate::dom::cryptokey::{CryptoKey, Handle, KeyUsageVecHelper};
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::subtlecrypto::{
-    CryptoAlgorithm, ExportedKey, JwkStringField, KeyAlgorithmAndDerivatives, NAMED_CURVE_P256,
-    NAMED_CURVE_P384, NAMED_CURVE_P521, SUPPORTED_CURVES, SubtleEcKeyAlgorithm,
-    SubtleEcKeyGenParams, SubtleEcKeyImportParams,
+    CryptoAlgorithm, EcKeyAlgorithm, EcKeyGenParams, EcKeyImportParams, ExportedKey,
+    JwkStringField, KeyAlgorithmAndDerivatives, NAMED_CURVE_P256, NAMED_CURVE_P384,
+    NAMED_CURVE_P521, SUPPORTED_CURVES,
 };
 use crate::dom::webcrypto::subtlecrypto::JsonWebKeyExt;
 
@@ -38,7 +38,7 @@ pub(crate) fn generate_key(
     ec_algorithm: EcAlgorithm,
     cx: &mut JSContext,
     global: &GlobalScope,
-    normalized_algorithm: &SubtleEcKeyGenParams,
+    normalized_algorithm: &EcKeyGenParams,
     extractable: bool,
     usages: Vec<KeyUsage>,
 ) -> Result<CryptoKeyPair, Error> {
@@ -124,7 +124,7 @@ pub(crate) fn generate_key(
     // Step 4. Let algorithm be a new EcKeyAlgorithm object.
     // Step 6. Set the namedCurve attribute of algorithm to equal the namedCurve member of
     // normalizedAlgorithm.
-    let algorithm = SubtleEcKeyAlgorithm {
+    let algorithm = EcKeyAlgorithm {
         name: match ec_algorithm {
             EcAlgorithm::Ecdsa => {
                 // Step 5. Set the name attribute of algorithm to "ECDSA".
@@ -146,11 +146,7 @@ pub(crate) fn generate_key(
         EcAlgorithm::Ecdsa => {
             // Step 11. Set the [[usages]] internal slot of publicKey to be the usage intersection
             // of usages and [ "verify" ].
-            usages
-                .iter()
-                .filter(|usage| **usage == KeyUsage::Verify)
-                .cloned()
-                .collect()
+            usages.usage_intersection(&[KeyUsage::Verify])
         },
         EcAlgorithm::Ecdh => {
             // Step 11. Set the [[usages]] internal slot of publicKey to be the empty list.
@@ -175,20 +171,12 @@ pub(crate) fn generate_key(
         EcAlgorithm::Ecdsa => {
             // Step 16. Set the [[usages]] internal slot of privateKey to be the usage intersection
             // of usages and [ "sign" ].
-            usages
-                .iter()
-                .filter(|usage| **usage == KeyUsage::Sign)
-                .cloned()
-                .collect()
+            usages.usage_intersection(&[KeyUsage::Sign])
         },
         EcAlgorithm::Ecdh => {
             // Step 16. Set the [[usages]] internal slot of privateKey to be the usage intersection
             // of usages and [ "deriveKey", "deriveBits" ].
-            usages
-                .iter()
-                .filter(|usage| matches!(usage, KeyUsage::DeriveKey | KeyUsage::DeriveBits))
-                .cloned()
-                .collect()
+            usages.usage_intersection(&[KeyUsage::DeriveKey, KeyUsage::DeriveBits])
         },
     };
     let private_key = CryptoKey::new(
@@ -224,7 +212,7 @@ pub(crate) fn import_key(
     ec_algorithm: EcAlgorithm,
     cx: &mut JSContext,
     global: &GlobalScope,
-    normalized_algorithm: &SubtleEcKeyImportParams,
+    normalized_algorithm: &EcKeyImportParams,
     format: KeyFormat,
     key_data: &[u8],
     extractable: bool,
@@ -293,6 +281,8 @@ pub(crate) fn import_key(
             // normalizedAlgorithm, throw a DataError.
             // Step 2.12. If the public key value is not a valid point on the Elliptic Curve
             // identified by the namedCurve member of normalizedAlgorithm throw a DataError.
+            //
+            // NOTE: The new CryptoKey in Step 2.10.5 is created in Step 2.13 - 2.17.
             let handle = match normalized_algorithm.named_curve.as_str() {
                 NAMED_CURVE_P256 => Handle::P256PublicKey(
                     PublicKey::<NistP256>::from_public_key_der(key_data).map_err(|_| {
@@ -325,7 +315,7 @@ pub(crate) fn import_key(
             // Step 2.14. Let algorithm be a new EcKeyAlgorithm.
             // Step 2.16. Set the namedCurve attribute of algorithm to namedCurve.
             // Step 2.17. Set the [[algorithm]] internal slot of key to algorithm.
-            let algorithm = SubtleEcKeyAlgorithm {
+            let algorithm = EcKeyAlgorithm {
                 name: match ec_algorithm {
                     EcAlgorithm::Ecdsa => {
                         // Step 2.15. Set the name attribute of algorithm to "ECDSA".
@@ -344,7 +334,7 @@ pub(crate) fn import_key(
                 KeyType::Public,
                 extractable,
                 KeyAlgorithmAndDerivatives::EcKeyAlgorithm(algorithm),
-                usages,
+                usages.normalized_value(),
                 handle,
             )
         },
@@ -420,6 +410,8 @@ pub(crate) fn import_key(
             // normalizedAlgorithm, throw a DataError.
             // Step 2.12. If the private key value is not a valid point on the Elliptic Curve
             // identified by the namedCurve member of normalizedAlgorithm throw a DataError.
+            //
+            // NOTE: The new CryptoKey in Step 2.10.4 is created in Step 2.13 - 2.17.
             let handle = match normalized_algorithm.named_curve.as_str() {
                 NAMED_CURVE_P256 => Handle::P256PrivateKey(
                     SecretKey::<NistP256>::from_pkcs8_der(key_data).map_err(|_| {
@@ -452,7 +444,7 @@ pub(crate) fn import_key(
             // Step 2.14. Let algorithm be a new EcKeyAlgorithm.
             // Step 2.16. Set the namedCurve attribute of algorithm to namedCurve.
             // Step 2.17. Set the [[algorithm]] internal slot of key to algorithm.
-            let algorithm = SubtleEcKeyAlgorithm {
+            let algorithm = EcKeyAlgorithm {
                 name: match ec_algorithm {
                     EcAlgorithm::Ecdsa => {
                         // Step 2.15. Set the name attribute of algorithm to "ECDSA".
@@ -471,7 +463,7 @@ pub(crate) fn import_key(
                 KeyType::Private,
                 extractable,
                 KeyAlgorithmAndDerivatives::EcKeyAlgorithm(algorithm),
-                usages,
+                usages.normalized_value(),
                 handle,
             )
         },
@@ -741,7 +733,7 @@ pub(crate) fn import_key(
             // Step 2.11. Let algorithm be a new instance of an EcKeyAlgorithm object.
             // Step 2.13. Set the namedCurve attribute of algorithm to namedCurve.
             // Step 2.14. Set the [[algorithm]] internal slot of key to algorithm.
-            let algorithm = SubtleEcKeyAlgorithm {
+            let algorithm = EcKeyAlgorithm {
                 name: match ec_algorithm {
                     EcAlgorithm::Ecdsa => {
                         // Step 2.12. Set the name attribute of algorithm to "ECDSA".
@@ -760,7 +752,7 @@ pub(crate) fn import_key(
                 key_type,
                 extractable,
                 KeyAlgorithmAndDerivatives::EcKeyAlgorithm(algorithm),
-                usages,
+                usages.normalized_value(),
                 handle,
             )
         },
@@ -844,7 +836,7 @@ pub(crate) fn import_key(
             // Step 2.4. Let algorithm be a new EcKeyAlgorithm object.
             // Step 2.6. Set the namedCurve attribute of algorithm to equal the namedCurve member
             // of normalizedAlgorithm.
-            let algorithm = SubtleEcKeyAlgorithm {
+            let algorithm = EcKeyAlgorithm {
                 name: match ec_algorithm {
                     EcAlgorithm::Ecdsa => {
                         // Step 2.5. Set the name attribute of algorithm to "ECDSA".
@@ -866,7 +858,7 @@ pub(crate) fn import_key(
                 KeyType::Public,
                 extractable,
                 KeyAlgorithmAndDerivatives::EcKeyAlgorithm(algorithm),
-                usages,
+                usages.normalized_value(),
                 handle,
             )
         },
@@ -1154,7 +1146,7 @@ pub(crate) fn export_key(format: KeyFormat, key: &CryptoKey) -> Result<ExportedK
             }
 
             // Step 3.4. Set the key_ops attribute of jwk to the usages attribute of key.
-            jwk.set_key_ops(&key.usages());
+            jwk.set_key_ops(key.usages());
 
             // Step 3.4. Set the ext attribute of jwk to the [[extractable]] internal slot of key.
             jwk.ext = Some(key.Extractable());

@@ -3,6 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 //! Utilities for querying the layout, as needed by layout.
+use std::borrow::Cow;
 use std::cell::LazyCell;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -20,6 +21,7 @@ use layout_api::{
 use paint_api::display_list::ScrollTree;
 use script::layout_dom::ServoLayoutNode;
 use servo_arc::Arc as ServoArc;
+use servo_base::text::Utf32CodeUnits;
 use servo_geometry::{FastLayoutTransform, au_rect_to_f32_rect, f32_rect_to_au_rect};
 use servo_url::ServoUrl;
 use style::computed_values::display::T as Display;
@@ -27,7 +29,7 @@ use style::computed_values::position::T as Position;
 use style::computed_values::visibility::T as Visibility;
 use style::computed_values::white_space_collapse::T as WhiteSpaceCollapseValue;
 use style::context::{QuirksMode, SharedStyleContext, StyleContext, ThreadLocalStyleContext};
-use style::dom::NodeInfo;
+use style::dom::{NodeInfo, OpaqueNode};
 use style::properties::style_structs::Font;
 use style::properties::{
     ComputedValues, Importance, LonghandId, PropertyDeclarationBlock, PropertyDeclarationId,
@@ -45,13 +47,14 @@ use style::values::generics::position::AspectRatio;
 use style::values::specified::GenericGridTemplateComponent;
 use style::values::specified::box_::DisplayInside;
 use style_traits::{CSSPixel, ParsingMode, ToCss};
+use webrender_api::units::LayoutPixel;
 
 use crate::cell::RefOrAtomicRef;
-use crate::display_list::{StackingContextTree, au_rect_to_length_rect};
+use crate::display_list::{ClosestFragmentSearch, StackingContextTree, au_rect_to_length_rect};
 use crate::dom::NodeExt;
 use crate::flow::inline::text_transform::TextTransformationIterator;
 use crate::fragment_tree::{
-    BoxFragment, Fragment, FragmentFlags, FragmentTree, SpecificLayoutInfo, TextFragment,
+    BoxFragment, Fragment, FragmentFlags, FragmentTree, SpecificLayoutInfo,
 };
 use crate::layout_impl::LayoutThread;
 use crate::style_ext::ComputedValuesExt;
@@ -587,7 +590,7 @@ fn shorthand_to_css_string(
         );
     }
     match block.shorthand_to_css(id, &mut dest) {
-        Ok(_) => dest.to_owned(),
+        Ok(_) => dest,
         Err(_) => String::new(),
     }
 }
@@ -968,7 +971,7 @@ pub fn get_the_text_steps(node: ServoLayoutNode<'_>) -> String {
 }
 
 enum InnerOrOuterTextItem {
-    Text(String),
+    Text(Cow<'static, str>),
     RequiredLineBreakCount(usize),
 }
 
@@ -1159,7 +1162,7 @@ fn rendered_text_collection_steps(
                 // encounter another text node we can ensure no trailing white space for
                 // normal text without having to look ahead
                 if state.did_truncate_trailing_white_space && !is_first_character_whitespace {
-                    items.push(InnerOrOuterTextItem::Text(String::from(" ")));
+                    items.push(InnerOrOuterTextItem::Text(Cow::Borrowed(" ")));
                 };
 
                 if !transformed_text.is_empty() {
@@ -1173,14 +1176,14 @@ fn rendered_text_collection_steps(
                         state.may_start_with_whitespace = is_final_character_whitespace;
                         state.did_truncate_trailing_white_space = false;
                     }
-                    items.push(InnerOrOuterTextItem::Text(transformed_text));
+                    items.push(InnerOrOuterTextItem::Text(Cow::Owned(transformed_text)));
                 }
             } else {
                 // If we don't have a parent element then there's no style data available,
                 // in this (pretty unlikely) case we just return the Text fragment as is.
-                items.push(InnerOrOuterTextItem::Text(
+                items.push(InnerOrOuterTextItem::Text(Cow::Owned(
                     node.text_content().deref().into(),
-                ));
+                )));
             }
         },
         Some(LayoutNodeType::Element(LayoutElementType::HTMLBRElement)) => {
@@ -1188,7 +1191,7 @@ fn rendered_text_collection_steps(
             // LF code point to items.
             state.did_truncate_trailing_white_space = false;
             state.may_start_with_whitespace = true;
-            items.push(InnerOrOuterTextItem::Text(String::from("\u{000A}")));
+            items.push(InnerOrOuterTextItem::Text(Cow::Borrowed("\u{000A}")));
         },
         _ => {
             // First we need to gather some infos to setup the various flags
@@ -1238,7 +1241,7 @@ fn rendered_text_collection_steps(
                 // a single U+0009 TAB code point to items.
                 Display::TableCell => {
                     if !state.first_table_cell {
-                        items.push(InnerOrOuterTextItem::Text(String::from(
+                        items.push(InnerOrOuterTextItem::Text(Cow::Borrowed(
                             "\u{0009}", /* tab */
                         )));
                         // Make sure we don't add a white-space we removed from the previous node
@@ -1253,7 +1256,7 @@ fn rendered_text_collection_steps(
                 // LF code point to items.
                 Display::TableRow => {
                     if !state.first_table_row {
-                        items.push(InnerOrOuterTextItem::Text(String::from(
+                        items.push(InnerOrOuterTextItem::Text(Cow::Borrowed(
                             "\u{000A}", /* Line Feed */
                         )));
                         // Make sure we don't add a white-space we removed from the previous node
@@ -1277,7 +1280,7 @@ fn rendered_text_collection_steps(
                 Display::InlineFlex | Display::InlineGrid | Display::InlineBlock
                     if state.did_truncate_trailing_white_space =>
                 {
-                    items.push(InnerOrOuterTextItem::Text(String::from(" ")));
+                    items.push(InnerOrOuterTextItem::Text(Cow::Borrowed(" ")));
                     state.did_truncate_trailing_white_space = false;
                     state.may_start_with_whitespace = true;
                 },
@@ -1324,7 +1327,7 @@ fn rendered_text_collection_steps(
                     | LayoutNodeType::Element(LayoutElementType::HTMLMediaElement),
                 ) => {
                     if display != Display::Block && state.did_truncate_trailing_white_space {
-                        items.push(InnerOrOuterTextItem::Text(String::from(" ")));
+                        items.push(InnerOrOuterTextItem::Text(Cow::Borrowed(" ")));
                         state.did_truncate_trailing_white_space = false;
                     };
                     state.may_start_with_whitespace = false;
@@ -1366,94 +1369,20 @@ fn rendered_text_collection_steps(
     items
 }
 
-struct ClosestFragment {
-    fragment: Arc<TextFragment>,
-    point_in_fragment: Point2D<Au, CSSPixel>,
-    distance: Au,
-    point_in_vertical_bounds: bool,
-}
-
-impl ClosestFragment {
-    fn should_replace(&self, new_distance: Au, point_in_vertical_bounds: bool) -> bool {
-        if point_in_vertical_bounds && !self.point_in_vertical_bounds {
-            return true;
-        }
-        if self.point_in_vertical_bounds && !point_in_vertical_bounds {
-            return false;
-        }
-        new_distance <= self.distance
-    }
-}
-
 pub fn find_character_offset_in_fragment_descendants(
     node: &ServoLayoutNode,
     stacking_context_tree: &StackingContextTree,
     point_in_viewport: Point2D<Au, CSSPixel>,
-) -> Option<usize> {
-    fn maybe_update_closest(
-        fragment: &Fragment,
-        point_in_fragment: Point2D<Au, CSSPixel>,
-        closest_relative_fragment: &mut Option<ClosestFragment>,
-    ) {
-        let Fragment::Text(text_fragment) = fragment else {
-            return;
-        };
-
-        let (distance, point_in_vertical_bounds) = {
-            (
-                text_fragment.distance_to_point_for_glyph_offset(point_in_fragment),
-                text_fragment.point_is_within_vertical_boundaries(point_in_fragment),
-            )
-        };
-
-        if closest_relative_fragment
-            .as_ref()
-            .is_none_or(|closest_fragment| {
-                closest_fragment.should_replace(distance, point_in_vertical_bounds)
-            })
-        {
-            *closest_relative_fragment = Some(ClosestFragment {
-                fragment: text_fragment.clone(),
-                point_in_fragment,
-                distance,
-                point_in_vertical_bounds,
-            });
-        }
-    }
-
-    fn collect_relevant_children(
-        fragment: &Fragment,
-        point_in_viewport: Point2D<Au, CSSPixel>,
-        closest_relative_fragment: &mut Option<ClosestFragment>,
-    ) {
-        maybe_update_closest(fragment, point_in_viewport, closest_relative_fragment);
-
-        if let Some(children) = fragment.children() {
-            for child in children.iter() {
-                let offset = child
-                    .base()
-                    .map(|base| base.rect().origin)
-                    .unwrap_or_default();
-                let point = point_in_viewport - offset.to_vector();
-                collect_relevant_children(child, point, closest_relative_fragment);
-            }
-        }
-    }
-
-    let mut closest_relative_fragment = None;
+) -> Option<(OpaqueNode, Utf32CodeUnits)> {
+    let mut search = ClosestFragmentSearch::default();
     for fragment in &node.fragments_for_pseudo(None) {
         if let Some(point_in_fragment) =
             stacking_context_tree.offset_in_fragment(fragment, point_in_viewport)
         {
-            collect_relevant_children(fragment, point_in_fragment, &mut closest_relative_fragment);
+            search.collect_relevant_children(fragment, point_in_fragment);
         }
     }
-
-    closest_relative_fragment.and_then(|closest_fragment| {
-        closest_fragment
-            .fragment
-            .character_offset(closest_fragment.point_in_fragment)
-    })
+    search.into_dom_position()
 }
 
 pub fn process_containing_block_query(node: ServoLayoutNode) -> Option<UntrustedNodeAddress> {
@@ -1579,14 +1508,23 @@ pub(crate) fn transform_au_rectangle(
     rect_to_transform: Rect<Au, CSSPixel>,
     transform: FastLayoutTransform,
 ) -> Option<Rect<Au, CSSPixel>> {
-    let rect_to_transform = &au_rect_to_f32_rect(rect_to_transform).cast_unit();
-    let outer_transformed_rect = match transform {
+    transform_f32_rectangle(
+        au_rect_to_f32_rect(rect_to_transform).cast_unit(),
+        transform,
+    )
+    .map(|transformed_rect| f32_rect_to_au_rect(transformed_rect).cast_unit())
+}
+
+pub(crate) fn transform_f32_rectangle(
+    rect_to_transform: Rect<f32, LayoutPixel>,
+    transform: FastLayoutTransform,
+) -> Option<Rect<f32, LayoutPixel>> {
+    match transform {
         FastLayoutTransform::Offset(offset) => Some(rect_to_transform.translate(offset)),
         FastLayoutTransform::Transform { transform, .. } => {
-            transform.outer_transformed_rect(rect_to_transform)
+            transform.outer_transformed_rect(&rect_to_transform)
         },
-    };
-    outer_transformed_rect.map(|transformed_rect| f32_rect_to_au_rect(transformed_rect).cast_unit())
+    }
 }
 
 pub(crate) fn process_effective_overflow_query(node: ServoLayoutNode<'_>) -> Option<AxesOverflow> {

@@ -22,9 +22,9 @@ use crate::dom::bindings::codegen::Bindings::PromiseBinding::PromiseJobCallback;
 use crate::dom::bindings::codegen::Bindings::VoidFunctionBinding::VoidFunction;
 use crate::dom::bindings::root::DomRoot;
 use crate::dom::globalscope::GlobalScope;
+use crate::event_loop::script_thread::ScriptThread;
 use crate::realms::enter_auto_realm;
 use crate::script_runtime::notify_about_rejected_promises;
-use crate::script_thread::ScriptThread;
 
 /// A collection of microtasks in FIFO order.
 #[derive(Default, JSTraceable, MallocSizeOf)]
@@ -82,7 +82,11 @@ pub(crate) struct EnqueuedPromiseCallback {
 
 impl MicrotaskRunnable for EnqueuedPromiseCallback {
     fn handler(&self, cx: &mut JSContext) {
-        let _guard = ScriptThread::user_interacting_guard();
+        let _maybe_user_interacting_guard = if self.is_user_interacting {
+            Some(ScriptThread::user_interacting_guard())
+        } else {
+            None
+        };
         let mut realm = enter_auto_realm(cx, &*self.global);
         let cx = &mut realm;
         let _ = self

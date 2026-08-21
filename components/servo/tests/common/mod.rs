@@ -74,9 +74,7 @@ impl ServoTest {
         &self.servo
     }
 
-    /// Spin the Servo event loop until one of:
-    ///  - The given callback returns `Ok(false)`.
-    ///  - The given callback returns an `Error`, in which case the `Error` will be returned.
+    /// Spin the Servo event loop until the provided callback returns `false`.
     pub fn spin(&self, callback: impl Fn() -> bool + 'static) {
         while callback() {
             self.servo.spin_event_loop();
@@ -97,6 +95,7 @@ pub(crate) struct WebViewDelegateImpl {
     pub(crate) number_of_controls_hidden: Cell<usize>,
     pub(crate) last_accesskit_tree_updates: RefCell<Vec<accesskit::TreeUpdate>>,
     pub(crate) console_messages: RefCell<Vec<(ConsoleLogLevel, String)>>,
+    pub(crate) fullscreen: Cell<bool>,
 }
 
 #[allow(dead_code)] // Used by some tests and not others
@@ -110,6 +109,7 @@ impl WebViewDelegateImpl {
         self.number_of_controls_hidden.set(0);
         self.last_accesskit_tree_updates.borrow_mut().clear();
         self.console_messages.borrow_mut().clear();
+        self.fullscreen.set(false);
     }
 }
 
@@ -165,6 +165,10 @@ impl WebViewDelegate for WebViewDelegateImpl {
     fn show_console_message(&self, _webview: WebView, level: ConsoleLogLevel, message: String) {
         self.console_messages.borrow_mut().push((level, message));
     }
+
+    fn notify_fullscreen_state_changed(&self, _webview: WebView, fullscreen: bool) {
+        self.fullscreen.set(fullscreen);
+    }
 }
 
 // Used by some unit tests only. Since they compile into different binaries,
@@ -175,12 +179,12 @@ pub(crate) fn click_at_point(webview: &WebView, point: DevicePoint) {
     webview.notify_input_event(InputEvent::MouseMove(MouseMoveEvent::new(point)));
     webview.notify_input_event(InputEvent::MouseButton(MouseButtonEvent::new(
         MouseButtonAction::Down,
-        MouseButton::Left,
+        MouseButton::Primary,
         point,
     )));
     webview.notify_input_event(InputEvent::MouseButton(MouseButtonEvent::new(
         MouseButtonAction::Up,
-        MouseButton::Left,
+        MouseButton::Primary,
         point,
     )));
 }

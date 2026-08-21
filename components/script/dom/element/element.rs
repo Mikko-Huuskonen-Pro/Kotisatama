@@ -25,7 +25,10 @@ use js::jsapi::{Heap, JSObject};
 use js::jsval::JSVal;
 use js::realm::CurrentRealm;
 use js::rust::HandleObject;
-use layout_api::{LayoutDamage, QueryMsg, ScrollContainerQueryFlags, StyleData, with_layout_state};
+use layout_api::{
+    AccessibilityDamage, LayoutDamage, QueryMsg, ScrollContainerQueryFlags, StyleData,
+    with_layout_state,
+};
 use net_traits::ReferrerPolicy;
 use net_traits::request::{CorsSettings, CredentialsMode};
 use script_bindings::cell::{DomRefCell, Ref, RefMut};
@@ -67,6 +70,7 @@ use xml5ever::serialize::TraversalScope::{
 };
 
 use crate::conversions::Convert;
+use crate::css::stylesheet_loader::StylesheetOwner;
 use crate::dom::activation::Activatable;
 use crate::dom::animation::Animation;
 use crate::dom::animations::keyframeeffect::KeyframeEffect;
@@ -167,7 +171,6 @@ use crate::dom::promise::Promise;
 use crate::dom::range::Range;
 use crate::dom::raredata::ElementRareData;
 use crate::dom::sanitizer::Sanitizer;
-use crate::dom::scrolling_box::{ScrollAxisState, ScrollingBox};
 use crate::dom::servoparser::ServoParser;
 use crate::dom::shadowroot::{IsUserAgentWidget, ShadowRoot};
 use crate::dom::svg::svgelement::SVGElement;
@@ -177,10 +180,10 @@ use crate::dom::trustedtypes::trustedtypepolicyfactory::TrustedTypePolicyFactory
 use crate::dom::validation::Validatable;
 use crate::dom::validitystate::ValidationFlags;
 use crate::dom::window::Window;
+use crate::dom::window::scrolling_box::{ScrollAxisState, ScrollingBox};
+use crate::event_loop::script_thread::ScriptThread;
 use crate::layout_dom::ServoDangerousStyleElement;
 use crate::realms::enter_auto_realm;
-use crate::script_thread::ScriptThread;
-use crate::stylesheet_loader::StylesheetOwner;
 
 // TODO: Update focus state when the top-level browsing context gains or loses system focus,
 // and when the element enters or leaves a browsing context container.
@@ -380,7 +383,7 @@ impl Element {
         self.style_data.borrow_mut().take();
     }
 
-    pub(crate) fn restyle(&self, damage: NodeDamage) {
+    pub(crate) fn restyle(&self, no_gc: &NoGC, damage: NodeDamage) {
         let doc = self.node.owner_doc();
         let mut restyle = doc.ensure_pending_restyle(self);
 
@@ -391,13 +394,13 @@ impl Element {
         match damage {
             NodeDamage::Style => {},
             NodeDamage::ContentOrHeritage => {
-                doc.note_dirty_element(self);
+                doc.note_dirty_element(no_gc, self);
                 restyle
                     .damage
                     .insert(RestyleDamage::from(LayoutDamage::DescendantHasBoxDamage));
             },
             NodeDamage::Other => {
-                doc.note_dirty_element(self);
+                doc.note_dirty_element(no_gc, self);
                 restyle.damage.insert(RestyleDamage::reconstruct());
             },
         }
@@ -411,7 +414,7 @@ impl Element {
     pub(crate) fn note_dirty_descendants(&self, no_gc: &NoGC) {
         self.upcast::<Node>()
             .owner_doc_unrooted(no_gc)
-            .note_dirty_element(self);
+            .note_dirty_element(no_gc, self);
     }
 
     pub(crate) fn set_is(&self, is: LocalName) {
@@ -2203,7 +2206,13 @@ impl Element {
             return;
         }
 
-        let name = qname.local.clone();
+        let name = match qname.prefix {
+            None => qname.local.clone(),
+            Some(ref prefix) => {
+                let name = format!("{}:{}", &**prefix, &*qname.local);
+                LocalName::from(name)
+            },
+        };
         let value = self.parse_attribute(&qname.ns, &qname.local, value);
         self.push_new_attribute(
             cx,
@@ -2211,7 +2220,7 @@ impl Element {
             value,
             name,
             qname.ns,
-            None, // TODO: pass prefix from `qname`.
+            qname.prefix,
             AttributeMutationReason::ByParser,
         );
     }
@@ -2915,6 +2924,16 @@ impl Element {
             }
         }
     }
+
+    /// An element's qualified name is its local name if its namespace prefix is null;
+    /// otherwise its namespace prefix, followed by ":", followed by its local name.
+    /// <https://dom.spec.whatwg.org/#concept-element-qualified-name>
+    pub(crate) fn qualified_name(&self) -> Cow<'_, str> {
+        match &*self.prefix.borrow() {
+            Some(prefix) => Cow::Owned(format!("{}:{}", prefix, &*self.local_name)),
+            None => Cow::Borrowed(&*self.local_name),
+        }
+    }
 }
 
 impl ElementMethods<crate::DomTypeHolder> for Element {
@@ -2936,11 +2955,15 @@ impl ElementMethods<crate::DomTypeHolder> for Element {
 
     /// <https://dom.spec.whatwg.org/#dom-element-tagname>
     fn TagName(&self) -> DOMString {
+        // The tagName getter steps are to return this's HTML-uppercased qualified name.
+        //
+        // An element's HTML-uppercased qualified name is the return value of these steps:
         let name = self.tag_name.or_init(|| {
-            let qualified_name = match *self.prefix.borrow() {
-                Some(ref prefix) => Cow::Owned(format!("{}:{}", &**prefix, &*self.local_name)),
-                None => Cow::Borrowed(&*self.local_name),
-            };
+            // 1. Let qualifiedName be this's qualified name.
+            let qualified_name = self.qualified_name();
+            // 2. If this is in the HTML namespace and its node document is an HTML document,
+            //    then return qualifiedName in ASCII uppercase.
+            // 3. Return qualifiedName.
             if self.html_element_in_html_document() {
                 LocalName::from(qualified_name.to_ascii_uppercase())
             } else {
@@ -4209,7 +4232,7 @@ impl ElementMethods<crate::DomTypeHolder> for Element {
 
     /// <https://w3c.github.io/aria/#ref-for-dom-ariamixin-role-1>
     fn SetRole(&self, cx: &mut JSContext, value: Option<DOMString>) {
-        self.set_nullable_string_attribute(cx, &local_name!("role"), value);
+        self.set_nullable_tokenlist_attribute(cx, &local_name!("role"), value);
     }
 
     fn GetAriaAtomic(&self) -> Option<DOMString> {
@@ -4561,7 +4584,7 @@ impl ElementMethods<crate::DomTypeHolder> for Element {
         // > The assignedSlot getter steps are to return the result of
         // > find a slot given this and with the open flag set.
         rooted!(&in(cx) let slottable = Slottable(Dom::from_ref(self.upcast::<Node>())));
-        slottable.find_a_slot(true)
+        slottable.find_a_slot(cx.no_gc(), true)
     }
 
     /// <https://drafts.csswg.org/css-shadow-parts/#dom-element-part>
@@ -4766,6 +4789,10 @@ impl VirtualMethods for Element {
                 }
                 slottable.assign_a_slot(cx);
             },
+            local_name!("role") => {
+                self.upcast::<Node>()
+                    .add_pending_accessibility_damage(AccessibilityDamage::Node);
+            },
             _ => {
                 // FIXME(emilio): This is pretty dubious, and should be done in
                 // the relevant super-classes.
@@ -4814,7 +4841,7 @@ impl VirtualMethods for Element {
         match *name {
             local_name!("id") => AttrValue::Atom(value.into()),
             local_name!("name") => AttrValue::Atom(value.into()),
-            local_name!("class") | local_name!("part") => {
+            local_name!("class") | local_name!("part") | local_name!("role") => {
                 AttrValue::from_serialized_tokenlist(value.into())
             },
             local_name!("exportparts") => AttrValue::from_shadow_parts(value.into()),
@@ -5000,13 +5027,7 @@ impl Element {
             },
             _ => None,
         };
-        element.and_then(|elem| {
-            if elem.is_instance_activatable() {
-                Some(elem)
-            } else {
-                None
-            }
-        })
+        element.filter(|elem| elem.is_instance_activatable())
     }
 
     pub(crate) fn as_stylesheet_owner(&self) -> Option<&dyn StylesheetOwner> {
@@ -5315,6 +5336,13 @@ impl AttributeMutation<'_> {
         match *self {
             AttributeMutation::Set(..) => Some(attr.value()),
             AttributeMutation::Removed => None,
+        }
+    }
+
+    pub(crate) fn old_value(&self, attr: AttrRef<'_>) -> Option<String> {
+        match *self {
+            AttributeMutation::Set(old, _) => old.map(|value| value.to_string()),
+            AttributeMutation::Removed => Some(attr.value().to_string()),
         }
     }
 }

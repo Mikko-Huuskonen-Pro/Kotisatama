@@ -36,12 +36,14 @@ use script_bindings::trace::CustomTraceable;
 use servo_base::cross_process_instant::CrossProcessInstant;
 use servo_base::generic_channel::{GenericSend, GenericSender, RoutedReceiver};
 use servo_base::id::{PipelineId, PipelineNamespace};
+#[cfg(feature = "webgl")]
 use servo_canvas_traits::webgl::WebGLChan;
 use servo_constellation_traits::WorkerGlobalScopeInit;
 use servo_url::{MutableOrigin, ServoUrl};
 use timers::TimerScheduler;
 use uuid::Uuid;
 
+use crate::dom::Window;
 use crate::dom::bindings::codegen::Bindings::ImageBitmapBinding::{
     ImageBitmapOptions, ImageBitmapSource,
 };
@@ -63,6 +65,7 @@ use crate::dom::bindings::root::{Dom, DomRoot, MutNullableDom};
 use crate::dom::bindings::str::{DOMString, USVString};
 use crate::dom::bindings::trace::RootedTraceableBox;
 use crate::dom::bindings::utils::define_all_exposed_interfaces;
+#[cfg(feature = "webcrypto")]
 use crate::dom::crypto::Crypto;
 use crate::dom::csp::{GlobalCspReporting, Violation, parse_csp_list_from_metadata};
 use crate::dom::debugger::debuggerglobalscope::DebuggerGlobalScope;
@@ -86,23 +89,40 @@ use crate::dom::webgpu::identityhub::IdentityHub;
 use crate::dom::window::{base64_atob, base64_btoa};
 use crate::dom::workerlocation::WorkerLocation;
 use crate::dom::workernavigator::WorkerNavigator;
-use crate::fetch::{CspViolationsProcessor, Fetch, RequestWithGlobalScope, load_whole_resource};
+use crate::fetch::fetch::{
+    CspViolationsProcessor, Fetch, RequestWithGlobalScope, load_whole_resource,
+};
+use crate::fetch::network_listener::{
+    FetchResponseListener, ResourceTimingListener, submit_timing,
+};
 use crate::messaging::{CommonScriptMsg, ScriptEventLoopReceiver, ScriptEventLoopSender};
 use crate::microtask::{MicrotaskQueue, MicrotaskRunnable, UserMicrotask};
-use crate::network_listener::{FetchResponseListener, ResourceTimingListener, submit_timing};
+use crate::modules::script_module::ScriptFetchOptions;
 use crate::realms::enter_auto_realm;
-use crate::script_module::ScriptFetchOptions;
 use crate::script_runtime::{IntroductionType, Runtime, get_reports};
-use crate::task::TaskCanceller;
-use crate::task_manager::TaskManager;
+use crate::tasks::task::TaskCanceller;
+use crate::tasks::task_manager::TaskManager;
 use crate::timers::{IsInterval, OneshotTimers, TimerCallback};
 
+/// <https://html.spec.whatwg.org/multipage/#animation-frames>
 pub(crate) fn prepare_workerscope_init(
     global: &GlobalScope,
     devtools_sender: Option<GenericSender<DevtoolScriptControlMsg>>,
     worker_id: Option<WorkerId>,
-    webgl_chan: Option<WebGLChan>,
+    #[cfg(feature = "webgl")] webgl_chan: Option<WebGLChan>,
 ) -> WorkerGlobalScopeInit {
+    // An AnimationFrameProvider provider is considered supported if any of the following are true:
+    // - provider is a Window.
+    // - provider's owner set contains a Document object.
+    // - Any of the DedicatedWorkerGlobalScope objects in provider's owner set are supported.
+    let animation_frame_provider_supported = if global.downcast::<Window>().is_some() {
+        true
+    } else if let Some(dedicated) = global.downcast::<DedicatedWorkerGlobalScope>() {
+        dedicated.animation_frame_provider_supported()
+    } else {
+        false
+    };
+
     WorkerGlobalScopeInit {
         resource_threads: global.resource_threads().clone(),
         storage_threads: global.storage_threads().clone(),
@@ -113,10 +133,12 @@ pub(crate) fn prepare_workerscope_init(
         script_to_constellation_chan: global.script_to_constellation_chan().sender,
         script_to_embedder_chan: global.script_to_embedder_chan().clone(),
         worker_id: worker_id.unwrap_or_else(|| WorkerId(Uuid::new_v4())),
+        animation_frame_provider_supported,
         pipeline_id: global.pipeline_id(),
         origin: global.origin().immutable().clone(),
         inherited_secure_context: Some(global.is_secure_context()),
         unminify_js: global.unminify_js(),
+        #[cfg(feature = "webgl")]
         webgl_chan,
     }
 }
@@ -292,6 +314,7 @@ pub(crate) struct WorkerGlobalScope {
     runtime: DomRefCell<Option<Runtime>>,
     location: MutNullableDom<WorkerLocation>,
     navigator: MutNullableDom<WorkerNavigator>,
+    #[cfg(feature = "webcrypto")]
     crypto: MutNullableDom<Crypto>,
     #[no_trace]
     /// <https://html.spec.whatwg.org/multipage/#the-workerglobalscope-common-interface:policy-container>
@@ -354,6 +377,11 @@ pub(crate) struct WorkerGlobalScope {
 
     #[no_trace]
     origin: MutableOrigin,
+
+    /// The [`FontContext`] for this worker, used by any offscreen canvas.
+    #[conditional_malloc_size_of]
+    #[no_trace]
+    font_context: Arc<FontContext>,
 }
 
 impl WorkerGlobalScope {
@@ -368,7 +396,7 @@ impl WorkerGlobalScope {
         closing: Arc<AtomicBool>,
         #[cfg(feature = "webgpu")] gpu_id_hub: Arc<IdentityHub>,
         insecure_requests_policy: InsecureRequestsPolicy,
-        font_context: Option<Arc<FontContext>>,
+        font_context: Arc<FontContext>,
         event_loop_sender: Option<ScriptEventLoopSender>,
     ) -> Self {
         // Install a pipeline-namespace in the current thread.
@@ -394,7 +422,6 @@ impl WorkerGlobalScope {
                 gpu_id_hub,
                 init.inherited_secure_context,
                 init.unminify_js,
-                font_context,
             ),
             caches: Default::default(),
             microtask_queue: runtime.microtask_queue.clone(),
@@ -407,6 +434,7 @@ impl WorkerGlobalScope {
             runtime: DomRefCell::new(Some(runtime)),
             location: Default::default(),
             navigator: Default::default(),
+            #[cfg(feature = "webcrypto")]
             crypto: Default::default(),
             policy_container: Default::default(),
             devtools_receiver,
@@ -428,7 +456,12 @@ impl WorkerGlobalScope {
                 Some(TaskCanceller { cancelled: closing }),
             )),
             origin: MutableOrigin::new(init.origin),
+            font_context,
         }
+    }
+
+    pub(crate) fn font_context(&self) -> Arc<FontContext> {
+        self.font_context.clone()
     }
 
     pub(crate) fn timers(&self) -> &OneshotTimers {
@@ -868,6 +901,7 @@ impl WorkerGlobalScopeMethods<crate::DomTypeHolder> for WorkerGlobalScope {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dfn-Crypto>
+    #[cfg(feature = "webcrypto")]
     fn Crypto(&self, cx: &mut JSContext) -> DomRoot<Crypto> {
         self.crypto
             .or_init(|| Crypto::new(cx, self.upcast::<GlobalScope>()))
@@ -1015,7 +1049,7 @@ impl WorkerGlobalScopeMethods<crate::DomTypeHolder> for WorkerGlobalScope {
     fn Performance(&self, cx: &mut JSContext) -> DomRoot<Performance> {
         self.performance.or_init(|| {
             let global_scope = self.upcast::<GlobalScope>();
-            Performance::new(cx, global_scope, self.navigation_start, Default::default())
+            Performance::new(cx, global_scope, self.navigation_start)
         })
     }
 
@@ -1025,7 +1059,8 @@ impl WorkerGlobalScopeMethods<crate::DomTypeHolder> for WorkerGlobalScope {
             self.upcast::<GlobalScope>()
                 .origin()
                 .immutable()
-                .ascii_serialization(),
+                .ascii_serialization()
+                .into_owned(),
         )
     }
 
@@ -1090,7 +1125,18 @@ impl WorkerGlobalScope {
         true
     }
 
+    /// <https://html.spec.whatwg.org/multipage/#close-a-worker>
     pub(crate) fn close(&self) {
+        // Step 1. Discard any tasks that have been added to workerGlobal's relevant
+        // agent's event loop's task queues.
+        //
+        // Worker rAF callbacks are stored outside the task queues.
+        if let Some(dedicated) = self.downcast::<DedicatedWorkerGlobalScope>() {
+            dedicated.clear_animation_frame_callbacks_and_unregister();
+        }
+
+        // Step 2. Set workerGlobal's closing flag to true. (This prevents any
+        // further tasks from being queued.)
         self.closing.store(true, Ordering::SeqCst);
         self.upcast::<GlobalScope>()
             .task_manager()

@@ -23,6 +23,7 @@ use style::stylist::{CascadeData, Stylist};
 use stylo_atoms::Atom;
 
 use crate::conversions::Convert;
+use crate::css::stylesheet_set::StylesheetSetRef;
 use crate::dom::bindings::codegen::Bindings::ElementBinding::GetHTMLOptions;
 use crate::dom::bindings::codegen::Bindings::HTMLSlotElementBinding::HTMLSlotElement_Binding::HTMLSlotElementMethods;
 use crate::dom::bindings::codegen::Bindings::SanitizerBinding::{
@@ -61,7 +62,6 @@ use crate::dom::sanitizer::Sanitizer;
 use crate::dom::trustedtypes::trustedhtml::TrustedHTML;
 use crate::dom::types::EventTarget;
 use crate::dom::window::Window;
-use crate::stylesheet_set::StylesheetSetRef;
 
 /// Whether a shadow root hosts an User Agent widget.
 #[derive(JSTraceable, MallocSizeOf, PartialEq)]
@@ -360,9 +360,12 @@ impl ShadowRoot {
         self.delegates_focus.set(delegates_focus);
     }
 
-    pub(crate) fn details_name_groups(&self) -> RefMut<'_, DetailsNameGroups> {
+    pub(crate) fn details_name_groups<'a: 'b, 'b>(
+        &'a self,
+        no_gc: &'b NoGC,
+    ) -> RefMut<'b, DetailsNameGroups> {
         RefMut::map(
-            self.details_name_groups.borrow_mut(),
+            self.details_name_groups.safe_borrow_mut(no_gc),
             |details_name_groups| details_name_groups.get_or_insert_default(),
         )
     }
@@ -371,9 +374,9 @@ impl ShadowRoot {
         self.document_or_shadow_root.custom_element_registry()
     }
 
-    pub(crate) fn set_custom_element_registry(&self, registry: &CustomElementRegistry) {
+    pub(crate) fn set_custom_element_registry(&self, registry: Option<&CustomElementRegistry>) {
         self.document_or_shadow_root
-            .set_custom_element_registry(Some(registry));
+            .set_custom_element_registry(registry);
     }
 }
 

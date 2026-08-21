@@ -17,11 +17,11 @@ use crate::dom::bindings::codegen::Bindings::SubtleCryptoBinding::{JsonWebKey, K
 use crate::dom::bindings::error::Error;
 use crate::dom::bindings::root::DomRoot;
 use crate::dom::bindings::str::DOMString;
-use crate::dom::cryptokey::{CryptoKey, Handle};
+use crate::dom::cryptokey::{CryptoKey, Handle, KeyUsageVecHelper};
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::subtlecrypto::{
-    CryptoAlgorithm, ExportedKey, JsonWebKeyExt, JwkStringField, KeyAlgorithmAndDerivatives,
-    SubtleAlgorithm, SubtleContextParams, SubtleKeyAlgorithm,
+    Algorithm, CryptoAlgorithm, ExportedKey, JsonWebKeyExt, JwkStringField, KeyAlgorithm,
+    KeyAlgorithmAndDerivatives, SubtleContextParams,
 };
 
 /// <https://wicg.github.io/webcrypto-modern-algos/#ml-dsa-operations-sign>
@@ -170,7 +170,7 @@ pub(crate) fn verify(
 pub(crate) fn generate_key(
     cx: &mut JSContext,
     global: &GlobalScope,
-    normalized_algorithm: &SubtleAlgorithm,
+    normalized_algorithm: &Algorithm,
     extractable: bool,
     usages: Vec<KeyUsage>,
 ) -> Result<CryptoKeyPair, Error> {
@@ -223,7 +223,7 @@ pub(crate) fn generate_key(
 
     // Step 4. Let algorithm be a new KeyAlgorithm object.
     // Step 5. Set the name attribute of algorithm to the name attribute of normalizedAlgorithm.
-    let algorithm = SubtleKeyAlgorithm {
+    let algorithm = KeyAlgorithm {
         name: normalized_algorithm.name,
     };
 
@@ -240,11 +240,7 @@ pub(crate) fn generate_key(
         KeyType::Public,
         true,
         KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm.clone()),
-        usages
-            .iter()
-            .filter(|usage| **usage == KeyUsage::Verify)
-            .cloned()
-            .collect(),
+        usages.usage_intersection(&[KeyUsage::Verify]),
         public_key_handle,
     );
 
@@ -261,11 +257,7 @@ pub(crate) fn generate_key(
         KeyType::Private,
         extractable,
         KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm),
-        usages
-            .iter()
-            .filter(|usage| **usage == KeyUsage::Sign)
-            .cloned()
-            .collect(),
+        usages.usage_intersection(&[KeyUsage::Sign]),
         private_key_handle,
     );
 
@@ -285,7 +277,7 @@ pub(crate) fn generate_key(
 pub(crate) fn import_key(
     cx: &mut JSContext,
     global: &GlobalScope,
-    normalized_algorithm: &SubtleAlgorithm,
+    normalized_algorithm: &Algorithm,
     format: KeyFormat,
     key_data: &[u8],
     extractable: bool,
@@ -359,7 +351,7 @@ pub(crate) fn import_key(
             // Step 2.11. Set the name attribute of algorithm to the name attribute of
             // normalizedAlgorithm.
             // Step 2.12. Set the [[algorithm]] internal slot of key to algorithm.
-            let algorithm = SubtleKeyAlgorithm {
+            let algorithm = KeyAlgorithm {
                 name: normalized_algorithm.name,
             };
             CryptoKey::new(
@@ -368,7 +360,7 @@ pub(crate) fn import_key(
                 KeyType::Public,
                 extractable,
                 KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm),
-                usages,
+                usages.normalized_value(),
                 public_key,
             )
         },
@@ -450,7 +442,7 @@ pub(crate) fn import_key(
             // Step 2.14. Set the name attribute of algorithm to the name attribute of
             // normalizedAlgorithm.
             // Step 2.15. Set the [[algorithm]] internal slot of key to algorithm.
-            let algorithm = SubtleKeyAlgorithm {
+            let algorithm = KeyAlgorithm {
                 name: normalized_algorithm.name,
             };
             CryptoKey::new(
@@ -459,7 +451,7 @@ pub(crate) fn import_key(
                 KeyType::Private,
                 extractable,
                 KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm),
-                usages,
+                usages.normalized_value(),
                 ml_dsa_private_key,
             )
         },
@@ -510,7 +502,7 @@ pub(crate) fn import_key(
                     ))));
                 },
             };
-            let algorithm = SubtleKeyAlgorithm {
+            let algorithm = KeyAlgorithm {
                 name: normalized_algorithm.name,
             };
             CryptoKey::new(
@@ -519,7 +511,7 @@ pub(crate) fn import_key(
                 KeyType::Public,
                 extractable,
                 KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm),
-                usages,
+                usages.normalized_value(),
                 public_key,
             )
         },
@@ -577,7 +569,7 @@ pub(crate) fn import_key(
             // Step 2.8. Set the name attribute of algorithm to the name attribute of
             // normalizedAlgorithm.
             // Step 2.9. Set the [[algorithm]] internal slot of key to algorithm.
-            let algorithm = SubtleKeyAlgorithm {
+            let algorithm = KeyAlgorithm {
                 name: normalized_algorithm.name,
             };
             CryptoKey::new(
@@ -586,7 +578,7 @@ pub(crate) fn import_key(
                 KeyType::Private,
                 extractable,
                 KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm),
-                usages,
+                usages.normalized_value(),
                 private_key,
             )
         },
@@ -815,7 +807,7 @@ pub(crate) fn import_key(
             // Step 2.10. Set the name attribute of algorithm to the name member of
             // normalizedAlgorithm.
             // Step 2.11. Set the [[algorithm]] internal slot of key to algorithm.
-            let algorithm = SubtleKeyAlgorithm {
+            let algorithm = KeyAlgorithm {
                 name: normalized_algorithm.name,
             };
             CryptoKey::new(
@@ -824,7 +816,7 @@ pub(crate) fn import_key(
                 key_type,
                 extractable,
                 KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm),
-                usages,
+                usages.normalized_value(),
                 key_handle,
             )
         },
@@ -1161,7 +1153,7 @@ pub(crate) fn export_key(format: KeyFormat, key: &CryptoKey) -> Result<ExportedK
             }
 
             // Step 3.7. Set the key_ops attribute of jwk to the usages attribute of key.
-            jwk.set_key_ops(&key.usages());
+            jwk.set_key_ops(key.usages());
 
             // Step 3.8. Set the ext attribute of jwk to the [[extractable]] internal slot of key.
             jwk.ext = Some(key.Extractable());

@@ -58,13 +58,13 @@ use crate::dom::globalscope::script_execution::{ErrorReporting, RethrowErrors};
 use crate::dom::webgpu::identityhub::IdentityHub;
 use crate::dom::worker::TrustedWorkerAddress;
 use crate::dom::workerglobalscope::WorkerGlobalScope;
-use crate::fetch::{CspViolationsProcessor, load_whole_resource};
+use crate::fetch::fetch::{CspViolationsProcessor, load_whole_resource};
 use crate::messaging::{CommonScriptMsg, ScriptEventLoopSender};
+use crate::modules::script_module::ScriptFetchOptions;
 use crate::realms::enter_auto_realm;
-use crate::script_module::ScriptFetchOptions;
 use crate::script_runtime::{IntroductionType, Runtime, ThreadSafeJSContext};
-use crate::task_queue::{QueuedTask, QueuedTaskConversion, TaskQueue};
-use crate::task_source::TaskSourceName;
+use crate::tasks::task_queue::{QueuedTask, QueuedTaskConversion, TaskQueue};
+use crate::tasks::task_source::TaskSourceName;
 
 /// Messages used to control service worker event loop
 pub(crate) enum ServiceWorkerScriptMsg {
@@ -262,7 +262,7 @@ impl ServiceWorkerGlobalScope {
                 Arc::new(IdentityHub::default()),
                 // FIXME: investigate what environment this value comes from for service workers.
                 InsecureRequestsPolicy::DoNotUpgrade,
-                Some(font_context),
+                font_context,
                 Some(ScriptEventLoopSender::ServiceWorker(own_sender.clone())),
             ),
             task_queue: TaskQueue::new(receiver, own_sender.clone()),

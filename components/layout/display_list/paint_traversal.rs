@@ -14,7 +14,7 @@ use crate::display_list::{
 };
 use crate::fragment_tree::{
     BoxFragment, BoxFragmentWithStyle, Fragment, FragmentFlags, IFrameFragment, ImageFragment,
-    PositioningFragment, TextFragment,
+    PositioningFragment, Tag, TextFragment,
 };
 use crate::geom::{PhysicalPoint, PhysicalRect};
 
@@ -535,6 +535,10 @@ pub(crate) struct TraversalState {
     pub clip_id: ClipId,
     pub origin: PhysicalPoint<Au>,
     pub text_decorations: Rc<Vec<FragmentTextDecoration>>,
+    /// The tag of the nearest ancestor box fragment that has a tag.
+    /// Used for text LCP candidate grouping — all text fragments within
+    /// a single element are unioned before computing effective visual size.
+    pub containing_element_tag: Option<Tag>,
 }
 
 impl TraversalState {
@@ -583,6 +587,7 @@ impl TraversalState {
                 .unwrap_or(self.spatial_id),
             clip_id: box_fragment.generated_clip_id().unwrap_or(self.clip_id),
             text_decorations,
+            containing_element_tag: box_fragment.base.tag.or(self.containing_element_tag),
         }
     }
 
@@ -602,6 +607,7 @@ impl TraversalState {
             spatial_id: self.spatial_id,
             clip_id: self.clip_id,
             text_decorations: self.text_decorations.clone(),
+            containing_element_tag: self.containing_element_tag,
         }
     }
 
@@ -611,6 +617,7 @@ impl TraversalState {
             spatial_id: stacking_context.scroll_tree_node_id,
             clip_id: stacking_context.clip_id,
             text_decorations: stacking_context.text_decorations.clone(),
+            containing_element_tag: self.containing_element_tag,
         }
     }
 }

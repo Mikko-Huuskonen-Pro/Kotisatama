@@ -43,9 +43,9 @@ use crate::dom::bindings::reflector::DomGlobal;
 use crate::dom::bindings::root::{AsHandleValue, Dom};
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::promisenativehandler::{Callback, PromiseNativeHandler};
+use crate::event_loop::script_thread::ScriptThread;
 use crate::microtask::MicrotaskRunnable;
 use crate::realms::enter_auto_realm;
-use crate::script_thread::ScriptThread;
 
 #[dom_struct]
 #[cfg_attr(crown, crown::unrooted_must_root_lint::allow_unrooted_in_rc)]
@@ -617,4 +617,16 @@ pub(crate) fn wait_for_all_promise(
 
     // Return promise.
     promise
+}
+
+impl script_bindings::interfaces::PromiseHelpers<crate::DomTypeHolder> for Promise {
+    fn new_in_realm(
+        cx: &mut CurrentRealm,
+    ) -> Rc<<crate::DomTypeHolder as script_bindings::DomTypes>::Promise> {
+        Promise::new_in_realm(cx)
+    }
+
+    fn reject_error(&self, cx: &mut js::context::JSContext, error: script_bindings::error::Error) {
+        Promise::reject_error(self, cx, error);
+    }
 }

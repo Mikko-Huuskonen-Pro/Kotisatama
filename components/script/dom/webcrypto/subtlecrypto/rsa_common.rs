@@ -19,12 +19,12 @@ use crate::dom::bindings::codegen::Bindings::SubtleCryptoBinding::{
 use crate::dom::bindings::error::Error;
 use crate::dom::bindings::root::DomRoot;
 use crate::dom::bindings::str::DOMString;
-use crate::dom::cryptokey::{CryptoKey, Handle};
+use crate::dom::cryptokey::{CryptoKey, Handle, KeyUsageVecHelper};
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::subtlecrypto::{
     CryptoAlgorithm, DigestOperation, ExportedKey, JsonWebKeyExt, JwkStringField,
-    KeyAlgorithmAndDerivatives, NormalizedAlgorithm, SubtleRsaHashedImportParams,
-    SubtleRsaHashedKeyAlgorithm, SubtleRsaHashedKeyGenParams, normalize_algorithm,
+    KeyAlgorithmAndDerivatives, NormalizedAlgorithm, RsaHashedImportParams, RsaHashedKeyAlgorithm,
+    RsaHashedKeyGenParams, normalize_algorithm,
 };
 
 pub(crate) enum RsaAlgorithm {
@@ -40,7 +40,7 @@ pub(crate) fn generate_key(
     rsa_algorithm: RsaAlgorithm,
     cx: &mut JSContext,
     global: &GlobalScope,
-    normalized_algorithm: &SubtleRsaHashedKeyGenParams,
+    normalized_algorithm: &RsaHashedKeyGenParams,
     extractable: bool,
     usages: Vec<KeyUsage>,
 ) -> Result<CryptoKeyPair, Error> {
@@ -105,7 +105,7 @@ pub(crate) fn generate_key(
     // Step 7. Set the publicExponent attribute of algorithm to equal the publicExponent attribute
     // of normalizedAlgorithm.
     // Step 8. Set the hash attribute of algorithm to equal the hash member of normalizedAlgorithm.
-    let algorithm = SubtleRsaHashedKeyAlgorithm {
+    let algorithm = RsaHashedKeyAlgorithm {
         name: match rsa_algorithm {
             // Step 5. Set the name attribute of algorithm to "RSASSA-PKCS1-v1_5".
             RsaAlgorithm::RsassaPkcs1v1_5 => CryptoAlgorithm::RsassaPkcs1V1_5,
@@ -128,20 +128,12 @@ pub(crate) fn generate_key(
         RsaAlgorithm::RsassaPkcs1v1_5 | RsaAlgorithm::RsaPss => {
             // Step 13. Set the [[usages]] internal slot of publicKey to be the usage intersection
             // of usages and [ "verify" ].
-            usages
-                .iter()
-                .filter(|usage| **usage == KeyUsage::Verify)
-                .cloned()
-                .collect()
+            usages.usage_intersection(&[KeyUsage::Verify])
         },
         RsaAlgorithm::RsaOaep => {
             // Step 13. Set the [[usages]] internal slot of publicKey to be the usage intersection
             // of usages and [ "encrypt", "wrapKey" ].
-            usages
-                .iter()
-                .filter(|usage| matches!(usage, KeyUsage::Encrypt | KeyUsage::WrapKey))
-                .cloned()
-                .collect()
+            usages.usage_intersection(&[KeyUsage::Encrypt, KeyUsage::WrapKey])
         },
     };
     let public_key = CryptoKey::new(
@@ -163,20 +155,12 @@ pub(crate) fn generate_key(
         RsaAlgorithm::RsassaPkcs1v1_5 | RsaAlgorithm::RsaPss => {
             // Step 18. Set the [[usages]] internal slot of privateKey to be the usage intersection
             // of usages and [ "sign" ].
-            usages
-                .iter()
-                .filter(|usage| **usage == KeyUsage::Sign)
-                .cloned()
-                .collect()
+            usages.usage_intersection(&[KeyUsage::Sign])
         },
         RsaAlgorithm::RsaOaep => {
             // Step 18. Set the [[usages]] internal slot of privateKey to be the usage intersection
             // of usages and [ "decrypt", "unwrapKey" ].
-            usages
-                .iter()
-                .filter(|usage| matches!(usage, KeyUsage::Decrypt | KeyUsage::UnwrapKey))
-                .cloned()
-                .collect()
+            usages.usage_intersection(&[KeyUsage::Decrypt, KeyUsage::UnwrapKey])
         },
     };
     let private_key = CryptoKey::new(
@@ -213,7 +197,7 @@ pub(crate) fn import_key(
     rsa_algorithm: RsaAlgorithm,
     cx: &mut JSContext,
     global: &GlobalScope,
-    normalized_algorithm: &SubtleRsaHashedImportParams,
+    normalized_algorithm: &RsaHashedImportParams,
     format: KeyFormat,
     key_data: &[u8],
     extractable: bool,
@@ -649,7 +633,7 @@ pub(crate) fn import_key(
         ),
         _ => unreachable!(),
     };
-    let algorithm = SubtleRsaHashedKeyAlgorithm {
+    let algorithm = RsaHashedKeyAlgorithm {
         name: match &rsa_algorithm {
             RsaAlgorithm::RsassaPkcs1v1_5 => {
                 // Step 4. Set the name attribute of algorithm to "RSASSA-PKCS1-v1_5"
@@ -674,7 +658,7 @@ pub(crate) fn import_key(
         key_type,
         extractable,
         KeyAlgorithmAndDerivatives::RsaHashedKeyAlgorithm(algorithm),
-        usages,
+        usages.normalized_value(),
         key_handle,
     );
 
@@ -984,7 +968,7 @@ pub(crate) fn export_key(
             }
 
             // Step 3.7. Set the key_ops attribute of jwk to the usages attribute of key.
-            jwk.set_key_ops(&key.usages());
+            jwk.set_key_ops(key.usages());
 
             // Step 3.8. Set the ext attribute of jwk to the [[extractable]] internal slot of key.
             jwk.ext = Some(key.Extractable());

@@ -126,8 +126,8 @@ impl<'b> UnrootedFollowingNodeIterator<'b> {
             return current.get_next_sibling_unrooted(self.no_gc);
         }
 
-        for ancestor in current.inclusive_ancestors(self.shadow_including) {
-            if **self.root == *ancestor {
+        for ancestor in current.inclusive_ancestors_unrooted(self.no_gc, self.shadow_including) {
+            if self.root == ancestor {
                 break;
             }
             if let Some(next_sibling) = ancestor.get_next_sibling_unrooted(self.no_gc) {
@@ -558,11 +558,8 @@ impl<'no_gc> UnrootedFollowingFlatTreeNodesTraversal<'no_gc> {
         if let Some(next_sibling) = previous.next_flat_tree_sibling_unrooted(no_gc) {
             return Some(PrePostIteration::Enter(next_sibling));
         }
-        match previous.parent_in_flat_tree() {
-            FlatTreeParent::Parent(parent_node) => {
-                let parent_node = UnrootedDom::from_dom(parent_node.as_traced(), no_gc);
-                Some(PrePostIteration::Leave(parent_node))
-            },
+        match previous.parent_in_flat_tree(no_gc) {
+            FlatTreeParent::Parent(parent_node) => Some(PrePostIteration::Leave(parent_node)),
             FlatTreeParent::NotInFlatTree => None,
             FlatTreeParent::RootNode => None,
         }

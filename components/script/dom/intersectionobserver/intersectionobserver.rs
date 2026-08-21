@@ -21,9 +21,8 @@ use style::stylesheets::CssRuleType;
 use style::values::computed::Overflow;
 use style::values::specified::intersection_observer::IntersectionObserverMargin;
 use style_traits::{CSSPixel, ParsingMode, ToCss};
-use url::Url;
 
-use crate::css::parser_context_for_anonymous_content;
+use crate::css::css::{ANONYMOUS_CONTENT_URL_DATA, parser_context_for_anonymous_content};
 use crate::dom::bindings::callback::ExceptionHandling;
 use crate::dom::bindings::codegen::Bindings::IntersectionObserverBinding::{
     IntersectionObserverCallback, IntersectionObserverInit, IntersectionObserverMethods,
@@ -306,7 +305,7 @@ impl IntersectionObserver {
         // Step 4
         // > Add target to observer’s internal [[ObservationTargets]] slot.
         self.observation_targets
-            .borrow_mut()
+            .safe_borrow_mut(no_gc)
             .push(Dom::from_ref(target));
 
         target
@@ -329,7 +328,7 @@ impl IntersectionObserver {
         // Step 2
         // > Remove target from this’s internal [[ObservationTargets]] slot, if present
         self.observation_targets
-            .borrow_mut()
+            .safe_borrow_mut(no_gc)
             .retain(|element| &**element != target);
 
         // Should disconnect from owner if it is not observing anything.
@@ -390,7 +389,9 @@ impl IntersectionObserver {
         );
 
         // Step 2. Append it to observer's internal [[QueuedEntries]] slot.
-        self.queued_entries.borrow_mut().push(entry.as_traced());
+        self.queued_entries
+            .safe_borrow_mut(cx.no_gc())
+            .push(entry.as_traced());
 
         // Step 3. Queue an intersection observer task for document.
         document.queue_an_intersection_observer_task();
@@ -816,7 +817,7 @@ impl IntersectionObserverMethods<crate::DomTypeHolder> for IntersectionObserver 
             target.remove_intersection_observer(self, no_gc);
         });
         // > 2. Remove target from this’s internal [[ObservationTargets]] slot.
-        self.observation_targets.borrow_mut().clear();
+        self.observation_targets.safe_borrow_mut(no_gc).clear();
 
         // We should remove this observer from the event loop.
         self.disconnect_from_owner();
@@ -893,9 +894,11 @@ fn parse_a_margin(value: Option<&DOMString>) -> Result<IntersectionObserverMargi
     let mut input = ParserInput::new(value);
     let mut parser = Parser::new(&mut input);
 
-    let url = Url::parse("about:blank").unwrap().into();
-    let context =
-        parser_context_for_anonymous_content(CssRuleType::Style, ParsingMode::DEFAULT, &url);
+    let context = parser_context_for_anonymous_content(
+        CssRuleType::Style,
+        ParsingMode::DEFAULT,
+        &ANONYMOUS_CONTENT_URL_DATA,
+    );
 
     parser
         .parse_entirely(|p| IntersectionObserverMargin::parse(&context, p))
@@ -956,11 +959,7 @@ fn compute_the_intersection(
                         containing_document.window().viewport_details().size,
                     ));
 
-                    if let Some(rect) = intersect_rectangle(&intersection_rect, &viewport_rect) {
-                        intersection_rect = rect;
-                    } else {
-                        return None;
-                    }
+                    intersection_rect = intersect_rectangle(&intersection_rect, &viewport_rect)?;
 
                     let current_offset = frame_container
                         .upcast::<Node>()
@@ -1009,11 +1008,7 @@ fn compute_the_intersection(
                     container_padding_box
                 };
 
-            if let Some(rect) = intersect_rectangle(&intersection_rect, &container_padding_box) {
-                intersection_rect = rect;
-            } else {
-                return None;
-            }
+            intersection_rect = intersect_rectangle(&intersection_rect, &container_padding_box)?;
         }
 
         // > 3.5. If container is the root element of a browsing context, update container to be the

@@ -45,11 +45,11 @@ use js::rust::{
     MutableHandleValue,
 };
 use layout_api::{
-    AccessibilityDamage, AxesOverflow, BoxAreaType, CSSPixelRectVec, ElementsFromPointResult,
-    FragmentType, Layout, LayoutImageDestination, PendingImage, PendingImageState,
-    PendingRasterizationImage, PhysicalSides, QueryMsg, ReflowGoal, ReflowPhasesRun, ReflowRequest,
-    ReflowRequestRestyle, ReflowStatistics, RestyleReason, ScrollContainerQueryFlags,
-    ScrollContainerResponse, TrustedNodeAddress, combine_id_with_fragment_type,
+    AxesOverflow, BoxAreaType, CSSPixelRectVec, FragmentType, HitTestFlags, Layout,
+    LayoutImageDestination, PendingImage, PendingImageState, PendingRasterizationImage,
+    PhysicalSides, QueryMsg, ReflowGoal, ReflowPhasesRun, ReflowRequest, ReflowRequestRestyle,
+    ReflowStatistics, RestyleReason, ScrollContainerQueryFlags, ScrollContainerResponse,
+    TrustedNodeAddress, combine_id_with_fragment_type,
 };
 use malloc_size_of::MallocSizeOf;
 use media::WindowGLContext;
@@ -79,8 +79,10 @@ use servo_arc::Arc as ServoArc;
 use servo_base::cross_process_instant::CrossProcessInstant;
 use servo_base::generic_channel::{self, GenericCallback, GenericSender};
 use servo_base::id::{BrowsingContextId, PipelineId, WebViewId};
+use servo_base::text::Utf32CodeUnits;
 #[cfg(feature = "bluetooth")]
 use servo_bluetooth_traits::BluetoothRequest;
+#[cfg(feature = "webgl")]
 use servo_canvas_traits::webgl::WebGLChan;
 use servo_config::pref;
 use servo_constellation_traits::{
@@ -91,6 +93,7 @@ use servo_geometry::DeviceIndependentIntRect;
 use servo_url::{ImmutableOrigin, MutableOrigin, ServoUrl};
 use storage_traits::StorageThreads;
 use storage_traits::webstorage_thread::WebStorageType;
+use style::dom::OpaqueNode;
 use style::error_reporting::{ContextualParseError, ParseErrorReporter};
 use style::properties::PropertyId;
 use style::properties::style_structs::Font;
@@ -104,6 +107,8 @@ use time::Duration as TimeDuration;
 use webrender_api::ExternalScrollId;
 use webrender_api::units::{DeviceIntSize, DevicePixel, LayoutPixel, LayoutPoint};
 
+use crate::dom::WorkletThreadPool;
+use crate::dom::bindings::codegen::Bindings::AnimationFrameProviderBinding::FrameRequestCallback;
 use crate::dom::bindings::codegen::Bindings::DocumentBinding::{
     DocumentMethods, DocumentReadyState, NamedPropertyValue,
 };
@@ -118,8 +123,7 @@ use crate::dom::bindings::codegen::Bindings::ReportingObserverBinding::Report;
 use crate::dom::bindings::codegen::Bindings::RequestBinding::{RequestInfo, RequestInit};
 use crate::dom::bindings::codegen::Bindings::VoidFunctionBinding::VoidFunction;
 use crate::dom::bindings::codegen::Bindings::WindowBinding::{
-    self, DeferredRequestInit, FrameRequestCallback, ScrollBehavior, WindowMethods,
-    WindowPostMessageOptions,
+    self, DeferredRequestInit, ScrollBehavior, WindowMethods, WindowPostMessageOptions,
 };
 use crate::dom::bindings::codegen::UnionTypes::{
     RequestOrUSVString, TrustedScriptOrString, TrustedScriptOrStringOrFunction,
@@ -142,7 +146,6 @@ use crate::dom::bindings::weakref::DOMTracker;
 #[cfg(feature = "bluetooth")]
 use crate::dom::bluetooth::BluetoothExtraPermissionData;
 use crate::dom::cookiestore::CookieStore;
-use crate::dom::crypto::Crypto;
 use crate::dom::csp::GlobalCspReporting;
 use crate::dom::css::cssstyledeclaration::{
     CSSModificationAccess, CSSStyleDeclaration, CSSStyleOwner,
@@ -174,8 +177,6 @@ use crate::dom::performanceresourcetiming::InitiatorType;
 use crate::dom::promise::Promise;
 use crate::dom::reporting::reportingendpoint::{ReportingEndpoint, SendReportsToEndpoints};
 use crate::dom::reporting::reportingobserver::ReportingObserver;
-use crate::dom::screen::Screen;
-use crate::dom::scrolling_box::{ScrollingBox, ScrollingBoxSource};
 use crate::dom::selection::Selection;
 use crate::dom::serviceworker::cachestorage::CacheStorage;
 use crate::dom::shadowroot::ShadowRoot;
@@ -183,28 +184,31 @@ use crate::dom::storage::Storage;
 #[cfg(feature = "bluetooth")]
 use crate::dom::testrunner::TestRunner;
 use crate::dom::trustedtypes::trustedtypepolicyfactory::TrustedTypePolicyFactory;
-use crate::dom::types::{FontFace, ImageBitmap, MouseEvent, SVGSVGElement, UIEvent};
-use crate::dom::useractivation::UserActivationTimestamp;
+use crate::dom::types::{FontFace, ImageBitmap, SVGSVGElement, UIEvent};
 use crate::dom::visualviewport::{VisualViewport, VisualViewportChanges};
 #[cfg(feature = "webgpu")]
 use crate::dom::webgpu::identityhub::IdentityHub;
+use crate::dom::window::layout_image::fetch_image_for_layout;
+use crate::dom::window::screen::Screen;
+use crate::dom::window::scrolling_box::{ScrollingBox, ScrollingBoxSource};
+use crate::dom::window::useractivation::UserActivationTimestamp;
 use crate::dom::windowproxy::{WindowProxy, WindowProxyHandler};
 use crate::dom::worklet::Worklet;
 use crate::dom::workletglobalscope::WorkletGlobalScopeType;
-use crate::layout_image::fetch_image_for_layout;
+use crate::event_loop::script_thread::ScriptThread;
+use crate::event_loop::script_window_proxies::ScriptWindowProxies;
+use crate::fetch::fetch;
+use crate::fetch::network_listener::{ResourceTimingListener, submit_timing};
 use crate::messaging::{MainThreadScriptMsg, ScriptEventLoopReceiver, ScriptEventLoopSender};
 use crate::microtask::UserMicrotask;
-use crate::network_listener::{ResourceTimingListener, submit_timing};
 use crate::realms::enter_auto_realm;
 use crate::script_runtime::Runtime;
-use crate::script_thread::ScriptThread;
-use crate::script_window_proxies::ScriptWindowProxies;
-use crate::task_manager::TaskManager;
-use crate::task_source::SendableTaskSource;
+use crate::tasks::task_manager::TaskManager;
+use crate::tasks::task_source::SendableTaskSource;
 use crate::timers::{IsInterval, OneshotTimers, TimerCallback};
 use crate::unminify::unminified_path;
 use crate::webdriver_handlers::{find_node_by_unique_id_in_document, jsval_to_webdriver};
-use crate::{fetch, window_named_properties};
+use crate::window_named_properties;
 
 /// A callback to call when a response comes back from the `ImageCache`.
 ///
@@ -295,7 +299,8 @@ pub(crate) struct Window {
     #[ignore_malloc_size_of = "TODO: Add MallocSizeOf support to layout"]
     layout: RefCell<Box<dyn Layout>>,
     navigator: MutNullableDom<Navigator>,
-    crypto: MutNullableDom<Crypto>,
+    #[cfg(feature = "webcrypto")]
+    crypto: MutNullableDom<crate::dom::crypto::Crypto>,
     #[no_trace]
     image_cache_sender: Sender<ImageCacheResponseMessage>,
     window_proxy: MutNullableDom<WindowProxy>,
@@ -338,7 +343,7 @@ pub(crate) struct Window {
 
     /// Platform theme.
     #[no_trace]
-    theme: Cell<Theme>,
+    embedder_theme: Cell<Theme>,
 
     /// Parent id associated with this page, if any.
     #[no_trace]
@@ -390,6 +395,7 @@ pub(crate) struct Window {
 
     /// A handle for communicating messages to the WebGL thread, if available.
     #[no_trace]
+    #[cfg(feature = "webgl")]
     webgl_chan: Option<WebGLChan>,
 
     #[ignore_malloc_size_of = "defined in webxr"]
@@ -651,13 +657,9 @@ impl Window {
     /// Returns the window proxy if it has not been discarded.
     /// <https://html.spec.whatwg.org/multipage/#a-browsing-context-is-discarded>
     pub(crate) fn undiscarded_window_proxy(&self) -> Option<DomRoot<WindowProxy>> {
-        self.window_proxy.get().and_then(|window_proxy| {
-            if window_proxy.is_browsing_context_discarded() {
-                None
-            } else {
-                Some(window_proxy)
-            }
-        })
+        self.window_proxy
+            .get()
+            .filter(|window_proxy| !window_proxy.is_browsing_context_discarded())
     }
 
     /// Get the active [`Document`] of top-level browsing context, or return [`Window`]'s [`Document`]
@@ -689,11 +691,13 @@ impl Window {
         &self.error_reporter
     }
 
+    #[cfg(feature = "webgl")]
     pub(crate) fn webgl_chan(&self) -> Option<WebGLChan> {
         self.webgl_chan.clone()
     }
 
     // TODO: rename the function to webgl_chan after the existing `webgl_chan` function is removed.
+    #[cfg(feature = "webgl")]
     pub(crate) fn webgl_chan_value(&self) -> Option<WebGLChan> {
         self.webgl_chan.clone()
     }
@@ -705,7 +709,14 @@ impl Window {
 
     fn new_paint_worklet(&self, cx: &mut JSContext) -> DomRoot<Worklet> {
         debug!("Creating new paint worklet.");
-        Worklet::new(cx, self, WorkletGlobalScopeType::Paint)
+
+        let worklet_global_scope_init = self.into();
+        Worklet::new(
+            cx,
+            self,
+            WorkletGlobalScopeType::Paint,
+            Box::new(|| Rc::new(WorkletThreadPool::spawn(worklet_global_scope_init))),
+        )
     }
 
     pub(crate) fn register_image_cache_listener(
@@ -819,10 +830,8 @@ impl Window {
         event.dispatch(cx, self.upcast(), true);
     }
 
-    pub(crate) fn font_context(&self) -> &Arc<FontContext> {
-        self.as_global_scope()
-            .font_context()
-            .expect("A `Window` should always have a `FontContext`")
+    pub(crate) fn font_context(&self) -> Arc<FontContext> {
+        self.layout().font_context().clone()
     }
 
     pub(crate) fn ongoing_navigation(&self) -> OngoingNavigation {
@@ -1577,9 +1586,10 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
     }
 
     /// <https://dvcs.w3.org/hg/webcrypto-api/raw-file/tip/spec/Overview.html#dfn-GlobalCrypto>
-    fn Crypto(&self, cx: &mut JSContext) -> DomRoot<Crypto> {
+    #[cfg(feature = "webcrypto")]
+    fn Crypto(&self, cx: &mut JSContext) -> DomRoot<crate::dom::crypto::Crypto> {
         self.crypto
-            .or_init(|| Crypto::new(cx, self.as_global_scope()))
+            .or_init(|| crate::dom::crypto::Crypto::new(cx, self.as_global_scope()))
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-frameelement>
@@ -1781,14 +1791,8 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
     // https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/
     // NavigationTiming/Overview.html#sec-window.performance-attribute
     fn Performance(&self, cx: &mut JSContext) -> DomRoot<Performance> {
-        self.performance.or_init(|| {
-            Performance::new(
-                cx,
-                self.as_global_scope(),
-                self.navigation_start.get(),
-                self.Document().navigation_timing(),
-            )
-        })
+        self.performance
+            .or_init(|| Performance::new(cx, self.as_global_scope(), self.navigation_start.get()))
     }
 
     // https://html.spec.whatwg.org/multipage/#globaleventhandlers
@@ -1825,15 +1829,17 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-window-requestanimationframe>
-    fn RequestAnimationFrame(&self, callback: Rc<FrameRequestCallback>) -> u32 {
-        self.Document()
-            .request_animation_frame(AnimationFrameCallback::FrameRequestCallback { callback })
+    fn RequestAnimationFrame(&self, callback: Rc<FrameRequestCallback>) -> Fallible<u32> {
+        Ok(self
+            .Document()
+            .request_animation_frame(AnimationFrameCallback::FrameRequestCallback { callback }))
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-window-cancelanimationframe>
-    fn CancelAnimationFrame(&self, ident: u32) {
+    fn CancelAnimationFrame(&self, ident: u32) -> ErrorResult {
         let doc = self.Document();
         doc.cancel_animation_frame(ident);
+        Ok(())
     }
 
     /// <https://html.spec.whatwg.org/multipage/#dom-window-postmessage>
@@ -2282,7 +2288,7 @@ impl WindowMethods<crate::DomTypeHolder> for Window {
 
     /// <https://html.spec.whatwg.org/multipage/#dom-origin>
     fn Origin(&self) -> USVString {
-        USVString(self.origin().immutable().ascii_serialization())
+        USVString(self.origin().immutable().ascii_serialization().into_owned())
     }
 
     /// <https://w3c.github.io/selection-api/#dom-window-getselection>
@@ -2717,10 +2723,11 @@ impl Window {
 
         let document_context = self.web_font_context(cx.no_gc());
 
-        let rooted_nodes_for_accessibility_integrity_check =
-            document.rooted_nodes_for_accessibility_integrity_check();
-        let mut accessibility_damage: Option<Vec<(TrustedNodeAddress, AccessibilityDamage)>> = None;
-        if self.layout().accessibility_active() {
+        let mut rooted_nodes_for_accessibility_integrity_check = None;
+        let mut accessibility_damage = None;
+        if reflow_goal == ReflowGoal::UpdateTheRendering && self.layout().accessibility_active() {
+            rooted_nodes_for_accessibility_integrity_check =
+                document.rooted_nodes_for_accessibility_integrity_check();
             let mut accessibility_data = document.accessibility_data_mut();
             accessibility_damage = Some(accessibility_data.drain_pending_accessibility_damage());
         }
@@ -3207,28 +3214,28 @@ impl Window {
             .map(|(source, overflow)| ScrollingBox::new(source, overflow))
     }
 
+    #[expect(unsafe_code)]
     pub(crate) fn text_index_query_on_node_for_event(
         &self,
         node: &Node,
-        mouse_event: &MouseEvent,
-    ) -> Option<usize> {
-        // dispatch_key_event (document.rs) triggers a click event when releasing
-        // the space key. There's no nice way to catch this so let's use this for
-        // now.
-        let point_in_viewport = mouse_event.point_in_viewport()?.map(Au::from_f32_px);
-
+        point_in_viewport: Point2D<Au, CSSPixel>,
+    ) -> Option<(DomRoot<Node>, Utf32CodeUnits)> {
         self.layout_reflow(QueryMsg::TextIndexQuery);
-        self.layout
+        let result = self
+            .layout
             .borrow()
-            .query_text_index(node.to_trusted_node_address(), point_in_viewport)
+            .query_text_index(node.to_trusted_node_address(), point_in_viewport)?;
+        let node = unsafe { from_untrusted_node_address(result.0.into()) };
+        Some((node, result.1))
     }
 
     pub(crate) fn elements_from_point_query(
         &self,
+        flags: HitTestFlags,
         point: LayoutPoint,
-    ) -> Vec<ElementsFromPointResult> {
+    ) -> layout_api::HitTestResult {
         self.layout_reflow(QueryMsg::ElementsFromPoint);
-        self.layout().query_elements_from_point(point)
+        self.layout().hit_test(flags, point)
     }
 
     pub(crate) fn query_effective_overflow(&self, node: &Node) -> Option<AxesOverflow> {
@@ -3247,9 +3254,11 @@ impl Window {
 
     pub(crate) fn hit_test_from_input_event(
         &self,
+        flags: HitTestFlags,
         input_event: &ConstellationInputEvent,
     ) -> Option<HitTestResult> {
         self.hit_test_from_point_in_viewport(
+            flags,
             input_event.hit_test_result.as_ref()?.point_in_viewport,
         )
     }
@@ -3257,35 +3266,48 @@ impl Window {
     #[expect(unsafe_code)]
     pub(crate) fn hit_test_from_point_in_viewport(
         &self,
+        flags: HitTestFlags,
         point_in_frame: Point2D<f32, CSSPixel>,
     ) -> Option<HitTestResult> {
-        let result = self
-            .elements_from_point_query(point_in_frame.cast_unit())
-            .into_iter()
-            .nth(0)?;
+        let result = self.elements_from_point_query(flags, point_in_frame.cast_unit());
+        let item = result.items.into_iter().next()?;
 
         let point_relative_to_initial_containing_block =
             point_in_frame + self.scroll_offset().cast_unit();
 
         // SAFETY: This is safe because `Window::query_elements_from_point` has ensured that
         // layout has run and any OpaqueNodes that no longer refer to real nodes are gone.
-        let address = UntrustedNodeAddress(result.node.0 as *const c_void);
+        let from_opaque_node = |node: OpaqueNode| {
+            let address = UntrustedNodeAddress(node.0 as *const c_void);
+            unsafe { from_untrusted_node_address(address) }
+        };
         Some(HitTestResult {
-            node: unsafe { from_untrusted_node_address(address) },
-            cursor: result.cursor,
-            point_in_node: result.point_in_target,
+            node: from_opaque_node(item.node),
+            dom_position_for_selection: result
+                .dom_position_for_selection
+                .map(|(node, offset)| (from_opaque_node(node), offset)),
+            cursor: item.cursor,
+            point_in_node: item.point_in_target,
             point_in_frame,
             point_relative_to_initial_containing_block,
         })
     }
 
     pub(crate) fn init_window_proxy(&self, window_proxy: &WindowProxy) {
-        assert!(self.window_proxy.get().is_none());
+        assert!(
+            self.window_proxy
+                .get()
+                .is_none_or(|current_proxy| &*current_proxy as *const WindowProxy == window_proxy)
+        );
         self.window_proxy.set(Some(window_proxy));
     }
 
     pub(crate) fn init_document(&self, document: &Document) {
-        assert!(self.document.get().is_none());
+        assert!(
+            self.document
+                .get()
+                .is_none_or(|document| document.is_initial_about_blank())
+        );
         assert!(document.window() == self);
         self.document.set(Some(document));
     }
@@ -3364,19 +3386,25 @@ impl Window {
         }
     }
 
-    /// Get the theme of this [`Window`].
-    pub(crate) fn theme(&self) -> Theme {
-        self.theme.get()
+    /// Get the embedder theme of this [`Window`].
+    pub(crate) fn embedder_theme(&self) -> Theme {
+        self.embedder_theme.get()
     }
 
     /// Handle a theme change request, triggering a reflow is any actual change occurred.
-    pub(crate) fn set_theme(&self, new_theme: Theme) {
-        self.theme.set(new_theme);
+    pub(crate) fn set_embedder_theme(&self, new_theme: Theme) {
+        self.embedder_theme.set(new_theme);
+        self.refresh_theme();
+    }
+
+    pub(crate) fn refresh_theme(&self) {
+        let document = self.Document();
+        // The theme of a document takes precedence over the theme of the embedder
+        let new_theme = document.theme().unwrap_or(self.embedder_theme.get());
         if !self.layout_mut().set_theme(new_theme) {
             return;
         }
-        self.Document()
-            .add_restyle_reason(RestyleReason::ThemeChanged);
+        document.add_restyle_reason(RestyleReason::ThemeChanged);
         // The change in `prefers-color-scheme` may flip `MediaQueryList`
         // results so we flag the next "update the rendering" turn to re-evaluate them.
         self.pending_media_query_evaluation.set(true);
@@ -3664,7 +3692,7 @@ impl Window {
             .is_some_and(|xr| xr.pending_or_active_session())
     }
 
-    #[cfg(not(feature = "webxr"))]
+    #[cfg(all(feature = "webgl", not(feature = "webxr")))]
     pub(crate) fn in_immersive_xr_session(&self) -> bool {
         false
     }
@@ -3858,7 +3886,6 @@ impl Window {
         runtime: Rc<Runtime>,
         script_chan: Sender<MainThreadScriptMsg>,
         layout: Box<dyn Layout>,
-        font_context: Arc<FontContext>,
         image_cache_sender: Sender<ImageCacheResponseMessage>,
         resource_threads: ResourceThreads,
         storage_threads: StorageThreads,
@@ -3876,7 +3903,7 @@ impl Window {
         creation_url: ServoUrl,
         top_level_creation_url: ServoUrl,
         navigation_start: CrossProcessInstant,
-        webgl_chan: Option<WebGLChan>,
+        #[cfg(feature = "webgl")] webgl_chan: Option<WebGLChan>,
         #[cfg(feature = "webxr")] webxr_registry: Option<webxr_api::Registry>,
         paint_api: CrossProcessPaintApi,
         unminify_js: bool,
@@ -3886,7 +3913,7 @@ impl Window {
         player_context: WindowGLContext,
         #[cfg(feature = "webgpu")] gpu_id_hub: Arc<IdentityHub>,
         inherited_secure_context: Option<bool>,
-        theme: Theme,
+        embedder_theme: Theme,
         weak_script_thread: Weak<ScriptThread>,
     ) -> DomRoot<Self> {
         let error_reporter = CSSErrorReporter {
@@ -3910,7 +3937,6 @@ impl Window {
                 gpu_id_hub,
                 inherited_secure_context,
                 unminify_js,
-                Some(font_context),
             ),
             caches: Default::default(),
             ongoing_navigation: Default::default(),
@@ -3918,6 +3944,7 @@ impl Window {
             layout: RefCell::new(layout),
             image_cache_sender,
             navigator: Default::default(),
+            #[cfg(feature = "webcrypto")]
             crypto: Default::default(),
             location: Default::default(),
             window_proxy: Default::default(),
@@ -3949,6 +3976,7 @@ impl Window {
             media_query_lists: DOMTracker::new(),
             #[cfg(feature = "bluetooth")]
             test_runner: Default::default(),
+            #[cfg(feature = "webgl")]
             webgl_chan,
             #[cfg(feature = "webxr")]
             webxr_registry,
@@ -3970,7 +3998,7 @@ impl Window {
             throttled: Cell::new(false),
             layout_marker: DomRefCell::new(Rc::new(Cell::new(true))),
             current_event: DomRefCell::new(None),
-            theme: Cell::new(theme),
+            embedder_theme: Cell::new(embedder_theme),
             trusted_types: Default::default(),
             reporting_observer_list: Default::default(),
             report_list: Default::default(),
@@ -4010,6 +4038,35 @@ impl Window {
         T: Copy + MallocSizeOf,
     {
         LayoutValue::new(self.layout_marker.borrow().clone(), value)
+    }
+
+    /// This method is an approximation of the specification [algorithm].
+    /// It exists in this form because we still store some fields in Window/GlobalScope
+    /// that realistically are specific to the active document. Where possible they
+    /// should be migrated to Document and WorkerGlobalScope, but currently doing so would result
+    /// in much more complicated code. This method is the compromise, where we mutate the values
+    /// in place to match the values that the specification expects.
+    ///
+    /// [algorithm] <https://html.spec.whatwg.org/multipage/#set-up-a-window-environment-settings-object>
+    pub(crate) fn set_up_a_window_environment_settings_object(
+        &self,
+        layout: Box<dyn Layout>,
+        creation_url: ServoUrl,
+        top_level_creation_url: ServoUrl,
+        navigation_start: CrossProcessInstant,
+        viewport_details: ViewportDetails,
+    ) {
+        *self.layout.borrow_mut() = layout;
+        self.set_viewport_details(viewport_details);
+        self.navigation_start.set(navigation_start);
+
+        // Step 6. Set settings object's creation URL to creationURL, settings object's top-level
+        //   creation URL to topLevelCreationURL, and settings object's top-level origin to topLevelOrigin.
+        let global = self.upcast::<GlobalScope>();
+        global.set_creation_url(creation_url);
+        global.set_top_level_creation_url(top_level_creation_url);
+
+        self.Document().detach_window();
     }
 }
 
@@ -4082,7 +4139,7 @@ impl Window {
                     this.upcast(),
                     this.upcast(),
                     message_clone.handle(),
-                    Some(&source_origin.ascii_serialization()),
+                    Some(source_origin.ascii_serialization().as_ref()),
                     Some(&*source),
                     ports,
                 );

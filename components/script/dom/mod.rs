@@ -222,7 +222,6 @@ pub(crate) mod bindings;
 pub(crate) mod bluetooth;
 #[cfg(feature = "bluetooth")]
 pub(crate) use self::bluetooth::*;
-pub(crate) mod broadcastchannel;
 mod canvas;
 pub(crate) use self::canvas::*;
 pub(crate) mod characterdata;
@@ -231,6 +230,7 @@ pub(crate) mod clipboard;
 pub(crate) use self::clipboard::*;
 pub(crate) mod console;
 pub(crate) mod cookiestore;
+pub(crate) mod cookiestoremanager;
 pub(crate) mod credentialmanagement;
 pub(crate) use self::credentialmanagement::*;
 pub(crate) mod css;
@@ -293,12 +293,10 @@ pub(crate) mod navigator;
 pub(crate) use self::navigator::*;
 pub(crate) mod node;
 pub(crate) use self::node::*;
-pub(crate) mod notification;
 pub(crate) mod performance;
 pub(crate) use self::performance::*;
 pub(crate) mod permission;
 pub(crate) use self::permission::*;
-pub(crate) mod processingoptions;
 pub(crate) mod promise;
 pub(crate) use self::promise::*;
 pub(crate) mod quotaexceedederror;
@@ -309,8 +307,6 @@ pub(crate) mod reporting;
 pub(crate) use self::reporting::*;
 pub(crate) mod resizeobserver;
 pub(crate) use self::resizeobserver::*;
-pub(crate) mod screen;
-mod scrolling_box;
 pub(crate) mod security;
 pub(crate) use self::security::*;
 pub(crate) mod selection;
@@ -319,6 +315,7 @@ pub(crate) use self::serviceworker::*;
 pub(crate) mod servointernals;
 pub(crate) mod servoparser;
 pub(crate) mod shadowroot;
+pub(crate) mod srcset;
 pub(crate) mod storage;
 pub(crate) use self::storage::*;
 pub(crate) mod stream;
@@ -336,16 +333,17 @@ pub(crate) mod trustedtypes;
 pub(crate) use self::trustedtypes::*;
 pub(crate) mod url;
 pub(crate) use self::url::*;
-pub(crate) mod useractivation;
 pub(crate) mod userscripts;
 pub(crate) mod values;
 pub(crate) mod visualviewport;
 pub(crate) mod wakelock;
 pub(crate) use self::wakelock::*;
+#[cfg(feature = "webgl")]
 pub(crate) mod webgl;
+#[cfg(feature = "webgl")]
 pub(crate) use self::webgl::extensions::ext::*;
+#[cfg(feature = "webgl")]
 pub(crate) use self::webgl::*;
-pub(crate) mod websocket;
 #[cfg(feature = "webxr")]
 mod webxr;
 #[cfg(feature = "webxr")]
@@ -356,7 +354,9 @@ pub(crate) mod webgpu;
 pub(crate) use self::webgpu::*;
 #[cfg(not(feature = "webgpu"))]
 pub(crate) mod gpucanvascontext;
+#[cfg(feature = "webcrypto")]
 pub(crate) mod webcrypto;
+#[cfg(feature = "webcrypto")]
 pub(crate) use self::webcrypto::*;
 pub(crate) mod webrtc;
 pub(crate) use self::webrtc::*;

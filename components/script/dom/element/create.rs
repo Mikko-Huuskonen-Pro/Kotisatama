@@ -103,8 +103,8 @@ use crate::dom::svg::svgstopelement::SVGStopElement;
 use crate::dom::svg::svgsvgelement::SVGSVGElement;
 use crate::dom::svg::svgsymbolelement::SVGSymbolElement;
 use crate::dom::svg::svguseelement::SVGUseElement;
+use crate::event_loop::script_thread::ScriptThread;
 use crate::realms::enter_auto_realm;
-use crate::script_thread::ScriptThread;
 
 fn create_svg_element(
     cx: &mut JSContext,
@@ -452,7 +452,7 @@ pub(crate) fn create_native_html_element(
         // https://html.spec.whatwg.org/multipage/#the-thead-element:concept-element-dom
         local_name!("thead") => make!(HTMLTableSectionElement),
         local_name!("time") => make!(HTMLTimeElement),
-        local_name!("title") => make!(HTMLTitleElement),
+        local_name!("title") => make!(HTMLTitleElement, creator),
         local_name!("tr") => make!(HTMLTableRowElement),
         local_name!("tt") => make!(HTMLElement),
         local_name!("track") => make!(HTMLTrackElement),

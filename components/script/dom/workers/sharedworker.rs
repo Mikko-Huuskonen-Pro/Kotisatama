@@ -44,7 +44,7 @@ use crate::dom::sharedworkerglobalscope::{
 use crate::dom::trustedtypes::trustedscripturl::TrustedScriptURL;
 use crate::dom::window::Window;
 use crate::dom::workerglobalscope::prepare_workerscope_init;
-use crate::task::TaskOnce;
+use crate::tasks::task::TaskOnce;
 use crate::url::ensure_blob_referenced_by_url_is_kept_alive;
 
 /// <https://html.spec.whatwg.org/multipage/#shared-workers-and-the-sharedworker-interface>
@@ -588,6 +588,7 @@ impl SharedWorkerMethods<crate::DomTypeHolder> for SharedWorker {
             global,
             Some(devtools_sender),
             Some(worker_id),
+            #[cfg(feature = "webgl")]
             window.webgl_chan_value(),
         );
 
@@ -623,7 +624,7 @@ impl SharedWorkerMethods<crate::DomTypeHolder> for SharedWorker {
             outside_storage_key,
             global.insecure_requests_policy(),
             global.policy_container(),
-            global.font_context().cloned(),
+            global.font_context(),
         ) {
             Ok(join_handle) => join_handle,
             Err(error) => {

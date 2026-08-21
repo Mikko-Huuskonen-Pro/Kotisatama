@@ -11,7 +11,10 @@ pub(crate) mod documentfragment;
 pub(crate) mod documentorshadowroot;
 pub(crate) mod documenttype;
 pub(crate) mod focus;
+mod iframe_collection;
+mod image_animation;
 mod tree_ordered_index_map;
 pub(crate) mod visibilitystateentry;
+pub(crate) mod websocket;
 
 pub(crate) use self::document::*;

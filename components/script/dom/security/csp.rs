@@ -35,7 +35,7 @@ use crate::dom::reporting::reportingobserver::ReportingObserver;
 use crate::dom::security::cspviolationreporttask::CSPViolationReportTask;
 use crate::dom::trustedtypes::trustedscript::TrustedScript;
 use crate::dom::window::Window;
-use crate::task::TaskOnce;
+use crate::tasks::task::TaskOnce;
 
 pub(crate) trait CspReporting {
     fn is_js_evaluation_allowed(
@@ -202,10 +202,11 @@ impl CspReporting for Option<CspList> {
             if let Some(container_element) = window_proxy.frame_element() {
                 let container_document = container_element.owner_document();
                 let parent_origin = Url::parse(
-                    &container_document
+                    container_document
                         .origin()
                         .immutable()
-                        .ascii_serialization(),
+                        .ascii_serialization()
+                        .as_ref(),
                 )
                 .expect("Must always be able to parse document origin");
                 parent_navigable_origins.push(parent_origin);

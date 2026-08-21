@@ -45,6 +45,7 @@ servo-config = { workspace = true }
 servo-url = { workspace = true }
 servo_arc = { workspace = true }
 smallvec = { workspace = true }
+strum = { workspace = true }
 stylo = { workspace = true }
 stylo_atoms = { workspace = true }
 tendril = { workspace = true }
@@ -71,8 +72,10 @@ bluetooth = []
 gamepad = []
 testbinding = []
 tracing = ["dep:tracing"]
+webcrypto = []
 webgpu = []
-webxr = ["webxr-api"]
+webgl = []
+webxr = ["gamepad", "webgl", "webxr-api"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(crown)'] }

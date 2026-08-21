@@ -44,6 +44,7 @@
 ./components/script/dom/datatransfer/datatransferitemlist.rs 1
 ./components/script/dom/document/document.rs 28
 ./components/script/dom/document/documentorshadowroot.rs 1
+./components/script/dom/document/websocket.rs 7
 ./components/script/dom/domimplementation.rs 1
 ./components/script/dom/domstringmap.rs 2
 ./components/script/dom/domtokenlist.rs 4
@@ -61,15 +62,6 @@
 ./components/script/dom/globalscope/globalscope.rs 1
 ./components/script/dom/globalscope/messageport.rs 2
 ./components/script/dom/globalscope/script_execution.rs 1
-./components/script/dom/html/form_controls/htmlformelement.rs 2
-./components/script/dom/html/form_controls/htmlinputelement.rs 5
-./components/script/dom/html/form_controls/text_control.rs 6
-./components/script/dom/html/htmlcanvaselement.rs 6
-./components/script/dom/html/htmlelement.rs 7
-./components/script/dom/html/htmlimageelement.rs 4
-./components/script/dom/html/htmlmediaelement.rs 8
-./components/script/dom/html/htmloptionscollection.rs 2
-./components/script/dom/html/htmltableelement.rs 3
 ./components/script/dom/indexeddb/idbcursor.rs 1
 ./components/script/dom/indexeddb/idbdatabase.rs 13
 ./components/script/dom/indexeddb/idbfactory.rs 9
@@ -81,9 +73,6 @@
 ./components/script/dom/intersectionobserver/intersectionobserver.rs 2
 ./components/script/dom/macros.rs 2
 ./components/script/dom/navigator/navigator.rs 3
-./components/script/dom/node/node.rs 37
-./components/script/dom/node/nodeiterator.rs 1
-./components/script/dom/node/treewalker.rs 1
 ./components/script/dom/performance/performanceobserver.rs 4
 ./components/script/dom/range/range.rs 20
 ./components/script/dom/selection.rs 14
@@ -99,14 +88,12 @@
 ./components/script/dom/webcrypto/crypto.rs 1
 ./components/script/dom/webgl/webglrenderingcontext.rs 4
 ./components/script/dom/webgpu/gpu.rs 1
-./components/script/dom/webgpu/gpuadapter.rs 3
 ./components/script/dom/webgpu/gpubuffer.rs 7
 ./components/script/dom/webgpu/gpucanvascontext.rs 1
 ./components/script/dom/webgpu/gpudevice.rs 1
 ./components/script/dom/webgpu/gpuqueue.rs 6
 ./components/script/dom/webrtc/rtcdatachannel.rs 2
 ./components/script/dom/webrtc/rtcpeerconnection.rs 2
-./components/script/dom/websocket.rs 7
 ./components/script/dom/webvtt/texttrack.rs 1
 ./components/script/dom/webvtt/vttcue.rs 2
 ./components/script/dom/webvtt/vttregion.rs 5
@@ -122,7 +109,7 @@
 ./components/script/dom/window/dissimilaroriginwindow.rs 1
 ./components/script/dom/window/history.rs 9
 ./components/script/dom/window/window.rs 5
-./components/script/dom/window/windowproxy.rs 2
+./components/script/dom/window/windowproxy.rs 1
 ./components/script/dom/workers/sharedworker.rs 1
 ./components/script/dom/workers/worker.rs 1
 ./components/script/dom/workers/workerglobalscope.rs 4
@@ -131,8 +118,7 @@
 ./components/script/dom/xmlhttprequest/xmlhttprequest.rs 30
 ./components/script/dom/xpath/xpathexpression.rs 2
 ./components/script/dom/xpath/xpathresult.rs 1
-./components/script/drag_data_store.rs 1
+./components/script/drag/drag_data_store.rs 1
 ./components/script/indexeddb.rs 2
-./components/script/layout_dom/servo_dangerous_style_node.rs 1
 ./components/script/xpath.rs 1
 ./components/script_bindings/proxyhandler.rs 1

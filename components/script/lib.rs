@@ -21,64 +21,45 @@ extern crate malloc_size_of_derive;
 extern crate stylo_atoms;
 
 mod animations;
-mod css;
-mod script_window_proxies;
 #[macro_use]
-mod task;
-mod body;
+mod tasks;
+
 pub(crate) mod conversions;
+mod css;
 mod devtools;
-pub(crate) mod document_loader;
+mod fetch;
 #[macro_use]
 mod dom;
 pub(crate) use dom::canvas_context;
-pub(crate) mod fetch;
+mod drag;
+mod event_loop;
 pub(crate) mod indexeddb;
 mod init;
-mod layout_image;
 mod url;
 
-pub(crate) mod document_collection;
-pub(crate) mod iframe_collection;
-pub(crate) mod image_animation;
 pub mod layout_dom;
+mod links;
 pub(crate) mod messaging;
 mod microtask;
 pub(crate) mod mime;
-mod mime_multipart;
-mod module_loading;
+pub(crate) mod modules;
 mod navigation;
-mod network_listener;
 mod realms;
 mod routed_promise;
-mod script_module;
-mod script_mutation_observers;
 pub(crate) mod script_runtime;
-#[expect(unsafe_code)]
-pub(crate) mod script_thread;
 pub(crate) mod serviceworker_manager;
-mod stylesheet_loader;
-mod stylesheet_set;
-mod svg_font;
-mod task_manager;
-mod task_queue;
-mod task_source;
 pub mod test;
 mod timers;
+mod unminify;
 mod webdriver_handlers;
 mod window_named_properties;
 mod xpath;
 
-mod unminify;
-
-mod drag_data_store;
-mod links;
-
+pub use event_loop::script_thread::ScriptThread;
 pub use init::init;
 pub(crate) use script_bindings::DomTypes;
 pub(crate) use script_bindings::reflector::{AssociatedMemory, DomObject, MutDomObject, Reflector};
 pub use script_runtime::JSEngineSetup;
-pub use script_thread::ScriptThread;
 pub use serviceworker_manager::ServiceWorkerManager;
 
 pub(crate) use crate::dom::bindings::codegen::DomTypeHolder::DomTypeHolder;

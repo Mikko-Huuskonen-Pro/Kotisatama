@@ -445,7 +445,8 @@ impl Gui {
 
             // TODO: While in fullscreen add some way to mitigate the increased phishing risk
             // when not displaying the URL bar: https://github.com/servo/servo/issues/32443
-            if winit_window.fullscreen().is_none() {
+            // Show toolbar unless fullscreen is from document (web API)
+            if !headed_window.is_fullscreen_from_document() {
                 let frame = egui::Frame::default()
                     .fill({
                         #[cfg(feature = "kotisatama")]

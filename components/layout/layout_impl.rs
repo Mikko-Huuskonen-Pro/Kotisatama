@@ -21,10 +21,10 @@ use fonts::{FontContext, FontContextWebFontMethods};
 use fonts_traits::{StylesheetWebFontLoadFinishedCallback, WebFontSetDifference};
 use icu_locid::subtags::Language;
 use layout_api::{
-    AxesOverflow, BoxAreaType, CSSPixelRectVec, DangerousStyleNode, IFrameSizes, Layout,
-    LayoutConfig, LayoutDamage, LayoutElement, LayoutFactory, LayoutNode, NodeRenderingType,
-    OffsetParentResponse, PhysicalSides, QueryMsg, ReflowGoal, ReflowPhasesRun, ReflowRequest,
-    ReflowRequestRestyle, ReflowResult, ReflowStatistics, ScrollContainerQueryFlags,
+    AxesOverflow, BoxAreaType, CSSPixelRectVec, DangerousStyleNode, HitTestFlags, HitTestResult,
+    IFrameSizes, Layout, LayoutConfig, LayoutDamage, LayoutElement, LayoutFactory, LayoutNode,
+    NodeRenderingType, OffsetParentResponse, PhysicalSides, QueryMsg, ReflowGoal, ReflowPhasesRun,
+    ReflowRequest, ReflowRequestRestyle, ReflowResult, ReflowStatistics, ScrollContainerQueryFlags,
     ScrollContainerResponse, TrustedNodeAddress, with_layout_state,
 };
 use log::{debug, warn};
@@ -46,6 +46,7 @@ use script_traits::{DrawAPaintImageResult, PaintWorkletError, Painter, ScriptThr
 use servo_arc::Arc as ServoArc;
 use servo_base::Epoch;
 use servo_base::id::{PipelineId, WebViewId};
+use servo_base::text::Utf32CodeUnits;
 use servo_config::opts::{self, DiagnosticsLogging, DiagnosticsLoggingOption};
 use servo_config::pref;
 use servo_url::ServoUrl;
@@ -570,30 +571,31 @@ impl Layout for LayoutThread {
     fn query_text_index(
         &self,
         node: TrustedNodeAddress,
-        point_in_node: Point2D<Au, CSSPixel>,
-    ) -> Option<usize> {
+        point_in_viewport: Point2D<Au, CSSPixel>,
+    ) -> Option<(OpaqueNode, Utf32CodeUnits)> {
         with_layout_state(|| {
             let node = unsafe { ServoLayoutNode::new(&node) };
-            let stacking_context_tree = self.stacking_context_tree.borrow_mut();
+            let stacking_context_tree = self.stacking_context_tree.borrow();
             let stacking_context_tree = stacking_context_tree.as_ref()?;
             find_character_offset_in_fragment_descendants(
                 &node,
                 stacking_context_tree,
-                point_in_node,
+                point_in_viewport,
             )
         })
     }
 
     #[servo_tracing::instrument(skip_all)]
-    fn query_elements_from_point(
+    fn hit_test(
         &self,
+        flags: HitTestFlags,
         point: webrender_api::units::LayoutPoint,
-    ) -> Vec<layout_api::ElementsFromPointResult> {
+    ) -> HitTestResult {
         with_layout_state(|| {
             self.stacking_context_tree
                 .borrow_mut()
                 .as_mut()
-                .map(|tree| HitTest::run(tree, point))
+                .map(|tree| HitTest::run(flags, tree, point))
                 .unwrap_or_default()
         })
     }
@@ -752,6 +754,10 @@ impl Layout for LayoutThread {
 
     fn set_needs_accessibility_update(&self) {
         self.needs_accessibility_update.set(true);
+    }
+
+    fn font_context(&self) -> &Arc<FontContext> {
+        &self.font_context
     }
 }
 
@@ -926,7 +932,9 @@ impl LayoutThread {
         reflow_request: &mut ReflowRequest,
         reflow_statistics: &mut ReflowStatistics,
     ) -> bool {
-        if !self.needs_accessibility_update() {
+        if reflow_request.reflow_goal != ReflowGoal::UpdateTheRendering ||
+            !self.needs_accessibility_update()
+        {
             return false;
         }
         let mut accessibility_tree = self.accessibility_tree.borrow_mut();

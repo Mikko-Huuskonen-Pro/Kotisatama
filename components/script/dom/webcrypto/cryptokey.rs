@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-use std::cell::Cell;
 use std::str::FromStr;
 
 use dom_struct::dom_struct;
@@ -12,10 +11,10 @@ use js::jsapi::{Heap, JSObject, Value};
 use js::rust::MutableHandleObject;
 use malloc_size_of::MallocSizeOf;
 use rustc_hash::FxHashMap;
-use script_bindings::cell::{DomRefCell, Ref};
 use script_bindings::reflector::{Reflector, reflect_dom_object_with_cx};
 use servo_base::id::{CryptoKeyId, CryptoKeyIndex};
 use servo_constellation_traits::{SerializableCryptoKey, SerializableCryptoKeyHandle};
+use strum::VariantArray;
 use zeroize::Zeroizing;
 
 use crate::dom::bindings::codegen::Bindings::CryptoKeyBinding::{
@@ -86,7 +85,7 @@ pub(crate) struct CryptoKey {
     key_type: KeyType,
 
     /// <https://w3c.github.io/webcrypto/#dfn-CryptoKey-slot-extractable>
-    extractable: Cell<bool>,
+    extractable: bool,
 
     /// <https://w3c.github.io/webcrypto/#dfn-CryptoKey-slot-algorithm>
     ///
@@ -102,7 +101,7 @@ pub(crate) struct CryptoKey {
     /// <https://w3c.github.io/webcrypto/#dfn-CryptoKey-slot-usages>
     ///
     /// The contents of the [[usages]] internal slot shall be of type Sequence<KeyUsage>.
-    usages: DomRefCell<Vec<KeyUsage>>,
+    usages: Vec<KeyUsage>,
 
     /// <https://w3c.github.io/webcrypto/#dfn-CryptoKey-slot-usages_cached>
     #[ignore_malloc_size_of = "Defined in mozjs"]
@@ -124,10 +123,10 @@ impl CryptoKey {
         CryptoKey {
             reflector_: Reflector::new(),
             key_type,
-            extractable: Cell::new(extractable),
+            extractable,
             algorithm,
             algorithm_cached: Heap::default(),
-            usages: DomRefCell::new(usages),
+            usages,
             usages_cached: Heap::default(),
             handle,
         }
@@ -175,25 +174,12 @@ impl CryptoKey {
         &self.algorithm
     }
 
-    pub(crate) fn usages(&self) -> Ref<'_, Vec<KeyUsage>> {
-        self.usages.borrow()
+    pub(crate) fn usages(&self) -> &[KeyUsage] {
+        &self.usages
     }
 
     pub(crate) fn handle(&self) -> &Handle {
         &self.handle
-    }
-
-    pub(crate) fn set_extractable(&self, extractable: bool) {
-        self.extractable.set(extractable);
-    }
-
-    pub(crate) fn set_usages(&self, cx: &mut js::context::JSContext, usages: &[KeyUsage]) {
-        *self.usages.borrow_mut() = usages.to_owned();
-
-        // Create and store a cached object of usages
-        rooted!(&in(cx) let mut usages_object_value: Value);
-        usages.safe_to_jsval(cx, usages_object_value.handle_mut());
-        self.usages_cached.set(usages_object_value.to_object());
     }
 }
 
@@ -208,7 +194,7 @@ impl CryptoKeyMethods<crate::DomTypeHolder> for CryptoKey {
     fn Extractable(&self) -> bool {
         // Reflects the [[extractable]] internal slot, which indicates whether or not the raw
         // keying material may be exported by the application.
-        self.extractable.get()
+        self.extractable
     }
 
     /// <https://w3c.github.io/webcrypto/#dom-cryptokey-algorithm>
@@ -240,11 +226,10 @@ impl Serializable for CryptoKey {
         // Step 5. Set serialized.[[Handle]] to the [[handle]] internal slot of value.
         let serialized = SerializableCryptoKey {
             key_type: self.key_type.as_str().into(),
-            extractable: self.extractable.get(),
+            extractable: self.extractable,
             algorithm: (&self.algorithm).into(),
             usages: self
                 .usages
-                .borrow()
                 .iter()
                 .map(|usage| usage.as_str().into())
                 .collect(),
@@ -645,5 +630,40 @@ impl TryFrom<&Handle> for SerializableCryptoKeyHandle {
                 password.to_vec(),
             )),
         }
+    }
+}
+
+/// The trait providing helper functions for [`Vec<KeyUsage>`]
+pub(crate) trait KeyUsageVecHelper {
+    /// <https://w3c.github.io/webcrypto/#concept-usage-intersection>
+    fn usage_intersection(&self, other: &[KeyUsage]) -> Vec<KeyUsage>;
+
+    /// <https://w3c.github.io/webcrypto/#concept-normalized-usages>
+    fn normalized_value(&self) -> Vec<KeyUsage>;
+}
+
+impl KeyUsageVecHelper for Vec<KeyUsage> {
+    fn usage_intersection(&self, other: &[KeyUsage]) -> Vec<KeyUsage> {
+        // When this specification says to calculate the usage intersection of two sequences, a and
+        // b the result shall be a sequence containing each recognized key usage value that appears
+        // in both a and b, in the order listed in the list of recognized key usage values, where a
+        // value is said to appear in a sequence if an element of the sequence exists that is a
+        // case-sensitive string match for that value.
+        let mut intersection = self
+            .iter()
+            .filter(|usage| other.contains(usage))
+            .cloned()
+            .collect::<Vec<KeyUsage>>();
+        intersection.sort();
+        intersection.dedup();
+
+        intersection
+    }
+
+    fn normalized_value(&self) -> Vec<KeyUsage> {
+        // When this specification says to calculate the normalized value of a usages list, usages
+        // the result shall be the usage intersection of usages and a sequence containing all
+        // recognized key usage values.
+        self.usage_intersection(KeyUsage::VARIANTS)
     }
 }

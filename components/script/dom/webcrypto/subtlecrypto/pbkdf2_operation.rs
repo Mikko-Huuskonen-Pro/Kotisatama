@@ -11,10 +11,10 @@ use crate::dom::bindings::codegen::Bindings::CryptoKeyBinding::{KeyType, KeyUsag
 use crate::dom::bindings::codegen::Bindings::SubtleCryptoBinding::KeyFormat;
 use crate::dom::bindings::error::Error;
 use crate::dom::bindings::root::DomRoot;
-use crate::dom::cryptokey::{CryptoKey, Handle};
+use crate::dom::cryptokey::{CryptoKey, Handle, KeyUsageVecHelper};
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::subtlecrypto::{
-    CryptoAlgorithm, KeyAlgorithmAndDerivatives, NormalizedAlgorithm, SubtleKeyAlgorithm,
+    CryptoAlgorithm, KeyAlgorithm, KeyAlgorithmAndDerivatives, NormalizedAlgorithm,
     SubtlePbkdf2Params,
 };
 
@@ -118,7 +118,7 @@ pub(crate) fn import_key(
     // Step 6. Let algorithm be a new KeyAlgorithm object.
     // Step 7. Set the name attribute of algorithm to "PBKDF2".
     // Step 8. Set the [[algorithm]] internal slot of key to algorithm.
-    let algorithm = SubtleKeyAlgorithm {
+    let algorithm = KeyAlgorithm {
         name: CryptoAlgorithm::Pbkdf2,
     };
     let key = CryptoKey::new(
@@ -127,7 +127,7 @@ pub(crate) fn import_key(
         KeyType::Secret,
         extractable,
         KeyAlgorithmAndDerivatives::KeyAlgorithm(algorithm),
-        usages,
+        usages.normalized_value(),
         Handle::Pbkdf2(key_data.to_vec().into()),
     );
 

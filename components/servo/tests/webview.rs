@@ -55,12 +55,12 @@ fn open_context_menu_at_point(webview: &WebView, point: DevicePoint) {
     webview.notify_input_event(InputEvent::MouseMove(MouseMoveEvent::new(point)));
     webview.notify_input_event(InputEvent::MouseButton(MouseButtonEvent::new(
         MouseButtonAction::Down,
-        MouseButton::Right,
+        MouseButton::Secondary,
         point,
     )));
     webview.notify_input_event(InputEvent::MouseButton(MouseButtonEvent::new(
         MouseButtonAction::Up,
-        MouseButton::Right,
+        MouseButton::Secondary,
         point,
     )));
 }
@@ -140,7 +140,7 @@ fn test_create_webview_http_custom_host() {
         .url(custom_url.clone().into_url())
         .build();
 
-    servo_test.spin(move || !delegate.load_status_changed.get());
+    servo_test.spin(move || !delegate.load_status_changed.get() || !delegate.url_changed.get());
 
     let _ = server.close();
 
@@ -1084,11 +1084,67 @@ fn test_preferences_change() {
     let servo_test = ServoTest::new();
     let delegate = Rc::new(WebViewDelegateImpl::default());
 
+    let test_page =
+        Url::parse("data:text/html,<div id=\"target\" style=\"backdrop-filter: sepia(1)\"></div>")
+            .expect("Data URL failed to build");
+
+    let webview = WebViewBuilder::new(servo_test.servo(), servo_test.rendering_context.clone())
+        .delegate(delegate.clone())
+        .url(test_page.clone())
+        .build();
+    show_webview_and_wait_for_rendering_to_be_ready(&servo_test, &webview, &delegate);
+
+    assert_eq!(
+        // The backdrop-filter style is feature flagged by the layout.unimplemented feature,
+        // so when layout.unimplemented feature is disabled, the backdrop-filter style specified
+        // in the stylesheet won't parse and the computed value undefined
+        Ok(JSValue::Array(vec![
+            JSValue::String("".to_string()),
+            JSValue::String("".to_string())
+        ])),
+        evaluate_javascript(
+            &servo_test,
+            webview.clone(),
+            "let old_value = target.style.getPropertyValue('backdrop-filter');
+            target.style.backdropFilter = 'sepia(1)';
+            let new_value = target.style.getPropertyValue('backdrop-filter');
+            [old_value, new_value]"
+        )
+    );
+
+    servo_test
+        .servo()
+        .set_preference("layout_unimplemented", PrefValue::Bool(true));
+
+    webview.reload();
+
+    assert_eq!(
+        // When layout.unimplemented feature is enabled, the backdrop-filter style specified in
+        // the stylesheet will parse and the computed value will be that value
+        Ok(JSValue::Array(vec![
+            JSValue::String("sepia(1)".to_string()),
+            JSValue::String("opacity(0.5)".to_string())
+        ])),
+        evaluate_javascript(
+            &servo_test,
+            webview,
+            "let old_value = target.style.getPropertyValue('backdrop-filter');
+            target.style.backdropFilter = 'opacity(0.5)';
+            let new_value = target.style.getPropertyValue('backdrop-filter');
+            [old_value, new_value]"
+        )
+    );
+}
+
+#[test]
+fn test_fullscreen() {
+    let servo_test = ServoTest::new();
+    let delegate = Rc::new(WebViewDelegateImpl::default());
+
     let test_page = Url::parse(
         "data:text/html,\
-        <div style=\"display: grid;\">\
-            <div id=target style=\"grid-column: 1;\">three</div>\
-        </div>",
+        <button onclick='this.requestFullscreen()'>click</button>\
+        <a href=about:blank>click</a>",
     )
     .expect("Data URL failed to build");
 
@@ -1098,39 +1154,69 @@ fn test_preferences_change() {
         .build();
     show_webview_and_wait_for_rendering_to_be_ready(&servo_test, &webview, &delegate);
 
-    assert_eq!(
-        Ok(JSValue::Array(vec![
-            JSValue::String("".to_string()),
-            JSValue::String("".to_string())
-        ])),
+    click_at_point(&webview, Point2D::new(10., 10.));
+
+    let captured = delegate.clone();
+    servo_test.spin(move || !captured.fullscreen.get());
+
+    assert!(
         evaluate_javascript(
             &servo_test,
             webview.clone(),
-            "let old_value = target.style.getPropertyValue('grid-column');
-            target.style.gridColumn = '3';
-            let new_value = target.style.getPropertyValue('grid-column');
-            [old_value, new_value]"
+            "document.querySelector('a').click();"
         )
+        .is_ok()
     );
 
-    servo_test
-        .servo()
-        .set_preference("layout_grid_enabled", PrefValue::Bool(true));
+    let captured = delegate.clone();
+    servo_test.spin(move || captured.fullscreen.get());
+}
 
-    webview.reload();
+#[test]
+fn test_webview_title_updates_when_document_title_is_updated() {
+    let servo_test = ServoTest::new();
+    let delegate = Rc::new(WebViewDelegateImpl::default());
+    let test_page = Url::parse(
+        "data:text/html,\
+        <script>document.title='Success';</script>",
+    )
+    .expect("Data URL failed to build");
 
-    assert_eq!(
-        Ok(JSValue::Array(vec![
-            JSValue::String("1".to_string()),
-            JSValue::String("3".to_string())
-        ])),
-        evaluate_javascript(
-            &servo_test,
-            webview,
-            "let old_value = target.style.getPropertyValue('grid-column');
-            target.style.gridColumn = '3';
-            let new_value = target.style.getPropertyValue('grid-column');
-            [old_value, new_value]"
-        )
-    );
+    let webview = WebViewBuilder::new(servo_test.servo(), servo_test.rendering_context.clone())
+        .delegate(delegate.clone())
+        .url(test_page.clone())
+        .build();
+
+    // Wait for the page to load
+    let load_webview = webview.clone();
+    servo_test.spin(move || load_webview.load_status() != LoadStatus::Complete);
+
+    assert_eq!(webview.page_title().as_deref(), Some("Success"));
+}
+
+#[test]
+fn test_webview_title_updates_when_title_element_is_created_from_javascript() {
+    let servo_test = ServoTest::new();
+    let delegate = Rc::new(WebViewDelegateImpl::default());
+    let test_page = Url::parse(
+        "data:text/html,\
+        <body>\
+        <script>\
+        let title = document.createElement('title');\
+        title.textContent = 'Success';\
+        document.body.appendChild(title);\
+        </script>",
+    )
+    .expect("Data URL failed to build");
+
+    let webview = WebViewBuilder::new(servo_test.servo(), servo_test.rendering_context.clone())
+        .delegate(delegate.clone())
+        .url(test_page.clone())
+        .build();
+
+    // Wait for the page to load
+    let load_webview = webview.clone();
+    servo_test.spin(move || load_webview.load_status() != LoadStatus::Complete);
+
+    assert_eq!(webview.page_title().as_deref(), Some("Success"));
 }

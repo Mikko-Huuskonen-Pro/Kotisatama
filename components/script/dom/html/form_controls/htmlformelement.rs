@@ -28,7 +28,6 @@ use style::str::split_html_space_chars;
 use stylo_atoms::Atom;
 use stylo_dom::ElementState;
 
-use crate::body::Extractable;
 use crate::dom::bindings::codegen::Bindings::BlobBinding::BlobMethods;
 use crate::dom::bindings::codegen::Bindings::DocumentBinding::DocumentMethods;
 use crate::dom::bindings::codegen::Bindings::EventBinding::EventMethods;
@@ -83,9 +82,10 @@ use crate::dom::radionodelist::RadioNodeList;
 use crate::dom::submitevent::SubmitEvent;
 use crate::dom::types::{DocumentFragment, HTMLIFrameElement};
 use crate::dom::window::Window;
+use crate::event_loop::script_thread::ScriptThread;
+use crate::fetch::body::Extractable;
 use crate::links::{LinkRelations, get_element_target, valid_navigable_target_name_or_keyword};
 use crate::navigation::navigate;
-use crate::script_thread::ScriptThread;
 
 /// <https://html.spec.whatwg.org/multipage/#the-form-element>
 #[dom_struct]
@@ -341,12 +341,14 @@ impl HTMLFormElementMethods<crate::DomTypeHolder> for HTMLFormElement {
                 let owner = match submitters_owner {
                     Some(owner) => owner,
                     None => {
-                        return Err(Error::NotFound(None));
+                        return Err(Error::NotFound(Some(
+                            "Form element's owner does not exist".into(),
+                        )));
                     },
                 };
 
                 if *owner != *self {
-                    return Err(Error::NotFound(None));
+                    return Err(Error::NotFound(Some("The form that owns this submitter element does not match the form element provided".into())));
                 }
 
                 submit_button

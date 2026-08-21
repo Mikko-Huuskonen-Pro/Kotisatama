@@ -304,7 +304,7 @@ impl WebViewRenderer {
             AnimationState::NoAnimationsPresent => {
                 pipeline_details.animations_running = false;
             },
-            AnimationState::NoAnimationCallbacksPresent => {
+            AnimationState::AnimationCallbacksAbsent => {
                 pipeline_details.animation_callbacks_running = false;
             },
         }
@@ -715,7 +715,7 @@ impl WebViewRenderer {
 
     /// <http://w3c.github.io/touch-events/#mouse-events>
     fn simulate_mouse_click(&mut self, render_api: &RenderApi, point: DevicePoint) {
-        let button = MouseButton::Left;
+        let button = MouseButton::Primary;
         self.dispatch_input_event_with_hit_testing(
             render_api,
             InputEvent::MouseMove(MouseMoveEvent::new_compatibility_for_touch(point.into())).into(),

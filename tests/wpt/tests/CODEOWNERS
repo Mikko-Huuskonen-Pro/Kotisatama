@@ -9,8 +9,9 @@
 tools/docker/Dockerfile @web-platform-tests/wpt-core-team @web-platform-tests/admins
 .taskcluster.yml @web-platform-tests/wpt-core-team @web-platform-tests/admins
 
-# Prevent accidentally touching wasm/core which is updated by a workflow
+# Prevent accidentally touching wasm/core and wasm/proposals which are updated by a workflow
 wasm/core/ @web-platform-tests/wpt-core-team
+wasm/proposals @web-platform-tests/wpt-core-team
 
 # GENERATED: interop-tests
 css/css-anchor-position/anchor-as-multicol-crash.html @web-platform-tests/interop
@@ -737,7 +738,6 @@ css/css-scroll-snap/snap-after-relayout/not-resnap-outside-proximity-threshold.h
 css/css-scroll-snap/snap-after-relayout/resnap-on-oveflow-hidden-container.html @web-platform-tests/interop
 css/css-scroll-snap/snap-after-relayout/resnap-on-overflowing-snap-area.html @web-platform-tests/interop
 css/css-scroll-snap/snap-after-relayout/resnap-on-reconstructing-frame.html @web-platform-tests/interop
-css/css-scroll-snap/snap-fling-in-large-area.html @web-platform-tests/interop
 css/css-scroll-snap/snap-intended-direction.html @web-platform-tests/interop
 css/css-scroll-snap/snap-on-focus.html @web-platform-tests/interop
 css/css-scroll-snap/snap-to-combination-of-two-elements-1.html @web-platform-tests/interop

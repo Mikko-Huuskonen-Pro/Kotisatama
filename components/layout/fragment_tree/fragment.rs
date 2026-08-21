@@ -14,6 +14,7 @@ use malloc_size_of_derive::MallocSizeOf;
 use servo_arc::Arc as ServoArc;
 use servo_base::id::PipelineId;
 use servo_base::print_tree::PrintTree;
+use servo_base::text::Utf32CodeUnits;
 use servo_url::ServoUrl;
 use style::Zero;
 use style::properties::ComputedValues;
@@ -104,7 +105,7 @@ pub(crate) struct TextFragment {
     pub justification_adjustment: Au,
     /// The range of characters this [`TextFragment`] represents within the text of its
     /// original DOM node (modified by text transformation).
-    pub character_range_in_dom_node: Range<usize>,
+    pub character_range_in_dom_node: Range<Utf32CodeUnits>,
     /// Whether or not this [`TextFragment`] is an empty fragment added for the
     /// benefit of placing a text cursor on an otherwise empty editable line.
     pub is_empty_for_text_cursor: bool,
@@ -118,6 +119,10 @@ pub(crate) struct ImageFragment {
     pub image_key: Option<ImageKey>,
     pub showing_broken_image_icon: bool,
     pub url: Option<ServoUrl>,
+    /// The intrinsic (natural) width of the image, if known.
+    pub natural_width: Option<Au>,
+    /// The intrinsic (natural) height of the image, if known.
+    pub natural_height: Option<Au>,
 }
 
 #[derive(MallocSizeOf)]
@@ -495,7 +500,21 @@ impl TextFragment {
     pub(crate) fn character_offset(
         &self,
         point_in_fragment: Point2D<Au, CSSPixel>,
-    ) -> Option<usize> {
+    ) -> Option<Utf32CodeUnits> {
+        self.unmapped_character_offset(point_in_fragment)
+            .map(|character_offset| {
+                self.run_data
+                    .map_transformed_offset_to_dom_offset(character_offset)
+            })
+    }
+
+    /// Like [`Self::character_offset`], but returning the character offset in layout text (after
+    /// applying white space collapse and the `text-transform` property), instead of the original DOM
+    /// text.
+    fn unmapped_character_offset(
+        &self,
+        point_in_fragment: Point2D<Au, CSSPixel>,
+    ) -> Option<Utf32CodeUnits> {
         // If the click was far enough above the top of the fragment, then pick the first index.
         let max_vertical_offset = self.base.rect().height().scale_by(0.25);
         if point_in_fragment.y < -max_vertical_offset {
@@ -523,7 +542,7 @@ impl TextFragment {
                     return Some(current_character);
                 }
                 current_offset += advance;
-                current_character += glyph.character_count();
+                current_character += Utf32CodeUnits(glyph.character_count());
             }
         }
 

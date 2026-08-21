@@ -109,7 +109,6 @@ use crate::dom::bindings::structuredclone;
 use crate::dom::bindings::trace::{CustomTraceable, HashMapTracedValues, RootedTraceableBox};
 use crate::dom::bindings::weakref::{DOMTracker, WeakRef};
 use crate::dom::blob::Blob;
-use crate::dom::broadcastchannel::BroadcastChannel;
 use crate::dom::dedicatedworkerglobalscope::{
     DedicatedWorkerControlMsg, DedicatedWorkerGlobalScope,
 };
@@ -119,6 +118,7 @@ use crate::dom::event::{Event, EventBubbles, EventCancelable};
 use crate::dom::eventsource::EventSource;
 use crate::dom::eventtarget::EventTarget;
 use crate::dom::file::File;
+use crate::dom::globalscope::broadcastchannel::BroadcastChannel;
 use crate::dom::globalscope::script_execution::{
     ErrorReporting, evaluate_script, fill_compile_options,
 };
@@ -144,18 +144,19 @@ use crate::dom::webgpu::identityhub::IdentityHub;
 use crate::dom::window::Window;
 use crate::dom::workerglobalscope::WorkerGlobalScope;
 use crate::dom::workletglobalscope::WorkletGlobalScope;
-use crate::fetch::{DeferredFetchRecordId, FetchGroup, QueuedDeferredFetchRecord};
+use crate::event_loop::script_thread::{ScriptThread, with_script_thread};
+use crate::fetch::fetch::{DeferredFetchRecordId, FetchGroup, QueuedDeferredFetchRecord};
+use crate::fetch::network_listener::{FetchResponseListener, NetworkListener};
 use crate::messaging::{CommonScriptMsg, ScriptEventLoopReceiver, ScriptEventLoopSender};
 use crate::microtask::MicrotaskRunnable;
-use crate::network_listener::{FetchResponseListener, NetworkListener};
-use crate::realms::enter_auto_realm;
-use crate::script_module::{
-    ImportMap, ModuleRequest, ModuleStatus, ModuleTree, ResolvedModule, ScriptFetchOptions,
+use crate::modules::import_map::ImportMap;
+use crate::modules::script_module::{
+    ModuleRequest, ModuleStatus, ModuleTree, ResolvedModule, ScriptFetchOptions,
 };
+use crate::realms::enter_auto_realm;
 use crate::script_runtime::ThreadSafeJSContext;
-use crate::script_thread::{ScriptThread, with_script_thread};
-use crate::task_manager::TaskManager;
-use crate::task_source::SendableTaskSource;
+use crate::tasks::task_manager::TaskManager;
+use crate::tasks::task_source::SendableTaskSource;
 use crate::timers::{
     IsInterval, OneshotTimerCallback, OneshotTimerHandle, OneshotTimers, TimerCallback,
     TimerEventId, TimerSource,
@@ -167,11 +168,12 @@ pub(crate) struct AutoCloseWorker {
     /// <https://html.spec.whatwg.org/multipage/#dom-workerglobalscope-closing>
     #[conditional_malloc_size_of]
     closing: Arc<AtomicBool>,
+    #[conditional_malloc_size_of]
+    animation_frame_provider_supported: Arc<AtomicBool>,
     /// A handle to join on the worker thread.
     #[ignore_malloc_size_of = "JoinHandle"]
     join_handle: Option<JoinHandle<()>>,
-    /// A sender of control messages,
-    /// currently only used to signal shutdown.
+    /// A sender of control messages.
     #[no_trace]
     control_sender: Sender<DedicatedWorkerControlMsg>,
     /// The context to request an interrupt on the worker thread.
@@ -293,7 +295,7 @@ pub(crate) struct GlobalScope {
 
     /// <https://html.spec.whatwg.org/multipage/#concept-environment-top-level-creation-url>
     #[no_trace]
-    top_level_creation_url: Option<ServoUrl>,
+    top_level_creation_url: DomRefCell<Option<ServoUrl>>,
 
     /// A map for storing the previous permission state read results.
     permission_state_invocation_results: DomRefCell<HashMap<PermissionName, PermissionState>>,
@@ -388,13 +390,6 @@ pub(crate) struct GlobalScope {
 
     /// <https://html.spec.whatwg.org/multipage/#resolved-module-set>
     resolved_module_set: DomRefCell<HashSet<ResolvedModule>>,
-
-    /// The [`FontContext`] for this [`GlobalScope`] if it has one. This is used for
-    /// canvas and layout, so if this [`GlobalScope`] doesn't need to use either, this
-    /// might be `None`.
-    #[conditional_malloc_size_of]
-    #[no_trace]
-    font_context: Option<Arc<FontContext>>,
 
     /// <https://fetch.spec.whatwg.org/#environment-settings-object-fetch-group>
     #[no_trace]
@@ -789,7 +784,6 @@ impl GlobalScope {
         #[cfg(feature = "webgpu")] gpu_id_hub: Arc<IdentityHub>,
         inherited_secure_context: Option<bool>,
         unminify_js: bool,
-        font_context: Option<Arc<FontContext>>,
     ) -> Self {
         Self {
             message_port_state: DomRefCell::new(MessagePortState::UnManaged),
@@ -811,7 +805,7 @@ impl GlobalScope {
             resource_threads,
             storage_threads,
             creation_url: DomRefCell::new(creation_url),
-            top_level_creation_url,
+            top_level_creation_url: DomRefCell::new(top_level_creation_url),
             permission_state_invocation_results: Default::default(),
             list_auto_close_worker: Default::default(),
             event_source_tracker: DOMTracker::new(),
@@ -832,7 +826,6 @@ impl GlobalScope {
             notification_permission_request_callback_map: Default::default(),
             import_map: Default::default(),
             resolved_module_set: Default::default(),
-            font_context,
             fetch_group: Default::default(),
         }
     }
@@ -866,8 +859,14 @@ impl GlobalScope {
         }
     }
 
-    pub(crate) fn font_context(&self) -> Option<&Arc<FontContext>> {
-        self.font_context.as_ref()
+    pub(crate) fn font_context(&self) -> Arc<FontContext> {
+        if let Some(worker) = self.downcast::<WorkerGlobalScope>() {
+            worker.font_context()
+        } else if let Some(window) = self.downcast::<Window>() {
+            window.font_context()
+        } else {
+            unreachable!("Unsupported global type retrieving font context")
+        }
     }
 
     /// <https://w3c.github.io/ServiceWorker/#get-the-service-worker-registration-object>
@@ -1397,7 +1396,7 @@ impl GlobalScope {
                                 destination.upcast(),
                                 &global,
                                 message.handle(),
-                                Some(&origin.ascii_serialization()),
+                                Some(origin.ascii_serialization().as_ref()),
                                 None,
                                 ports,
                             );
@@ -1567,7 +1566,7 @@ impl GlobalScope {
                             message_event_target,
                             self,
                             message_clone.handle(),
-                            Some(&origin.ascii_serialization()),
+                            Some(origin.ascii_serialization().as_ref()),
                             None,
                             ports,
                         );
@@ -2315,6 +2314,7 @@ impl GlobalScope {
     pub(crate) fn track_worker(
         &self,
         closing: Arc<AtomicBool>,
+        animation_frame_provider_supported: Arc<AtomicBool>,
         join_handle: JoinHandle<()>,
         control_sender: Sender<DedicatedWorkerControlMsg>,
         context: ThreadSafeJSContext,
@@ -2323,10 +2323,22 @@ impl GlobalScope {
             .borrow_mut()
             .push(AutoCloseWorker {
                 closing,
+                animation_frame_provider_supported,
                 join_handle: Some(join_handle),
                 control_sender,
                 context,
             });
+    }
+
+    pub(crate) fn disable_owned_worker_animation_frame_providers(&self) {
+        for worker in &*self.list_auto_close_worker.borrow() {
+            worker
+                .animation_frame_provider_supported
+                .store(false, Ordering::SeqCst);
+            let _ = worker
+                .control_sender
+                .send(DedicatedWorkerControlMsg::AnimationFrameProviderUnsupported);
+        }
     }
 
     pub(crate) fn track_event_source(&self, event_source: &EventSource) {
@@ -2584,8 +2596,13 @@ impl GlobalScope {
     }
 
     /// Get the top_level_creation_url for this global scope
-    pub(crate) fn top_level_creation_url(&self) -> &Option<ServoUrl> {
-        &self.top_level_creation_url
+    pub(crate) fn top_level_creation_url(&self) -> Option<ServoUrl> {
+        self.top_level_creation_url.borrow().clone()
+    }
+
+    /// TODO: This value should be immutable after we fix #37417.
+    pub(crate) fn set_top_level_creation_url(&self, url: ServoUrl) {
+        *self.top_level_creation_url.borrow_mut() = Some(url);
     }
 
     pub(crate) fn image_cache(&self) -> Arc<dyn ImageCache> {
@@ -3639,6 +3656,10 @@ impl GlobalScopeHelpers<crate::DomTypeHolder> for GlobalScope {
 
     fn is_secure_context(&self) -> bool {
         self.is_secure_context()
+    }
+
+    fn pipeline_id(&self) -> PipelineId {
+        self.pipeline_id()
     }
 }
 

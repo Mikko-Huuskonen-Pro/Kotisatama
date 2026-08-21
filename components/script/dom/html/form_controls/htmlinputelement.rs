@@ -554,13 +554,17 @@ impl HTMLInputElement {
         // Step 1. If the stepDown() and stepUp() methods do not apply, as defined for the
         // input element's type attribute's current state, then throw an "InvalidStateError" DOMException.
         if !self.does_value_as_number_apply() {
-            return Err(Error::InvalidState(None));
+            return Err(Error::InvalidState(Some(
+                "Input element does not implement `stepDown()` or `stepUp()`".into(),
+            )));
         }
         let step_base = self.step_base();
 
         // Step 2. If the element has no allowed value step, then throw an "InvalidStateError" DOMException.
         let Some(allowed_value_step) = self.allowed_value_step() else {
-            return Err(Error::InvalidState(None));
+            return Err(Error::InvalidState(Some(
+                "Input element does not have a value step".into(),
+            )));
         };
 
         // Step 3. If the element has a minimum and a maximum and the minimum is greater than the maximum,
@@ -1207,7 +1211,7 @@ impl HTMLInputElementMethods<crate::DomTypeHolder> for HTMLInputElement {
                     let fl = FileList::new(cx, &window, vec![]);
                     self.input_type().as_specific().set_files(&fl)
                 } else {
-                    return Err(Error::InvalidState(None));
+                    return Err(Error::InvalidState(Some("DOM string is not empty".into())));
                 }
             },
         }
@@ -1254,7 +1258,9 @@ impl HTMLInputElementMethods<crate::DomTypeHolder> for HTMLInputElement {
     fn SetValueAsDate(&self, cx: &mut JSContext, value: *mut JSObject) -> ErrorResult {
         rooted!(&in(cx) let value = value);
         if !self.does_value_as_date_apply() {
-            return Err(Error::InvalidState(None));
+            return Err(Error::InvalidState(Some(
+                "Input element cannot be treated as a date".into(),
+            )));
         }
         if value.is_null() {
             return self.SetValue(cx, DOMString::from(""));
@@ -1301,7 +1307,9 @@ impl HTMLInputElementMethods<crate::DomTypeHolder> for HTMLInputElement {
         if value.is_infinite() {
             Err(Error::Type(c"value is not finite".to_owned()))
         } else if !self.does_value_as_number_apply() {
-            Err(Error::InvalidState(None))
+            Err(Error::InvalidState(Some(
+                "Input element value cannot be treated as a number".into(),
+            )))
         } else if value.is_nan() {
             self.SetValue(cx, DOMString::from(""))
         } else if let Some(converted) = self.convert_number_to_string(value) {
@@ -1661,7 +1669,7 @@ impl HTMLInputElement {
             },
 
             // Step 5.9: Otherwise, if the field element is an input element whose type attribute is in the Hidden state and name is an ASCII case-insensitive match for "_charset_":
-            InputType::Hidden(_) if name.to_ascii_lowercase() == "_charset_" => {
+            InputType::Hidden(_) if name.eq_ignore_ascii_case("_charset_") => {
                 // Step 5.9.1: Let charset be the name of encoding.
                 let charset = match encoding {
                     None => DOMString::from("UTF-8"),
@@ -1979,7 +1987,8 @@ impl HTMLInputElement {
     }
 
     fn handle_mouse_event(&self, mouse_event: &MouseEvent) {
-        if mouse_event.upcast::<Event>().DefaultPrevented() {
+        let event = mouse_event.upcast::<Event>();
+        if event.DefaultPrevented() {
             return;
         }
 
@@ -1988,11 +1997,14 @@ impl HTMLInputElement {
         if !self.input_type().is_textual_or_password() || self.textinput.borrow().is_empty() {
             return;
         }
-        let node = self.upcast();
+        if event.type_() != atom!("mousedown") {
+            return;
+        }
+
         if self
             .textinput
             .borrow_mut()
-            .handle_mouse_event(node, mouse_event)
+            .handle_mousedown_event(self.upcast(), mouse_event)
         {
             self.maybe_update_shared_selection();
         }

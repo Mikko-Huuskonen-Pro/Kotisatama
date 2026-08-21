@@ -6,12 +6,12 @@ use std::rc::Rc;
 
 use dom_struct::dom_struct;
 use js::context::JSContext;
-use js::error::throw_type_error;
+use js::error::throw_type_error_safe;
 use js::gc::{HandleValue, MutableHandleValue};
 use js::jsapi::CallArgs;
 use js::jsval::{JSVal, UndefinedValue};
 use js::rust::HandleObject;
-use script_bindings::reflector::{Reflector, reflect_dom_object_with_proto_and_cx};
+use script_bindings::reflector::{Reflector, reflect_dom_object_with_proto};
 
 use crate::dom::bindings::codegen::Bindings::FunctionBinding::Function;
 use crate::dom::bindings::codegen::Bindings::QueuingStrategyBinding::{
@@ -44,7 +44,7 @@ impl ByteLengthQueuingStrategy {
         proto: Option<HandleObject>,
         init: f64,
     ) -> DomRoot<Self> {
-        reflect_dom_object_with_proto_and_cx(Box::new(Self::new_inherited(init)), global, proto, cx)
+        reflect_dom_object_with_proto(cx, Box::new(Self::new_inherited(init)), global, proto)
     }
 }
 
@@ -96,12 +96,10 @@ fn byte_length_queuing_strategy_size(cx: &mut js::context::JSContext, args: Call
     // https://tc39.es/ecma262/#sec-getv
     // Let O be ? ToObject(V).
     if chunk.is_undefined() || chunk.is_null() {
-        unsafe {
-            throw_type_error(
-                cx.raw_cx(),
-                c"ByteLengthQueuingStrategy size called with undefined or nulll",
-            )
-        };
+        throw_type_error_safe(
+            cx,
+            c"ByteLengthQueuingStrategy size called with undefined or nulll",
+        );
         return false;
     }
 

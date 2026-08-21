@@ -3,16 +3,16 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 use std::cell::LazyCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use dom_struct::dom_struct;
 use html5ever::{LocalName, Namespace, ns};
 use js::context::JSContext;
 use js::rust::HandleObject;
+use rustc_hash::FxHashMap;
 use script_bindings::callback::OwnerWindow;
 use script_bindings::cell::DomRefCell;
-use script_bindings::reflector::{Reflector, reflect_dom_object_with_proto_and_cx};
+use script_bindings::reflector::{Reflector, reflect_dom_object_with_proto};
 
 use crate::dom::bindings::codegen::Bindings::MutationObserverBinding::MutationObserver_Binding::MutationObserverMethods;
 use crate::dom::bindings::codegen::Bindings::MutationObserverBinding::{
@@ -26,7 +26,7 @@ use crate::dom::iterators::ShadowIncluding;
 use crate::dom::mutationrecord::MutationRecord;
 use crate::dom::node::Node;
 use crate::dom::window::Window;
-use crate::script_thread::ScriptThread;
+use crate::event_loop::script_thread::ScriptThread;
 
 #[dom_struct]
 pub(crate) struct MutationObserver {
@@ -80,7 +80,7 @@ impl MutationObserver {
         callback: Rc<MutationCallback>,
     ) -> DomRoot<MutationObserver> {
         let boxed_observer = Box::new(MutationObserver::new_inherited(callback));
-        reflect_dom_object_with_proto_and_cx(boxed_observer, global, proto, cx)
+        reflect_dom_object_with_proto(cx, boxed_observer, global, proto)
     }
 
     fn new_inherited(callback: Rc<MutationCallback>) -> MutationObserver {
@@ -112,12 +112,12 @@ impl MutationObserver {
             return;
         }
         // Step 1 Let interestedObservers be an empty map.
-        let mut interested_observers: HashMap<DomRoot<MutationObserver>, Option<DOMString>> =
-            HashMap::new();
+        let mut interested_observers: FxHashMap<DomRoot<MutationObserver>, Option<DOMString>> =
+            FxHashMap::default();
 
         // Step 2 Let nodes be the inclusive ancestors of target.
         // Step 3 For each node in nodes ...
-        for node in target.inclusive_ancestors(ShadowIncluding::No) {
+        for node in target.inclusive_ancestors_unrooted(cx.no_gc(), ShadowIncluding::No) {
             let registered = node.registered_mutation_observers();
             if registered.is_none() {
                 continue;
@@ -126,7 +126,7 @@ impl MutationObserver {
             // Step 3 ... and then for each registered of node’s registered observer list:
             for registered in &*registered.unwrap() {
                 // 3.2 "1": node is not target and options["subtree"] is false
-                if &*node != target && !registered.options.subtree {
+                if *node != target && !registered.options.subtree {
                     continue;
                 }
 

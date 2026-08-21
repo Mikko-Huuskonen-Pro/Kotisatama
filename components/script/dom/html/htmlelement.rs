@@ -65,14 +65,15 @@ use crate::dom::html::htmltextareaelement::HTMLTextAreaElement;
 use crate::dom::htmlformelement::FormControlElementHelpers;
 use crate::dom::iterators::ShadowIncluding;
 use crate::dom::medialist::MediaList;
+use crate::dom::node::focus::FocusTrigger;
 use crate::dom::node::virtualmethods::VirtualMethods;
 use crate::dom::node::{
     BindContext, MoveContext, Node, NodeTraits, UnbindContext, from_untrusted_node_address,
 };
-use crate::dom::scrolling_box::{ScrollAxisState, ScrollRequirement};
 use crate::dom::shadowroot::ShadowRoot;
 use crate::dom::text::Text;
-use crate::script_thread::ScriptThread;
+use crate::dom::window::scrolling_box::{ScrollAxisState, ScrollRequirement};
+use crate::event_loop::script_thread::ScriptThread;
 
 #[dom_struct]
 pub(crate) struct HTMLElement {
@@ -479,7 +480,10 @@ impl HTMLElementMethods<crate::DomTypeHolder> for HTMLElement {
         // TODO: Implement this.
 
         // 2. Run the focusing steps for this.
-        if !self.upcast::<Node>().run_the_focusing_steps(cx, None) {
+        if !self
+            .upcast::<Node>()
+            .run_the_focusing_steps(cx, None, FocusTrigger::Other)
+        {
             // The specification seems to imply we should scroll into view even if this element
             // is not a focusable area. No browser does this, so we return early in that case.
             // See https://github.com/whatwg/html/issues/12231.
@@ -614,7 +618,9 @@ impl HTMLElementMethods<crate::DomTypeHolder> for HTMLElement {
     fn SetOuterText(&self, cx: &mut JSContext, input: DOMString) -> Fallible<()> {
         // Step 1: If this's parent is null, then throw a "NoModificationAllowedError" DOMException.
         let Some(parent) = self.upcast::<Node>().GetParentNode() else {
-            return Err(Error::NoModificationAllowed(None));
+            return Err(Error::NoModificationAllowed(Some(
+                "Cannot modify HTML element as its parent element is null".into(),
+            )));
         };
 
         let node = self.upcast::<Node>();
@@ -688,22 +694,25 @@ impl HTMLElementMethods<crate::DomTypeHolder> for HTMLElement {
 
     /// <https://html.spec.whatwg.org/multipage/#dom-contenteditable>
     fn SetContentEditable(&self, cx: &mut JSContext, value: DOMString) -> ErrorResult {
-        let lower_value = value.to_ascii_lowercase();
         let attr_name = &local_name!("contenteditable");
-        match lower_value.as_ref() {
+        if value.eq_ignore_ascii_case("inherit") {
             // > On setting, if the new value is an ASCII case-insensitive match for the string "inherit", then the content attribute must be removed,
-            "inherit" => {
-                self.element.remove_attribute_by_name(cx, attr_name);
-            },
+            self.element.remove_attribute_by_name(cx, attr_name);
+        } else if value.eq_ignore_ascii_case("true") ||
+            value.eq_ignore_ascii_case("false") ||
+            value.eq_ignore_ascii_case("plaintext-only")
+        {
             // > if the new value is an ASCII case-insensitive match for the string "true", then the content attribute must be set to the string "true",
             // > if the new value is an ASCII case-insensitive match for the string "plaintext-only", then the content attribute must be set to the string "plaintext-only",
             // > if the new value is an ASCII case-insensitive match for the string "false", then the content attribute must be set to the string "false",
-            "true" | "false" | "plaintext-only" => {
-                self.element
-                    .set_attribute(cx, attr_name, AttrValue::String(lower_value));
-            },
+            let lower_value = value.to_ascii_lowercase();
+            self.element
+                .set_attribute(cx, attr_name, AttrValue::String(lower_value));
+        } else {
             // > and otherwise the attribute setter must throw a "SyntaxError" DOMException.
-            _ => return Err(Error::Syntax(None)),
+            return Err(Error::Syntax(Some(
+                "Invalid attribute for HTML element".into(),
+            )));
         };
         Ok(())
     }
@@ -718,7 +727,9 @@ impl HTMLElementMethods<crate::DomTypeHolder> for HTMLElement {
     fn AttachInternals(&self, cx: &mut JSContext) -> Fallible<DomRoot<ElementInternals>> {
         // Step 1: If this's is value is not null, then throw a "NotSupportedError" DOMException
         if self.element.get_is().is_some() {
-            return Err(Error::NotSupported(None));
+            return Err(Error::NotSupported(Some(
+                "Local name of HTML element must not be set".into(),
+            )));
         }
 
         // Step 2: Let definition be the result of looking up a custom element definition
@@ -745,18 +756,26 @@ impl HTMLElementMethods<crate::DomTypeHolder> for HTMLElement {
         // Step 3: If definition is null, then throw an "NotSupportedError" DOMException
         let definition = match definition {
             Some(definition) => definition,
-            None => return Err(Error::NotSupported(None)),
+            None => {
+                return Err(Error::NotSupported(Some(
+                    "HTML element defintion is not defined".into(),
+                )));
+            },
         };
 
         // Step 4: If definition's disable internals is true, then throw a "NotSupportedError" DOMException
         if definition.disable_internals {
-            return Err(Error::NotSupported(None));
+            return Err(Error::NotSupported(Some(
+                "HTML element defintion's `disable_internals` must be set to true".into(),
+            )));
         }
 
         // Step 5: If this's attached internals is non-null, then throw an "NotSupportedError" DOMException
         let internals = self.element.ensure_element_internals(cx);
         if internals.attached() {
-            return Err(Error::NotSupported(None));
+            return Err(Error::NotSupported(Some(
+                "HTML element's attached internals are null".into(),
+            )));
         }
 
         // Step 6: If this's custom element state is not "precustomized" or "custom",
@@ -765,7 +784,9 @@ impl HTMLElementMethods<crate::DomTypeHolder> for HTMLElement {
             self.element.get_custom_element_state(),
             CustomElementState::Precustomized | CustomElementState::Custom
         ) {
-            return Err(Error::NotSupported(None));
+            return Err(Error::NotSupported(Some(
+                "Custom element state must either be precustomized, or custom".into(),
+            )));
         }
 
         if self.is_form_associated_custom_element() {

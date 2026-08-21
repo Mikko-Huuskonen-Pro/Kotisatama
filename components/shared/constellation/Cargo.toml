@@ -15,7 +15,9 @@ path = "lib.rs"
 
 [features]
 bluetooth = []
+webcrypto = []
 webgpu = ["dep:webgpu_traits", "dep:wgpu-core"]
+webgl = []
 
 [dependencies]
 base64 = { workspace = true }

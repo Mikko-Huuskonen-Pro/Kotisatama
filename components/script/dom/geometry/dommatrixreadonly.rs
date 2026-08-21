@@ -18,15 +18,14 @@ use js::typedarray::{Float32Array, Float64Array, HeapFloat32Array, HeapFloat64Ar
 use rustc_hash::FxHashMap;
 use script_bindings::cell::{DomRefCell, Ref};
 use script_bindings::cformat;
-use script_bindings::reflector::{Reflector, reflect_dom_object_with_proto_and_cx};
+use script_bindings::reflector::{Reflector, reflect_dom_object_with_proto};
 use script_bindings::trace::RootedTraceableBox;
 use servo_base::id::{DomMatrixId, DomMatrixIndex};
 use servo_constellation_traits::DomMatrix;
 use style::stylesheets::CssRuleType;
 use style_traits::ParsingMode;
-use url::Url;
 
-use crate::css::parser_context_for_anonymous_content;
+use crate::css::css::{ANONYMOUS_CONTENT_URL_DATA, parser_context_for_anonymous_content};
 use crate::dom::bindings::buffer_source::create_buffer_source;
 use crate::dom::bindings::codegen::Bindings::DOMMatrixBinding::{
     DOMMatrix2DInit, DOMMatrixInit, DOMMatrixMethods,
@@ -76,7 +75,7 @@ impl DOMMatrixReadOnly {
         matrix: Transform3D<f64>,
     ) -> DomRoot<Self> {
         let dommatrix = Self::new_inherited(is2D, matrix);
-        reflect_dom_object_with_proto_and_cx(Box::new(dommatrix), global, proto, cx)
+        reflect_dom_object_with_proto(cx, Box::new(dommatrix), global, proto)
     }
 
     pub(crate) fn new_inherited(is2D: bool, matrix: Transform3D<f64>) -> Self {
@@ -1242,9 +1241,11 @@ pub(crate) fn transform_to_matrix(value: &str) -> Fallible<(bool, Transform3D<f6
 
     let mut input = ParserInput::new(value);
     let mut parser = Parser::new(&mut input);
-    let url_data = Url::parse("about:blank").unwrap().into();
-    let context =
-        parser_context_for_anonymous_content(CssRuleType::Style, ParsingMode::DEFAULT, &url_data);
+    let context = parser_context_for_anonymous_content(
+        CssRuleType::Style,
+        ParsingMode::DEFAULT,
+        &ANONYMOUS_CONTENT_URL_DATA,
+    );
 
     let transform = match parser.parse_entirely(|t| transform::parse(&context, t)) {
         Ok(result) => result,

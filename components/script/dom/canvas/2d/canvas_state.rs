@@ -46,12 +46,11 @@ use style::values::specified::color::Color;
 use style_traits::values::ToCss;
 use style_traits::{CssWriter, ParsingMode};
 use unicode_script::Script;
-use url::Url;
 use webrender_api::ImageKey;
 
 use crate::canvas_context::{CanvasContext, OffscreenRenderingContext, RenderingContext};
 use crate::conversions::Convert;
-use crate::css::parser_context_for_anonymous_content;
+use crate::css::css::{ANONYMOUS_CONTENT_URL_DATA, parser_context_for_anonymous_content};
 use crate::dom::bindings::codegen::Bindings::CanvasRenderingContext2DBinding::{
     CanvasDirection, CanvasFillRule, CanvasImageSource, CanvasLineCap, CanvasLineJoin,
     CanvasTextAlign, CanvasTextBaseline, ImageDataMethods,
@@ -717,6 +716,7 @@ impl CanvasState {
                         self.state.borrow().transform,
                     ));
                 },
+                #[cfg(feature = "webgl")]
                 OffscreenRenderingContext::WebGL(ref context) => {
                     let Some(snapshot) = context.get_image_data() else {
                         return Ok(());
@@ -732,7 +732,7 @@ impl CanvasState {
                         self.state.borrow().transform,
                     ));
                 },
-
+                #[cfg(feature = "webgl")]
                 OffscreenRenderingContext::WebGL2(ref context) => {
                     let Some(snapshot) = context.get_image_data() else {
                         return Ok(());
@@ -860,6 +860,7 @@ impl CanvasState {
                                 self.state.borrow().transform,
                             ));
                         },
+                        #[cfg(feature = "webgl")]
                         OffscreenRenderingContext::WebGL(ref context) => {
                             let Some(snapshot) = context.get_image_data() else {
                                 return Ok(());
@@ -876,6 +877,7 @@ impl CanvasState {
                             ));
                         },
 
+                        #[cfg(feature = "webgl")]
                         OffscreenRenderingContext::WebGL2(ref context) => {
                             let Some(snapshot) = context.get_image_data() else {
                                 return Ok(());
@@ -1572,11 +1574,7 @@ impl CanvasState {
             self.set_font(canvas, CanvasContextState::DEFAULT_FONT_STYLE.into());
         }
 
-        let Some(font_context) = global.font_context() else {
-            warn!("Tried to paint to a canvas of GlobalScope without a FontContext.");
-            return TextMetrics::default(global, cx);
-        };
-
+        let font_context = &global.font_context();
         let font_style = self.font_style();
         let font_group = font_context.font_group(font_style);
         let font = font_group.first(font_context).expect("couldn't find font");
@@ -2354,10 +2352,7 @@ impl CanvasState {
         size: f64,
         max_width: Option<f64>,
     ) -> Option<(Rect<f64>, Vec<TextRun>)> {
-        let Some(font_context) = global_scope.font_context() else {
-            warn!("Tried to paint to a canvas of GlobalScope without a FontContext.");
-            return None;
-        };
+        let font_context = &global_scope.font_context();
 
         // Step 1: If maxWidth was provided but is less than or equal to zero or equal to NaN, then return an empty array.
         if max_width.is_some_and(|max_width| max_width.is_nan() || max_width <= 0.) {
@@ -2567,7 +2562,7 @@ impl UnshapedTextRun<'_> {
         }
 
         match (&self.font, other_font) {
-            (Some(font_a), Some(font_b)) => font_a.identifier() == font_b.identifier(),
+            (Some(font_a), Some(font_b)) => *font_a.identifier() == *font_b.identifier(),
             (None, None) => true,
             _ => false,
         }
@@ -2616,7 +2611,7 @@ impl UnshapedTextRun<'_> {
             .collect();
 
         let identifier = font.identifier();
-        let font_data = match &identifier {
+        let font_data = match &*identifier {
             FontIdentifier::Local(_) => None,
             FontIdentifier::Web(_) | FontIdentifier::ArrayBuffer(_) => {
                 Some(font.font_data_and_index().ok()?)
@@ -2624,7 +2619,7 @@ impl UnshapedTextRun<'_> {
         }
         .cloned();
         let canvas_font = CanvasFont {
-            identifier,
+            identifier: identifier.to_owned(),
             data: font_data,
         };
 
@@ -2646,9 +2641,11 @@ pub(super) fn parse_color(
     let string = string.str();
     let mut input = ParserInput::new(&string);
     let mut parser = Parser::new(&mut input);
-    let url = Url::parse("about:blank").unwrap().into();
-    let context =
-        parser_context_for_anonymous_content(CssRuleType::Style, ParsingMode::DEFAULT, &url);
+    let context = parser_context_for_anonymous_content(
+        CssRuleType::Style,
+        ParsingMode::DEFAULT,
+        &ANONYMOUS_CONTENT_URL_DATA,
+    );
 
     // Step 1. Parse input as a <color>. If the result is failure, return failure;
     // otherwise, let color be the result.

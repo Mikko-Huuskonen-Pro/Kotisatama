@@ -24,7 +24,6 @@ use style::attr::AttrValue;
 use style::stylesheets::Origin;
 
 use crate::conversions::Convert;
-use crate::document_collection::DocumentCollection;
 use crate::dom::bindings::codegen::Bindings::CSSGroupingRuleBinding::CSSGroupingRuleMethods;
 use crate::dom::bindings::codegen::Bindings::CSSLayerBlockRuleBinding::CSSLayerBlockRuleMethods;
 use crate::dom::bindings::codegen::Bindings::CSSRuleListBinding::CSSRuleListMethods;
@@ -50,6 +49,7 @@ use crate::dom::node::{Node, NodeTraits};
 use crate::dom::types::{
     CSSGroupingRule, CSSLayerBlockRule, EventTarget, HTMLElement, TrustedHTML,
 };
+use crate::event_loop::document_collection::DocumentCollection;
 use crate::realms::enter_auto_realm;
 
 #[cfg_attr(crown, crown::unrooted_must_root_lint::must_root)]
@@ -735,7 +735,7 @@ pub(crate) fn handle_modify_attribute(
     modifications: Vec<AttrModification>,
 ) {
     let Some(document) = documents.find_document(pipeline) else {
-        return warn!("document for pipeline id {} is not found", &pipeline);
+        return warn!("document for pipeline id {} is not found", pipeline);
     };
     let mut realm = enter_auto_realm(cx, document.window());
     let cx = &mut realm.current_realm();
@@ -744,7 +744,7 @@ pub(crate) fn handle_modify_attribute(
         None => {
             return warn!(
                 "node id {} for pipeline id {} is not found",
-                &node_id, &pipeline
+                node_id, pipeline
             );
         },
         Some(found_node) => found_node,
@@ -777,7 +777,7 @@ pub(crate) fn handle_modify_rule(
     modifications: Vec<RuleModification>,
 ) {
     let Some(document) = documents.find_document(pipeline) else {
-        return warn!("Document for pipeline id {} is not found", &pipeline);
+        return warn!("Document for pipeline id {} is not found", pipeline);
     };
     let mut realm = enter_auto_realm(cx, document.window());
     let cx = &mut realm.current_realm();
@@ -785,7 +785,7 @@ pub(crate) fn handle_modify_rule(
     let Some(node) = state.find_node_by_unique_id(pipeline, node_id) else {
         return warn!(
             "Node id {} for pipeline id {} is not found",
-            &node_id, &pipeline
+            node_id, pipeline
         );
     };
 

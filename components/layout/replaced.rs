@@ -140,6 +140,7 @@ pub(crate) struct ImageInfo {
 #[derive(Debug, MallocSizeOf)]
 pub(crate) struct VideoInfo {
     pub image_key: Option<ImageKey>,
+    pub poster_url: Option<ServoUrl>,
 }
 
 #[derive(Debug, MallocSizeOf)]
@@ -538,6 +539,8 @@ impl ReplacedContents {
                         image_key: Some(image_key),
                         showing_broken_image_icon: image_info.showing_broken_image_icon,
                         url: image_info.url.clone(),
+                        natural_width: self.natural_size.width,
+                        natural_height: self.natural_size.height,
                     }))
                 })
                 .into_iter()
@@ -549,7 +552,9 @@ impl ReplacedContents {
                     clip,
                     image_key: video_info.image_key,
                     showing_broken_image_icon: false,
-                    url: None,
+                    url: video_info.poster_url.clone(),
+                    natural_width: self.natural_size.width,
+                    natural_height: self.natural_size.height,
                 }))]
             },
             ReplacedContentKind::IFrame(iframe) => {
@@ -592,6 +597,8 @@ impl ReplacedContents {
                     image_key: Some(image_key),
                     showing_broken_image_icon: false,
                     url: None,
+                    natural_width: self.natural_size.width,
+                    natural_height: self.natural_size.height,
                 }))]
             },
             ReplacedContentKind::SVGElement {
@@ -645,6 +652,8 @@ impl ReplacedContents {
                             image_key: Some(image_key),
                             showing_broken_image_icon: false,
                             url: None,
+                            natural_width: self.natural_size.width,
+                            natural_height: self.natural_size.height,
                         }))
                     })
                     .into_iter()

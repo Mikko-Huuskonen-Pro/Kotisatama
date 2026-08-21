@@ -70,8 +70,18 @@ Tai suoraan moottorirepossa:
 ### GStreamer Android SDK
 
 Cross-käännös tarvitsee GStreamer 1.18+ Android NDK -sysrootin (`pkg-config` löytää
-`gstreamer-1.0`). Asenna GStreamer Android -paketti ja varmista, että `PKG_CONFIG_PATH`
-osoittaa Android-ABI:n mukaiseen `.pc`-hakemistoon ennen `mach build` -ajoa.
+`gstreamer-1.0`). Asenna WSL:ssä:
+
+```bash
+cd /mnt/c/Users/gigli/Kotisatama/Kotisatama   # tai oma polku
+chmod +x scripts/install-gstreamer-android.sh
+./scripts/install-gstreamer-android.sh
+source ~/.config/kotisatama/android-env.sh
+```
+
+Skripti lataa `gstreamer-1.0-android-universal-1.22.12` hakemistoon `~/Android/` ja
+asettaa `GSTREAMER_ROOT_ANDROID`. `mach build` lukee sen automaattisesti
+(`python/servo/platform/build_target.py`).
 
 Tarvittavat pluginit (minimi): `core`, `base`, `good`, `bad`, `ugly`, `libav` —
 erityisesti `glsinkbin` videon GL-texture -polulle.

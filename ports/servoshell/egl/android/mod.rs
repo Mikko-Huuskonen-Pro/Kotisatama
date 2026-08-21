@@ -11,7 +11,7 @@ mod kotisatama;
 pub mod clipboard;
 mod embedder_prompts;
 // KOTISATAMA-PATCH: GL-kiihdytetty HTML5-video — GL加速HTML5视频
-mod media;
+pub(crate) mod media;
 
 use std::cell::RefCell;
 use std::os::raw::{c_char, c_int, c_void};

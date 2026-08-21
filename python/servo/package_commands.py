@@ -178,6 +178,9 @@ class PackageCommands(CommandBase):
             # Inform the android build of where `libservoshell.so` is located.
             env["SERVO_TARGET_DIR"] = target_dir
 
+            # KOTISATAMA-PATCH: copy GStreamer Android .so files into jniLibs — 将GStreamer .so复制到jniLibs
+            package_gstreamer_android_jni_libs(self.target, target_dir, env)
+
             dir_to_resources = path.join(self.get_top_dir(), "target", target_triple, "resources")
             if path.exists(dir_to_resources):
                 delete(dir_to_resources)
@@ -629,3 +632,32 @@ class PackageCommands(CommandBase):
             print("Updating license.html exited with return value %d" % e.returncode)
             return e.returncode
         return 0
+
+
+def package_gstreamer_android_jni_libs(target, target_dir: str, env: dict[str, str]) -> None:
+    """Copy GStreamer Android shared libraries into jniLibs so APK packaging includes them."""
+    gst_root_android = env.get("GSTREAMER_ROOT_ANDROID")
+    if not gst_root_android:
+        print("GSTREAMER_ROOT_ANDROID unset; skipping GStreamer jniLibs packaging.")
+        return
+
+    ndk_lib = target.ndk_configuration()["lib"]
+    gst_arch = target.ndk_configuration()["arch"]
+    gst_lib = path.join(gst_root_android, gst_arch, "lib")
+    if not path.isdir(gst_lib):
+        print(f"GStreamer lib dir missing: {gst_lib}")
+        return
+
+    dest = path.join(target_dir, "jniLibs", ndk_lib)
+    os.makedirs(dest, exist_ok=True)
+    copied = 0
+    for name in os.listdir(gst_lib):
+        if not name.endswith(".so"):
+            continue
+        src = path.join(gst_lib, name)
+        if not path.isfile(src):
+            continue
+        shutil.copy2(src, path.join(dest, name))
+        copied += 1
+    print(f"Copied {copied} GStreamer .so files to {dest}")
+

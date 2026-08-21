@@ -8,34 +8,11 @@ use std::cell::RefMut;
 use surfman::{Context, Device};
 
 pub(crate) fn setup_gl_accelerated_media(device: RefMut<'_, Device>, context: RefMut<'_, Context>) {
-    use servo::{MediaGlApi, MediaGlContext, MediaNativeDisplay, Servo};
-    use surfman::multi::connection::NativeConnection;
-    use surfman::multi::context::NativeContext;
+    use servo::{MediaGlContext, MediaNativeDisplay, Servo};
 
     let api = api(&device, &context);
-    let (gl_context, display) = match device.native_context(&context) {
-        NativeContext::Default(NativeContext::Default(native_context)) => (
-            MediaGlContext::Egl(native_context.egl_context as usize),
-            match device.connection().native_connection() {
-                surfman::NativeConnection::Default(NativeConnection::Default(connection)) => {
-                    MediaNativeDisplay::Egl(connection.0 as usize)
-                },
-                _ => MediaNativeDisplay::Unknown,
-            },
-        ),
-        NativeContext::Default(NativeContext::Alternate(native_context)) => (
-            MediaGlContext::Egl(native_context.egl_context as usize),
-            MediaNativeDisplay::Unknown,
-        ),
-        NativeContext::Alternate(_) => (MediaGlContext::Unknown, MediaNativeDisplay::Unknown),
-    };
-
-    if matches!(display, MediaNativeDisplay::Unknown) || matches!(gl_context, MediaGlContext::Unknown)
-    {
-        log::warn!("Could not extract EGL handles for GL accelerated media on Android");
-        return;
-    }
-
+    let gl_context = MediaGlContext::Egl(device.native_context(&context).egl_context as usize);
+    let display = MediaNativeDisplay::Egl(device.native_device().0 as usize);
     Servo::initialize_gl_accelerated_media(display, api, gl_context);
 }
 

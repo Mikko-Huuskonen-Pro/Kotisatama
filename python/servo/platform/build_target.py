@@ -106,6 +106,7 @@ class AndroidTarget(CrossBuildTarget):
             config["arch"] = "arm"
             config["lib"] = "armeabi-v7a"
             config["toolchain_name"] = f"armv7a-linux-androideabi{api}"
+            config["clang_target"] = f"armv7a-linux-androideabi{api}"
         elif target == "aarch64-linux-android":
             config["platform"] = f"android-{api}"
             config["target"] = target
@@ -113,6 +114,7 @@ class AndroidTarget(CrossBuildTarget):
             config["arch"] = "arm64"
             config["lib"] = "arm64-v8a"
             config["toolchain_name"] = f"aarch64-linux-androideabi{api}"
+            config["clang_target"] = f"aarch64-linux-android{api}"
         elif target == "i686-linux-android":
             # https://github.com/jemalloc/jemalloc/issues/1279
             config["platform"] = f"android-{api}"
@@ -121,6 +123,7 @@ class AndroidTarget(CrossBuildTarget):
             config["arch"] = "x86"
             config["lib"] = "x86"
             config["toolchain_name"] = f"i686-linux-android{api}"
+            config["clang_target"] = f"i686-linux-android{api}"
         elif target == "x86_64-linux-android":
             config["platform"] = f"android-{api}"
             config["target"] = target
@@ -128,6 +131,7 @@ class AndroidTarget(CrossBuildTarget):
             config["arch"] = "x86_64"
             config["lib"] = "x86_64"
             config["toolchain_name"] = f"x86_64-linux-android{api}"
+            config["clang_target"] = f"x86_64-linux-android{api}"
         else:
             raise Exception(f"Unknown android target {target}")
 
@@ -153,6 +157,7 @@ class AndroidTarget(CrossBuildTarget):
         ndk_configuration = self.ndk_configuration()
         android_platform = ndk_configuration["platform"]
         android_toolchain_name = ndk_configuration["toolchain_name"]
+        android_clang_target = ndk_configuration["clang_target"]
         android_api = android_platform.replace("android-", "")
 
         # Check if the NDK version is 28
@@ -205,18 +210,15 @@ class AndroidTarget(CrossBuildTarget):
         def to_ndk_bin(prog: str) -> str:
             return path.join(llvm_toolchain, "bin", prog)
 
-        # This workaround is due to an issue in the x86_64 Android NDK that introduces
-        # an undefined reference to the symbol '__extendsftf2'.
-        # See https://github.com/termux/termux-packages/issues/8029#issuecomment-1369150244
-        if "x86_64" in self.triple():
-            libclangrt_filename = subprocess.run(
-                [to_ndk_bin(f"x86_64-linux-android{android_api}-clang"), "--print-libgcc-file-name"],
-                check=True,
-                capture_output=True,
-                encoding="utf8",
-            ).stdout
-            env["RUSTFLAGS"] = env.get("RUSTFLAGS", "")
-            env["RUSTFLAGS"] += f" -C link-arg={libclangrt_filename}"
+        # Link NDK compiler-rt builtins (e.g. __extendsftf2 on x86_64, __clear_cache on arm64/ORC).
+        # — 链接 NDK compiler-rt 内置库（如 x86_64 的 __extendsftf2、arm64/ORC 的 __clear_cache）
+        libclangrt_filename = subprocess.run(
+            [to_ndk_bin(f"{android_clang_target}-clang"), "--print-libgcc-file-name"],
+            check=True,
+            capture_output=True,
+            encoding="utf8",
+        ).stdout.strip()
+        env["RUSTFLAGS"] = env.get("RUSTFLAGS", "") + f" -C link-arg={libclangrt_filename}"
 
         assert host_cc
         assert host_cxx
@@ -267,6 +269,138 @@ class AndroidTarget(CrossBuildTarget):
         env["ANDROID_API_LEVEL"] = android_api
         env["ANDROID_NDK_HOME"] = env["ANDROID_NDK_ROOT"]
         env["TARGET_PKG_CONFIG_SYSROOT_DIR"] = path.join(llvm_toolchain, "sysroot")
+
+        # KOTISATAMA-PATCH: GStreamer Android NDK-sysroot pkg-config + link-polku — GStreamer Android NDK sysroot
+        gstreamer_root_android = env.get("GSTREAMER_ROOT_ANDROID")
+        if gstreamer_root_android:
+            gst_abi = ndk_configuration["arch"]
+            gst_root = path.join(gstreamer_root_android, gst_abi)
+            gst_lib = path.join(gst_root, "lib")
+            if not path.isdir(path.join(gst_lib, "pkgconfig")):
+                print(
+                    f"GSTREAMER_ROOT_ANDROID is set but {gst_lib}/pkgconfig is missing.\n"
+                    f"Run ./scripts/install-gstreamer-android.sh and source ~/.config/kotisatama/android-env.sh",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            rust_target_triple = self.triple().replace("-", "_")
+            pkg_config_path = ":".join(
+                [
+                    path.join(gst_lib, "pkgconfig"),
+                    path.join(gst_lib, "gstreamer-1.0", "pkgconfig"),
+                ]
+            )
+            env["PKG_CONFIG_ALLOW_CROSS"] = "1"
+            env[f"PKG_CONFIG_SYSROOT_DIR_{rust_target_triple}"] = gst_root
+            env[f"PKG_CONFIG_PATH_{rust_target_triple}"] = pkg_config_path
+            # GStreamer Android on staattisia .a-arkistoja; rustc jättää GST-symboleita
+            # auki cdylibiin, joten käytetyt kirjastot force-linkataan.
+            # — GStreamer Android 为静态库，rustc 会留下未解析 GST 符号，需强制链接
+            gst_plugin_lib = path.join(gst_lib, "gstreamer-1.0")
+            # Plugin-arkistojen link-stem (libgstcoreelements.a → gstcoreelements). gstopengl = glsinkbin.
+            gst_plugin_lib_stems = [
+                "gstcoreelements",
+                "gsttypefindfunctions",
+                "gstplayback",
+                "gstapp",
+                "gstvolume",
+                "gstautodetect",
+                "gstisomp4",
+                "gstmatroska",
+                "gstid3demux",
+                "gstaudioparsers",
+                "gstvideoparsersbad",
+                "gstwavparse",
+                "gstaudioconvert",
+                "gstaudioresample",
+                "gstvideoconvertscale",
+                "gstvideofilter",
+                "gstdeinterlace",
+                "gstinterleave",
+                "gstlibav",
+                "gstandroidmedia",
+                "gstvpx",
+                "gstopus",
+                "gstvorbis",
+                "gsttheora",
+                "gstogg",
+                "gstopensles",
+                "gstopengl",
+                # M1: ei WebRTC/ICE (gstnice/webrtc/dtls/rtp…) — vähentää libnice-dlopen-ketjua
+                "gstgio",
+                "gstaudiofx",
+                "gstid3tag",
+            ]
+            link_args = [
+                f" -C link-arg=-L{gst_lib}",
+                f" -C link-arg=-L{gst_plugin_lib}",
+                " -C link-arg=-Wl,--no-as-needed",
+            ]
+            for stem in gst_plugin_lib_stems:
+                plugin_archive = path.join(gst_plugin_lib, f"lib{stem}.a")
+                if not path.isfile(plugin_archive):
+                    print(
+                        f"GSTREAMER_ROOT_ANDROID plugin archive missing: {plugin_archive}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+                link_args.append(" -C link-arg=-Wl,--whole-archive")
+                link_args.append(f" -C link-arg=-l{stem}")
+                link_args.append(" -C link-arg=-Wl,--no-whole-archive")
+            for lib in [
+                # GST core / helpers
+                "gstpbutils-1.0",
+                "gstplay-1.0",
+                "gstapp-1.0",
+                "gstaudio-1.0",
+                "gstvideo-1.0",
+                "gstgl-1.0",
+                "gstcodecparsers-1.0",
+                "gstfft-1.0",
+                "gstnet-1.0",
+                "gstriff-1.0",
+                "gstphotography-1.0",
+                "gstcontroller-1.0",
+                "gsttag-1.0",
+                "gstrtp-1.0",
+                "orc-0.4",
+                "pcre2-8",
+                "iconv",
+                "intl",
+                "gstbase-1.0",
+                "gstreamer-1.0",
+                "gmodule-2.0",
+                "gobject-2.0",
+                "glib-2.0",
+                "graphene-1.0",
+                # Codec deps pulled in by static plugins (libav, vpx, opus, …)
+                "avfilter",
+                "avformat",
+                "avcodec",
+                "swresample",
+                "avutil",
+                "vpx",
+                "opus",
+                "ogg",
+                "theoraenc",
+                "theoradec",
+                "theora",
+                "vorbisenc",
+                "vorbis",
+                "jpeg",
+                "png16",
+                "z",
+                "bz2",
+                "ssl",
+                "crypto",
+                "ffi",
+                "OpenSLES",
+                "GLESv2",
+                "EGL",
+            ]:
+                link_args.append(f" -C link-arg=-l{lib}")
+            link_args.append(" -C link-arg=-Wl,--as-needed")
+            env["RUSTFLAGS"] = env.get("RUSTFLAGS", "") + "".join(link_args)
 
     def binary_name(self) -> str:
         return "libservoshell.so"

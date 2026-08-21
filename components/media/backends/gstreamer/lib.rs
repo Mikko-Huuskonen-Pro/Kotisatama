@@ -3,7 +3,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 pub mod audio_decoder;
-pub mod audio_sink;
+pub mod android_static_plugins;
+mod audio_sink;
 pub mod audio_stream_reader;
 mod datachannel;
 mod device_monitor;
@@ -73,6 +74,10 @@ impl GStreamerBackend {
         plugins: &'a [T],
     ) -> Result<Box<dyn Backend>, ErrorLoadingPlugins<'a>> {
         gstreamer::init().unwrap();
+
+        // KOTISATAMA-PATCH: Android SDK — staattiset pluginit APK:ssa .a-linkityksenä, ei .so-tiedostoina
+        #[cfg(target_os = "android")]
+        android_static_plugins::register_static_plugins();
 
         // GStreamer between 1.19.1 and 1.22.7 will not send messages like "end of stream"
         // to GstPlayer unless there is a GLib main loop running somewhere. We should remove

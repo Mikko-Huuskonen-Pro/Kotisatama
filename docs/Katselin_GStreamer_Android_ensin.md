@@ -12,11 +12,88 @@ Ensimmäinen tavoite on saada tämä ketju toimimaan mahdollisimman pienellä Se
 
 ---
 
-## Nykytila Kotisatamassa
+## Nykytila Kotisatamassa (päivitetty 2026-08-20, tauko illalla)
 
 **Keskeinen havainto:** Kotisatama perii jo Servon valmiin GStreamer-media-pinon. Uutta backendia ei rakenneta alusta — työ on build-, GL- ja embedder-kytkentää.
 
-### Toimiva ketju (desktop)
+### Valmis (laitteella testattu 2026-08-20)
+
+| Kohde | Tiedosto / muutos | Tila |
+|-------|-------------------|------|
+| GStreamer Android SDK | `scripts/install-gstreamer-android.sh`, `~/.config/kotisatama/android-env.sh` | Asennettu (universal 1.22.12) |
+| Cross-build oletus gstreamer | `python/servo/command_base.py` (KOTISATAMA-PATCH) | OK |
+| Android GL media init | `ports/servoshell/egl/android/media.rs`, `egl/app.rs` | OK — EGL → `initialize_gl_accelerated_media` |
+| `media_glvideo_enabled` Androidilla | `ports/servoshell/prefs.rs` | OK (päällä) |
+| Staattinen GST core + codec-deps | `python/servo/platform/build_target.py` | Linkitys tehty (pluginit + vpx/libav/OpenSLES/…) |
+| Staattinen plugin-rekisteröinti | `components/media/backends/gstreamer/android_static_plugins.rs` | Tehty; kutsutaan `gst_init`:n jälkeen |
+| Compiler-rt (`__clear_cache`) | `build_target.py` `clang_target` | OK |
+| APK rebuild-skriptit | `scripts/rebuild-arm64-apk.sh`, `rebuild-x64-apk.sh` | OK |
+| Sovellus käynnistyy (ennen plugin-whole-archive -laajennusta) | Motorola edge 40 neo | OK kun näyttö päällä |
+
+**Huom:** Jos näyttö on kiinni käynnistyksen aikana, surfman panikoi (`ANativeWindow` 0×0). Näyttö päällä → init onnistuu.
+
+### Tauko 2026-08-20 — seuraava korjaus (älä aloita buildia ilman tätä)
+
+**Laitteen nykyinen tila (2026-08-21 ~10:02):** `libservoshell.so` latautuu (`ok`), `servoshell::egl::android: init` ajaa — **ei UnsatisfiedLinkError**. Seuraava testi: HTTPS MP4 `<video>`.
+
+#### Tehty 2026-08-21 aamu
+
+**A — M1-minimi:** WebRTC/ICE -pluginit poistettu. Lisäksi linkitetty `bz2` + `graphene-1.0`. `dlopen`-ketju läpi laitteella.
+
+#### Jo korjatut `dlopen`-symbolit (historia)
+
+| Symboli | Kirjasto |
+|---------|----------|
+| `gst_tag_get_language_name` | `gsttag-1.0` |
+| `gst_rtp_*` | `gstrtp-1.0` |
+| `orc_*` | `orc-0.4` |
+| `g_module_open` | `gmodule-2.0` |
+| `eglGetCurrentContext` | `EGL` / `GLESv2` |
+| `__clear_cache` | NDK compiler-rt |
+| `gst_h264_sei_clear` | `gstcodecparsers-1.0` |
+| `vpx_codec_vp8_dx_algo` | `vpx` (+ libav/opus/ogg/…) |
+| `gst_riff_init` | `gstriff-1.0` (+ photography/controller/sctp/webrtcnice) |
+| `nice_candidate_free` | **`nice` — seuraava / tai trimmaa gstnice** |
+
+#### Jatko-komennot (WSL)
+
+```bash
+source ~/.config/kotisatama/android-env.sh
+wsl bash -l /mnt/c/Users/gigli/Kotisatama/Kotisatama/scripts/rebuild-arm64-apk.sh
+# Windows:
+adb -s ZY22HQKFLX install -r C:\Users\gigli\Kotisatama\Katselin\Katselin-arm64.apk
+```
+
+MP4-testi (ei gist-URL:ää, käytä `https://`):
+
+```html
+<video controls src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>
+```
+
+### Keskeneräinen / M1 jälkeen
+
+| Kohde | Ongelma | Seuraava askel |
+|-------|---------|----------------|
+| `dlopen` + staattiset pluginit | Viimeisin: `nice_candidate_free` | A (trim) tai B (`-lnice`) yllä |
+| MP4 `<video src="https://…mp4">` | Ei vielä vahvistettu toistoa | Kun app käynnistyy ilman UnsatisfiedLinkError |
+| Yle / Areena | HLS + MSE/JS-soitin | **Ei M1:ssä** — ks. §14 |
+| Progressive download Androidilla | `player.rs` FIXME #282 | Tutkittava M1-testin jälkeen |
+| Screen-off init | surfman 0×0 panic | Erillinen lifecycle-korjaus |
+| Yle kaatuu MediaSessioniin | `hideMediaSessionControls` → `unregisterReceiver(null)` | Korjattu `MediaSession.kt` (2026-08-21) |
+
+### Aiemmat Android-puutteet (dokumentti ennen toteutusta)
+
+| Ongelma | Sijainti | Vaikutus |
+|---------|----------|----------|
+| Cross-build oletus = dummy | `python/servo/command_base.py` | ~~Ei mediaa~~ → korjattu |
+| GL-init puuttuu | embedder | ~~RenderAndroid ilman EGL~~ → korjattu |
+| `media_glvideo_enabled = false` | prefs | ~~GL pois~~ → korjattu |
+| GStreamer Android SDK | build | ~~puuttui~~ → asennettu |
+| Runtime-pluginit APK:sta | packaging | Staattinen linkitys + rekisteröinti (lähes valmis; ks. tauko yllä) |
+
+`RenderAndroid` (`components/media/backends/gstreamer/render-android/`) on olemassa ja saa EGL-kontekstin embedderiltä.
+
+### Toimiva ketju (desktop / tavoite Androidilla)
 
 ```text
 HTML <video>/<audio>
@@ -29,22 +106,10 @@ HTML <video>/<audio>
         │
     ServoSrc                progressive HTTP → playbin3
         │
-  RenderUnix / CPU          GL-texture tai BGRA → WebRender
+  RenderAndroid / CPU       GL-texture tai BGRA → WebRender
         │
       Näyttö
 ```
-
-### Android-puutteet tänään
-
-| Ongelma | Sijainti | Vaikutus |
-|---------|----------|----------|
-| Cross-build oletus = dummy | `python/servo/command_base.py` | Ei mediaa ilman `--media-stack=gstreamer` |
-| GL-init puuttuu | `ports/servoshell/desktop/accelerated_gl_media.rs` (stub muilla alustoilla) | `RenderAndroid` ei saa EGL-kontekstia |
-| `media_glvideo_enabled = false` | `components/config/prefs.rs` | GL-texture -polku pois päältä |
-| Progressive download pois | `components/media/backends/gstreamer/player.rs` FIXME #282 | Seek/buffering-heikkouksia |
-| GStreamer Android SDK | puuttuu Katselin-buildista | Runtime-pluginit puuttuvat APK:sta |
-
-`RenderAndroid` (`components/media/backends/gstreamer/render-android/`) on jo olemassa — se tarvitsee vain EGL-kontekstin embedderiltä.
 
 ---
 
@@ -226,8 +291,8 @@ HTMLMediaElement → ServoMedia → GStreamer → RenderAndroid → WebRender �
 
 | Milestone | Sisältö | Tila |
 |-----------|---------|------|
-| **M0** | Build + GStreamer SDK + smoke test APK | Toteutettava |
-| **M1** | HTML `<video>` MP4 Android | Toteutettava |
+| **M0** | Build + GStreamer SDK + smoke test APK | Osittain (SDK + build OK; erillinen smoke-APK tekemättä) |
+| **M1** | HTML `<video>` MP4 Android | **dlopen OK** — testaa HTTPS MP4 toisto |
 | **M2** | HTML5-media testattu Androidilla | Toteutettava (suurin osa valmis) |
 | **M3** | HW decode varmistettu | Toteutettava |
 | **M4** | WebM/VP9/Opus | Toteutettava |
@@ -265,9 +330,15 @@ HTMLMediaElement → ServoMedia → GStreamer → RenderAndroid → WebRender �
 ### A — Android-build: GStreamer päälle
 
 - `../Katselin/scripts/build-android.sh`: `--media-stack=gstreamer` oletukseksi
-- Harkitse `python/servo/command_base.py`: Android cross-build → gstreamer (ei dummy)
-- Dokumentoi GStreamer Android NDK -asennus `support/android/README.md`:hen
-- GStreamer SDK: `gstreamer-1.0`, plugins-base/good/bad/ugly, libav → APK `lib/`
+- `python/servo/command_base.py`: Android cross-build → gstreamer (KOTISATAMA-PATCH, tehty)
+- GStreamer SDK: `scripts/install-gstreamer-android.sh` (tehty)
+- **Staattinen linkitys** (`python/servo/platform/build_target.py`):
+  - Core-GST `.a` + riippuvuudet (orc, pcre2, gmodule, EGL/GLESv2, compiler-rt)
+  - Plugin-`.a` hakemistosta `lib/gstreamer-1.0/` (`--whole-archive`)
+- **Staattinen rekisteröinti** (`components/media/backends/gstreamer/android_static_plugins.rs`):
+  - `gst_plugin_*_register()` kutsut `gst_init`:n jälkeen
+  - Android ei käytä Windows/macOS `.dll`-pluginlatausta (`servo.rs` tyhjä plugin-lista)
+- `package_gstreamer_android_jni_libs`: ei kopioi `.so`-tiedostoja (SDK:ssä ei ole) — ei riitä yksinään
 
 ### B — Smoke test (M0)
 

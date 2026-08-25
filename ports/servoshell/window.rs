@@ -294,7 +294,11 @@ impl ServoShellWindow {
     /// the close notification via the [`WebViewDelegate`] later.
     pub(crate) fn close_webview(&self, webview_id: WebViewId) {
         let mut webview_collection = self.webview_collection.borrow_mut();
-        if webview_collection.remove(webview_id).is_none() {
+        if let Some(webview) = webview_collection.remove(webview_id) {
+            // KOTISATAMA-PATCH: Avomeri-siivous kun välilehti suljetaan UI:sta — UI关闭标签页时清理Avomeri状态。
+            #[cfg(feature = "kotisatama")]
+            crate::kotisatama::leave_avomeri_mode(&webview);
+        } else {
             return;
         }
         self.platform_window

@@ -273,6 +273,7 @@ flowchart TB
 | [oppiminen/kotisatama/](../oppiminen/kotisatama/) | Moottorin tuotekerros syvällisemmin |
 | [FILOSOFIA.md](FILOSOFIA.md) | Miksi whitelist ja Telakka |
 | [TURVALLISUUS-PROFIILIT.md](TURVALLISUUS-PROFIILIT.md) | Profiilisäännöt |
+| [AUDIT-KORJAUKSET.md](AUDIT-KORJAUKSET.md) | Audit-löydösten korjausspeksi (ei vielä toteutettu) |
 | [Avomeri-konsepti.md](Avomeri-konsepti.md) | Avomeri selaustilana (ei Avomeri-tuotetta) |
 | Katselin `docs/REPO-JAKO-SUUNNITELMA.md` | Miksi APK irrotettiin forkista |
 

@@ -679,13 +679,13 @@ impl App {
         webview.notify_input_event(InputEvent::MouseMove(MouseMoveEvent::new(point)));
         webview.notify_input_event(InputEvent::MouseButton(MouseButtonEvent::new(
             MouseButtonAction::Down,
-            MouseButton::Right,
+            MouseButton::Secondary,
             point,
         )));
         self.spin_event_loop();
         webview.notify_input_event(InputEvent::MouseButton(MouseButtonEvent::new(
             MouseButtonAction::Up,
-            MouseButton::Right,
+            MouseButton::Secondary,
             point,
         )));
         self.spin_event_loop();

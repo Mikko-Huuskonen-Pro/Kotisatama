@@ -215,5 +215,5 @@ pub fn remove_user_domain(domain: &str) -> Result<bool, WhitelistError> {
 }
 
 fn is_internal_navigation_url(url: &Url) -> bool {
-    matches!(url.scheme(), "about" | "data" | "servo")
+    matches!(url.scheme(), "about" | "servo")
 }

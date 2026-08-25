@@ -28,8 +28,6 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 #[cfg(feature = "kotisatama")]
-use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(feature = "kotisatama")]
 use std::sync::{Mutex, OnceLock};
 
 use headers::{ContentType, HeaderMapExt};
@@ -92,7 +90,8 @@ impl ProtocolHandler for ServoProtocolHandler {
                     return redirect_response(request, "servo:avomeri?error=disabled");
                 }
                 let query = query_param(url.as_url(), "q").unwrap_or_default();
-                crate::kotisatama::enter_avomeri_mode();
+                // KOTISATAMA-PATCH: pending enter — seuraava top-level load syö lipun ja asettaa Avomerin — 待进入——下一个顶层加载消费标志并设置Avomeri。
+                crate::kotisatama::enter_avomeri_mode_for_active_webview();
                 return redirect_response(
                     request,
                     crate::kotisatama::avomeri_open_url(&query).as_str(),
@@ -101,7 +100,8 @@ impl ProtocolHandler for ServoProtocolHandler {
 
             #[cfg(feature = "kotisatama")]
             "avomeri/leave" => {
-                crate::kotisatama::leave_avomeri_mode();
+                // KOTISATAMA-PATCH: pending leave — seuraava load syö lipun — 待离开——下一个加载消费标志。
+                crate::kotisatama::leave_avomeri_mode_for_active_webview();
                 return redirect_response(request, "servo:newtab");
             },
 
@@ -406,6 +406,8 @@ impl ProtocolHandler for ServoProtocolHandler {
                     {
                         log::warn!("Kotisatama: whitelist reload after profile switch failed: {error}");
                     }
+                    // KOTISATAMA-PATCH: profiilivaihto pakottaa Avomeri-poiston — 配置文件切换强制退出Avomeri。
+                    crate::kotisatama::leave_avomeri_mode_all();
                 }
                 let body = serde_json::json!({ "status": status, "message": message });
                 json_response(request, body.to_string())
@@ -517,17 +519,51 @@ struct PendingWhitelistChange {
     action: &'static str,
     domain: String,
     return_url: Option<String>,
+    created_at: std::time::Instant,
 }
 
 #[cfg(feature = "kotisatama")]
 static WHITELIST_TOKENS: OnceLock<Mutex<HashMap<String, PendingWhitelistChange>>> = OnceLock::new();
 
 #[cfg(feature = "kotisatama")]
-static WHITELIST_TOKEN_COUNTER: AtomicU64 = AtomicU64::new(1);
+const TOKEN_TTL: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+#[cfg(feature = "kotisatama")]
+const MAX_PENDING: usize = 64;
 
 #[cfg(feature = "kotisatama")]
 fn whitelist_tokens() -> &'static Mutex<HashMap<String, PendingWhitelistChange>> {
     WHITELIST_TOKENS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(feature = "kotisatama")]
+fn new_whitelist_token() -> String {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+    // 128 bittiä satunnaisuutta (RandomState + 2 hasheria)
+    let s = RandomState::new();
+    let mut h1 = s.build_hasher();
+    h1.write(b"kotisatama-whitelist-token");
+    let a = h1.finish();
+    let mut h2 = s.build_hasher();
+    h2.write_u64(a);
+    let b = h2.finish();
+    format!("{a:016x}{b:016x}")
+}
+
+#[cfg(feature = "kotisatama")]
+fn prune_whitelist_tokens(tokens: &mut HashMap<String, PendingWhitelistChange>) {
+    let now = std::time::Instant::now();
+    tokens.retain(|_, pending| now.duration_since(pending.created_at) <= TOKEN_TTL);
+    if tokens.len() > MAX_PENDING {
+        let mut entries: Vec<_> = tokens
+            .iter()
+            .map(|(k, v)| (k.clone(), v.created_at))
+            .collect();
+        entries.sort_by_key(|(_, created_at)| *created_at);
+        for (token, _) in entries.into_iter().take(tokens.len() - MAX_PENDING) {
+            tokens.remove(&token);
+        }
+    }
 }
 
 #[cfg(feature = "kotisatama")]
@@ -536,19 +572,16 @@ fn register_pending_whitelist_change(
     domain: String,
     return_url: Option<String>,
 ) -> String {
-    let count = WHITELIST_TOKEN_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or(0);
-    let token = format!("{nanos:x}-{count:x}");
+    let token = new_whitelist_token();
     if let Ok(mut tokens) = whitelist_tokens().lock() {
+        prune_whitelist_tokens(&mut tokens);
         tokens.insert(
             token.clone(),
             PendingWhitelistChange {
                 action,
                 domain,
                 return_url,
+                created_at: std::time::Instant::now(),
             },
         );
     }
@@ -562,6 +595,7 @@ fn take_pending_whitelist_change(
     token: &str,
 ) -> Option<PendingWhitelistChange> {
     let mut tokens = whitelist_tokens().lock().ok()?;
+    prune_whitelist_tokens(&mut tokens);
     let pending = tokens.remove(token)?;
     if pending.action == action && pending.domain.eq_ignore_ascii_case(domain) {
         Some(pending)

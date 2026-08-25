@@ -42,14 +42,21 @@ struct ManifestSignPayload {
 
 /// Whether integrity verification is disabled (development only).
 pub fn skip_integrity_check() -> bool {
-    std::env::var("KOTISATAMA_CDN_SKIP_INTEGRITY")
-        .ok()
-        .is_some_and(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes"
-            )
-        })
+    #[cfg(debug_assertions)]
+    {
+        std::env::var("KOTISATAMA_CDN_SKIP_INTEGRITY")
+            .ok()
+            .is_some_and(|value| {
+                matches!(
+                    value.trim().to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes"
+                )
+            })
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        false
+    }
 }
 
 /// Parse manifest JSON from disk.

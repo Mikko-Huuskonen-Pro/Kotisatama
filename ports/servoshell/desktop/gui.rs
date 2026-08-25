@@ -428,12 +428,13 @@ impl Gui {
             // KOTISATAMA-PATCH: Satama/Avomeri/Myrsky-tausta työkalupalkin takana (ks. suljetun repon Docs/VAIHE7-TEEMAT.md) — 工具栏后面的Satama/Avomeri/Myrsky主题背景。
             #[cfg(feature = "kotisatama")]
             let kotisatama_theme = {
-                let current_location = window
-                    .active_webview()
+                let active_webview = window.active_webview();
+                let current_location = active_webview
+                    .as_ref()
                     .and_then(|webview| webview.url())
                     .map(|url| url.to_string())
                     .unwrap_or_else(|| location.clone());
-                let theme = crate::kotisatama::current_theme(&current_location, None);
+                let theme = crate::kotisatama::current_theme(active_webview.as_ref(), &current_location, None);
                 crate::kotisatama::paint_theme_background(
                     ctx,
                     ctx.screen_rect(),

@@ -363,6 +363,13 @@ impl RunningAppState {
         self.focused_window.borrow().clone()
     }
 
+    // KOTISATAMA-PATCH: aktiivinen webview servo:-protokollan käyttöön — 活动webview供servo:协议使用。
+    #[cfg(feature = "kotisatama")]
+    pub(crate) fn active_webview(&self) -> Option<WebView> {
+        self.focused_window()
+            .and_then(|window| window.active_webview())
+    }
+
     pub(crate) fn focus_window(&self, window: Rc<ServoShellWindow>) {
         window.focus();
         *self.focused_window.borrow_mut() = Some(window);
@@ -829,6 +836,9 @@ impl WebViewDelegate for RunningAppState {
     }
 
     fn notify_closed(&self, webview: WebView) {
+        // KOTISATAMA-PATCH: poista Avomeri-tila kun webview sulkeutuu — 关闭webview时移除Avomeri状态。
+        #[cfg(feature = "kotisatama")]
+        crate::kotisatama::leave_avomeri_mode(&webview);
         self.window_for_webview(&webview)
             .close_webview(webview.id())
     }
@@ -967,10 +977,14 @@ impl WebViewDelegate for RunningAppState {
             .notify_accessibility_tree_update(webview, tree_update);
     }
 
-    // KOTISATAMA-PATCH: whitelist-tarkistus navigoinnissa; estetty → data: blokkaussivu — 导航中的白名单检查；被阻止→data:阻止页面。
+    // KOTISATAMA-PATCH: whitelist-tarkistus navigoinnissa; estetty → servo:blocked — 导航中的白名单检查；被阻止→servo:blocked页面。
     #[cfg(feature = "kotisatama")]
     fn request_navigation(&self, webview: WebView, request: NavigationRequest) {
         let blocked_target = request.url.clone();
+        // KOTISATAMA-PATCH: kuluta pending Avomeri-liput ennen päätöstä — 在决定前消费待处理的Avomeri标志。
+        crate::kotisatama::consume_avomeri_pending_flags(&webview);
+        // KOTISATAMA-PATCH: auto-leave Avomeri kun navigoidaan Satamaan — 导航回Satama时自动离开Avomeri。
+        crate::kotisatama::maybe_auto_leave_avomeri(&webview, &blocked_target);
         if crate::kotisatama::should_allow_navigation(&webview, &blocked_target) {
             crate::kotisatama::on_allowed_navigation(&blocked_target);
             request.allow();

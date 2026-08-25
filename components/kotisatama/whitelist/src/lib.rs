@@ -125,7 +125,7 @@ pub fn avomeri_gateway_url(query: &str) -> Url {
 }
 
 fn is_internal_navigation_url(url: &Url) -> bool {
-    matches!(url.scheme(), "about" | "data" | "servo")
+    matches!(url.scheme(), "about" | "servo")
 }
 
 #[cfg(test)]
@@ -178,11 +178,15 @@ mod tests {
     }
 
     #[test]
-    fn allows_about_and_data() {
+    fn allows_about_and_servo_blocked() {
         let whitelist = whitelist_with(&[]);
         assert!(is_allowed(&Url::parse("about:blank").unwrap(), &whitelist));
         assert!(is_allowed(
             &blocked_page_url(&Url::parse("https://evil.com").unwrap()),
+            &whitelist
+        ));
+        assert!(!is_allowed(
+            &Url::parse("data:text/html,hi").unwrap(),
             &whitelist
         ));
     }

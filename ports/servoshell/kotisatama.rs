@@ -4,9 +4,9 @@
 
 //! Kotisatama integration for servoshell (whitelist navigation + local search).
 
+use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use kotisatama_missa_olen::MissaOlenClient;
 use kotisatama_pulloposti::PullopostiClient;
@@ -19,7 +19,7 @@ pub use kotisatama_search::{
 use kotisatama_varustamo::gateway_url as varustamo_gateway_url;
 pub use kotisatama_varustamo::{VarustamoRegistry, app_gateway_url, load_registry};
 use kotisatama_whitelist::{
-    CategoryMeta, TypeMeta, WhitelistDocument, avomeri_gateway_url, blocked_page_url,
+    CategoryMeta, TypeMeta, avomeri_gateway_url, blocked_page_url,
     curated_document, effective_whitelist_profile, init_with_fallback, is_avomeri_gateway,
     is_navigation_allowed, ProductProfile,
 };
@@ -35,9 +35,15 @@ static PULLOPOSTI: OnceLock<Option<PullopostiClient>> = OnceLock::new();
 static MISSA_OLEN: OnceLock<Option<MissaOlenClient>> = OnceLock::new();
 static CONTENT_BLOCKING: OnceLock<kotisatama_content_blocking::ContentBlockingService> =
     OnceLock::new();
-static AVOMERI_MODE: AtomicBool = AtomicBool::new(false);
+static AVOMERI_WEBVIEWS: OnceLock<Mutex<HashSet<servo::WebViewId>>> = OnceLock::new();
 static AVOMERI_SEARCHPAGE: OnceLock<String> = OnceLock::new();
+// KOTISATAMA-PATCH: pending enter/leave (servo: handlerit ilman webview-kahvaa) — 待进入/离开（servo:处理程序无webview句柄）。
+static AVOMERI_PENDING_ENTER: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+static AVOMERI_PENDING_LEAVE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
+#[allow(dead_code)]
 fn whitelist_base_path() -> PathBuf {
     kotisatama_search::cached_whitelist_path()
         .or_else(|| {
@@ -274,9 +280,8 @@ pub fn should_block_web_resource(
 ///
 /// Avomeri is an internal port; it does not grant open-web navigation by itself.
 pub fn should_allow_navigation(webview: &WebView, target: &Url) -> bool {
-    let _ = webview;
     check_url(target)
-        || (avomeri_mode_enabled() && ProductProfile::current().can_enter_avomeri())
+        || (avomeri_mode_enabled_for(webview) && ProductProfile::current().can_enter_avomeri())
 }
 
 /// Track allowed navigations.
@@ -358,7 +363,6 @@ pub fn is_blocked_page(current_location: &str) -> bool {
     Url::parse(current_location)
         .map(|url| url.scheme() == "servo" && url.path() == "blocked")
         .unwrap_or(false)
-        || current_location.starts_with("data:text/html")
 }
 
 /// Default report form values from the current browser location.
@@ -454,18 +458,81 @@ fn avomeri_home_url(searchpage: &str) -> String {
     }
 }
 
-pub fn enter_avomeri_mode() {
+pub fn enter_avomeri_mode(webview: &WebView) {
     if ProductProfile::current().can_enter_avomeri() {
-        AVOMERI_MODE.store(true, Ordering::Relaxed);
+        let id = webview.id();
+        if let Some(mutex) = AVOMERI_WEBVIEWS.get() {
+            if let Ok(mut set) = mutex.lock() {
+                set.insert(id);
+            }
+        } else {
+            let _ = AVOMERI_WEBVIEWS.set(Mutex::new(HashSet::from([id])));
+        }
     }
 }
 
-pub fn leave_avomeri_mode() {
-    AVOMERI_MODE.store(false, Ordering::Relaxed);
+pub fn leave_avomeri_mode(webview: &WebView) {
+    let id = webview.id();
+    if let Some(mutex) = AVOMERI_WEBVIEWS.get() {
+        if let Ok(mut set) = mutex.lock() {
+            set.remove(&id);
+        }
+    }
 }
 
-pub fn avomeri_mode_enabled() -> bool {
-    AVOMERI_MODE.load(Ordering::Relaxed)
+pub fn leave_avomeri_mode_all() {
+    if let Some(mutex) = AVOMERI_WEBVIEWS.get() {
+        if let Ok(mut set) = mutex.lock() {
+            set.clear();
+        }
+    }
+}
+
+pub fn avomeri_mode_enabled_for(webview: &WebView) -> bool {
+    AVOMERI_WEBVIEWS
+        .get()
+        .and_then(|mutex| mutex.lock().ok())
+        .map(|set| set.contains(&webview.id()))
+        .unwrap_or(false)
+}
+
+/// Enter Avomeri mode for the currently active webview (used by servo: protocol handlers).
+pub fn enter_avomeri_mode_for_active_webview() {
+    AVOMERI_PENDING_ENTER.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Leave Avomeri mode for the currently active webview.
+pub fn leave_avomeri_mode_for_active_webview() {
+    AVOMERI_PENDING_LEAVE.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Kuluta pending enter/leave-liput tälle webview'lle (kutsu request_navigationissa).
+pub fn consume_avomeri_pending_flags(webview: &WebView) {
+    use std::sync::atomic::Ordering;
+    if AVOMERI_PENDING_ENTER.swap(false, Ordering::Relaxed) {
+        enter_avomeri_mode(webview);
+    }
+    if AVOMERI_PENDING_LEAVE.swap(false, Ordering::Relaxed) {
+        leave_avomeri_mode(webview);
+    }
+}
+
+/// Milloin URL on “Satama” auto-leaveä varten (ei Avomeri-gateway/open).
+fn is_satama_document(url: &Url) -> bool {
+    match url.scheme() {
+        "about" | "servo" => {
+            let path = url.path();
+            path != "avomeri" && !path.starts_with("avomeri/")
+        },
+        _ => is_navigation_allowed(url),
+    }
+}
+
+/// Auto-leave: jos webview lataa Satama-sivun (whitelist tai sisäiset ei-avomeri), poista Avomeri-tila.
+pub fn maybe_auto_leave_avomeri(webview: &WebView, loaded_url: &Url) {
+    if avomeri_mode_enabled_for(webview) && is_satama_document(loaded_url) {
+        leave_avomeri_mode(webview);
+    }
 }
 
 /// Resolve a simple address-bar word such as "kela" to a curated domain.
@@ -475,24 +542,44 @@ pub fn resolve_address_alias(input: &str) -> Option<Url> {
         return None;
     }
 
-    let document = WhitelistDocument::load_from_path(&whitelist_base_path()).ok()?;
-    let profile = effective_whitelist_profile();
-    document
-        .entries_for_profile(&profile)
-        .into_iter()
-        .find_map(|entry| {
-            let label_matches = entry
-                .label
-                .as_deref()
-                .map(|label| label.trim().eq_ignore_ascii_case(&query))
-                .unwrap_or(false);
-            let domain_alias = entry.domain.split('.').next().unwrap_or_default();
-            if label_matches || domain_alias.eq_ignore_ascii_case(&query) {
-                entry.navigation_url()
-            } else {
-                None
-            }
-        })
+    // KOTISATAMA-PATCH: alias muistista (curated ∪ user overlay), ei diskiltä — 别名来自内存（精选∪用户覆盖），而非磁盘。
+    // 1) Kuratoitu dokumentti muistista
+    if let Some(document) = curated_document() {
+        let profile = effective_whitelist_profile();
+        let hit = document
+            .entries_for_profile(&profile)
+            .into_iter()
+            .find_map(|entry| {
+                let label_matches = entry
+                    .label
+                    .as_deref()
+                    .map(|label| label.trim().eq_ignore_ascii_case(&query))
+                    .unwrap_or(false);
+                let domain_alias = entry.domain.split('.').next().unwrap_or_default();
+                if label_matches || domain_alias.eq_ignore_ascii_case(&query) {
+                    entry.navigation_url()
+                } else {
+                    None
+                }
+            });
+        if hit.is_some() {
+            return hit;
+        }
+    }
+
+    // 2) Käyttäjän overlay
+    for entry in kotisatama_whitelist::user_entries() {
+        let label_matches = entry
+            .label
+            .as_deref()
+            .map(|label| label.trim().eq_ignore_ascii_case(&query))
+            .unwrap_or(false);
+        let domain_alias = entry.domain.split('.').next().unwrap_or_default();
+        if label_matches || domain_alias.eq_ignore_ascii_case(&query) {
+            return Url::parse(&format!("https://{}/", entry.domain)).ok();
+        }
+    }
+    None
 }
 
 pub fn ensure_pulloposti() {
@@ -825,9 +912,18 @@ pub enum KotisatamaTheme {
 }
 
 /// Resolve the active chrome theme from navigation and the latest search outcome.
-pub fn current_theme(location: &str, last_search: Option<&SearchOutcome>) -> KotisatamaTheme {
+pub fn current_theme(
+    webview: Option<&WebView>,
+    location: &str,
+    last_search: Option<&SearchOutcome>,
+) -> KotisatamaTheme {
     if matches!(last_search, Some(SearchOutcome::Error(_))) {
         return KotisatamaTheme::Myrsky;
+    }
+    if let Some(webview) = webview {
+        if avomeri_mode_enabled_for(webview) {
+            return KotisatamaTheme::Avomeri;
+        }
     }
     if Url::parse(location)
         .map(|url| is_avomeri_gateway(&url))
